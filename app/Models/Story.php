@@ -1,0 +1,11 @@
+<?php
+namespace App\Models;
+use Illuminate\Database\Eloquent\Model;
+class Story extends Model {
+    protected $guarded = ['id'];
+    protected $casts = ['plan_approved_at'=>'datetime'];
+    public function pages() { return $this->hasMany(StoryPage::class)->orderBy('position'); }
+    public function messages() { return $this->hasMany(ChatMessage::class); }
+    public function assets() { return $this->hasMany(Asset::class); }
+    public function revisions() { return $this->hasMany(StoryRevision::class); }
+}

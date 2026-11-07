@@ -1,0 +1,1 @@
+<svg viewBox="0 0 110 50" role="img" aria-label="VSG" xmlns="http://www.w3.org/2000/svg" {{ $attributes }}><rect width="110" height="50" rx="12" fill="currentColor"/><text x="12" y="34" font-family="Georgia,serif" font-size="29" font-weight="bold" fill="#fef3c7">VSG.</text></svg>
