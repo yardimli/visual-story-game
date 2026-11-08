@@ -21,6 +21,63 @@ class SceneAuthoringTest extends TestCase {
   Cache::put('openrouter.image-endpoints.'.hash('sha256','openai/image'),[['provider_tag'=>'openai','supported_parameters'=>['input_references'=>['type'=>'range','max'=>2],'quality'=>['type'=>'enum','values'=>['high']]],'pricing'=>[['billable'=>'output_image','unit'=>'image','cost_usd'=>0.05]]]],60);
   return [$u,$s,$p->fresh(),$doc];
  }
+ public function test_next_page_action_and_ordered_preview_pages(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $doc['visuals'][0]['hotspots'][0]['action']='next_page';
+  $validated=app(\App\Services\SceneDocument::class)->validate($s,$doc);
+  $this->assertSame('next_page',$validated['visuals'][0]['hotspots'][0]['action']);
+  $next=$s->pages()->create(['position'=>3,'title'=>'Inside','visual_document'=>['visuals'=>[]]]);
+  $removed=$s->pages()->create(['position'=>2,'title'=>'Removed']);$removed->delete();
+  $this->getJson(route('visuals.show',[$s,$p]))->assertOk()->assertJsonPath('page_id',$p->id)->assertJsonCount(2,'preview_pages')->assertJsonPath('preview_pages.1.id',$next->id);
+ }
+ public function test_asset_names_archiving_and_usage_links_are_owned_and_preserve_assignments(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $a=$s->assets()->create(['name'=>'Original','path'=>'test.png','mime'=>'image/png','bytes'=>1]);
+  $doc['visuals'][0]['asset_id']=$a->id;$doc['visuals'][1]['asset_id']=$a->id;$p->update(['visual_document'=>$doc]);
+  $other=$s->pages()->create(['position'=>2,'title'=>'Next','visual_document'=>['visuals'=>[$doc['visuals'][0]]]]);
+  $this->patchJson(route('assets.update',$a),['name'=>'Envelope artwork','archived'=>true])->assertOk();
+  $response=$this->getJson(route('visuals.show',[$s,$p]))->assertOk()->assertJsonPath('assets.0.name','Envelope artwork')->assertJsonPath('assets.0.archived',true)->assertJsonCount(3,'assets.0.uses');
+  $this->assertStringContainsString('tab=visuals',$response->json('assets.0.uses.0.url'));
+  $this->assertEquals($a->id,$p->fresh()->visual_document['visuals'][0]['asset_id']);
+  $this->assertSame('Envelope artwork',Asset::withGenerationNames(collect([$a->fresh()]),$s->id)->first()->name);
+  $this->patchJson(route('assets.update',$a),['name'=>''])->assertUnprocessable();
+  $this->patchJson(route('assets.update',$a),['archived'=>false])->assertOk()->assertJsonPath('archived',false);
+  $this->actingAs(User::factory()->create())->patchJson(route('assets.update',$a),['name'=>'Not mine','archived'=>true])->assertNotFound();
+  $this->assertSame('Envelope artwork',$a->fresh()->name);
+ }
+ public function test_inventory_rules_and_choices_validate_targets_and_round_trip(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();$object=$doc['visuals'][1]['id'];$scene=$doc['visuals'][0]['id'];
+  $h=&$doc['visuals'][0]['hotspots'][0];$h['action']='inventory';$h['interaction_text']='A lock.';$h['fallback_text']='Nothing happens.';
+  $h['inventory_rules']=[['object_id'=>$object,'response'=>'The envelope will not fit.','target_id'=>null,'consume'=>false]];
+  $h['choices']=[['label'=>'Walk inside','response'=>'You enter.','target_id'=>$scene]];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>1,'document'=>$doc])->assertOk();
+  $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('document.visuals.0.hotspots.0.inventory_rules.0.response','The envelope will not fit.');
+  $h['inventory_rules'][0]['target_id']=$object;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $h['inventory_rules'][0]['target_id']=null;$h['inventory_rules'][0]['object_id']=$scene;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $h['inventory_rules'][0]['object_id']=$object;$h['inventory_rules'][]=$h['inventory_rules'][0];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  array_pop($h['inventory_rules']);$h['choices'][0]['target_id']=(string)Str::uuid();
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $h['choices'][0]['target_id']=$scene;$h['action']='choices';
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertOk();
+ }
+ public function test_retry_reuses_failed_snapshot_with_new_request_and_leaves_current_visual_untouched(): void {
+  Queue::fake();[$u,$s,$p]=$this->setupScene();
+  $this->postJson(route('images.generate',[$s,$p]),array_merge($this->payload($p),['name'=>'Original artwork']))->assertAccepted();
+  $old=ImageGeneration::first();$old->update(['status'=>'failed','error'=>'Request expired.']);
+  $doc=$p->visual_document;$doc['visuals'][0]['prompt']='A completely different current prompt';$p->update(['visual_document'=>$doc,'visual_revision'=>2]);
+  $key=(string)Str::uuid();
+  $response=$this->postJson(route('images.retry',[$s,$p,$old]),['request_key'=>$key])->assertAccepted();
+  $new=ImageGeneration::findOrFail($response->json('id'));
+  $this->assertNotSame($old->id,$new->id);$this->assertSame($old->payload,$new->payload);$this->assertSame($old->references,$new->references);$this->assertSame('failed',$old->fresh()->status);
+  $this->assertSame($doc,$p->fresh()->visual_document);$this->assertSame(240,(new GenerateSceneImage($new->id))->timeout);
+  $this->postJson(route('images.retry',[$s,$p,$old]),['request_key'=>$key])->assertUnprocessable();
+  $this->postJson(route('images.retry',[$s,$p,$new]),['request_key'=>(string)Str::uuid()])->assertUnprocessable();
+  $this->actingAs(User::factory()->create())->postJson(route('images.retry',[$s,$p,$old]),['request_key'=>(string)Str::uuid()])->assertNotFound();
+  Queue::assertPushed(GenerateSceneImage::class,2);
+ }
  private function payload($p): array {return ['revision'=>$p->visual_revision,'visual_id'=>$p->visual_document['visuals'][0]['id'],'request_key'=>(string)Str::uuid(),'model'=>'openai/image','references'=>[],'settings'=>['quality'=>'high']];}
  public function test_object_actions_save_reversible_links_and_reject_scene_targets(): void {
   [$u,$s,$p,$doc]=$this->setupScene();
@@ -53,7 +110,7 @@ class SceneAuthoringTest extends TestCase {
  }
  public function test_generation_workspace_is_private_and_returns_original_prompt_snapshot(): void {
   Queue::fake();[$u,$s,$p]=$this->setupScene();
-  $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSee('Copy prompt')->assertSee('Current visual')->assertDontSee('selectGenerationVisual()')->assertSee('Include as reference')->assertDontSee('Edit this image');
+  $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSee('Copy prompt')->assertDontSee('Current visual')->assertDontSee('selectGenerationVisual()')->assertSee('Include as reference')->assertDontSee('Edit this image');
   $this->postJson(route('images.generate',[$s,$p]),$this->payload($p))->assertAccepted();
   $doc=$p->visual_document;$doc['visuals'][0]['prompt']='Changed later';$p->update(['visual_document'=>$doc]);
   $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('jobs.0.prompt','A porch without a note')->assertJsonPath('jobs.0.model','openai/image');
@@ -127,14 +184,14 @@ class SceneAuthoringTest extends TestCase {
  }
  public function test_worker_stores_version_and_never_submits_twice(): void {
   Storage::fake('local');Queue::fake();[$u,$s,$p]=$this->setupScene();
-  $this->postJson(route('images.generate',[$s,$p]),$this->payload($p))->assertAccepted();
+  $this->postJson(route('images.generate',[$s,$p]),array_merge($this->payload($p),['name'=>'Rainy Doorstep']))->assertAccepted();
   $job=ImageGeneration::first();
   $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX5kAAAAASUVORK5CYII=';
   Http::fake(['*/images'=>Http::response(['data'=>[['b64_json'=>$png]],'usage'=>['cost'=>0]])]);
   (new GenerateSceneImage($job->id))->handle(app(OpenRouter::class));
   (new GenerateSceneImage($job->id))->handle(app(OpenRouter::class));
   Http::assertSentCount(1);$this->assertSame('completed',$job->fresh()->status);
-  $asset=Asset::findOrFail($job->fresh()->asset_ids[0]);Storage::disk('local')->assertExists($asset->path);
+  $asset=Asset::findOrFail($job->fresh()->asset_ids[0]);$this->assertSame('Rainy Doorstep',$asset->custom_name);Http::assertSent(fn($r)=>!isset($r['_asset_name']));Storage::disk('local')->assertExists($asset->path);
   $this->assertNull($p->fresh()->visual_document['visuals'][0]['asset_id']);
  }
  public function test_failed_provider_is_visible_and_not_retried(): void {

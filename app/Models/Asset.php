@@ -11,6 +11,7 @@ class Asset extends Model {
     if($asset=$byId->get($id)) {$asset->name=$job->name.' · render '.$job->id.'-'.($index+1);$asset->role=$job->kind==='object'?'object':'scene';}
    }
   }
+  foreach($assets as $asset)if($asset->custom_name!==null)$asset->name=$asset->custom_name;
   return $assets;
  }
 }

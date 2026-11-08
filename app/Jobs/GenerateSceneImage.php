@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\{Storage,DB};
 use Illuminate\Support\Str;
 class GenerateSceneImage implements ShouldQueue {
  use Dispatchable,InteractsWithQueue,Queueable,SerializesModels;
- public $tries=1; public $timeout=180; public $failOnTimeout=true;
+ public $tries=1; public $timeout=240; public $failOnTimeout=true;
  public function __construct(public int $generationId) {}
  public function handle(OpenRouter $router): void {
   $pending=ImageGeneration::find($this->generationId);
@@ -25,7 +25,7 @@ class GenerateSceneImage implements ShouldQueue {
    // Funding is fixed when queued; never move a personal job onto the platform key.
    $key=$ledger?->funding==='platform'?config('story.openrouter_key'):$user->openrouter_key;
    if(!$key || !StoryPage::whereKey($job->story_page_id)->exists()) throw new \RuntimeException('Key missing or page removed.');
-   $payload=$job->payload;
+   $payload=$job->payload;$assetName=$payload['_asset_name']??null;unset($payload['_asset_name']);
    foreach($job->references as $ref) {
     $bytes=Storage::disk('local')->get($ref['path']);
     if(!is_string($bytes)) throw new \RuntimeException('Reference missing.');
@@ -58,7 +58,7 @@ class GenerateSceneImage implements ShouldQueue {
     $path='stories/'.$job->story_id.'/generated/'.Str::uuid().'.'.$extensions[$info['mime']];
     $failure='The image was rendered but could not be saved locally. Billing needs reconciliation; no automatic retry was made.';
     if(!Storage::disk('local')->put($path,$bytes)) throw new \RuntimeException('Storage failed.');
-    $paths[]=$path;$records[]=['story_id'=>$job->story_id,'name'=>$job->name.' · render '.$job->id.'-'.($index+1),'path'=>$path,'mime'=>$info['mime'],'bytes'=>strlen($bytes),'role'=>$job->kind==='object'?'object':'scene'];
+    $paths[]=$path;$records[]=['custom_name'=>$assetName?($index===0?$assetName:$assetName.' '.($index+1)):null,'story_id'=>$job->story_id,'name'=>$job->name.' · render '.$job->id.'-'.($index+1),'path'=>$path,'mime'=>$info['mime'],'bytes'=>strlen($bytes),'role'=>$job->kind==='object'?'object':'scene'];
    }
    // Settle even if storing the completed output later fails; the provider already rendered it.
    if($ledger) {

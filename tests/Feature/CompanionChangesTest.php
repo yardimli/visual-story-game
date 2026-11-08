@@ -22,6 +22,16 @@ class CompanionChangesTest extends TestCase {
   $m=$s->messages()->create(['role'=>'assistant','content'=>'Review changes','revision'=>$s->revision,'proposal'=>$proposal]);
   return [$u,$s,$p,$second,$m];
  }
+ public function test_companion_can_propose_inventory_responses_and_named_choices(): void {
+  [$u,$s,$p,$second,$m]=$this->fixture();$doc=$p->visual_document;$v=$doc['visuals'][0];$id=(string)Str::uuid();
+  $doc['visuals'][]=['id'=>$id,'name'=>'Envelope','kind'=>'object','asset_id'=>null,'prompt'=>'','hotspots'=>[]];$p->update(['visual_document'=>$doc]);
+  $fields=['action'=>'inventory','interaction_text'=>'A brass lock.','fallback_text'=>'Nothing happens.','inventory_rules'=>[['object_id'=>$id,'response'=>'You lack the lock-picking skill.','target_id'=>null,'consume'=>false]],'choices'=>[['label'=>'Walk inside','response'=>'You enter.','target_id'=>$v['id']]]];
+  $proposal=['changes'=>[['scope'=>'hotspot','page_id'=>$p->id,'visual_id'=>$v['id'],'hotspot_id'=>$v['hotspots'][0]['id'],'fields'=>$fields]]];
+  $proposal['_review']=app(CompanionChanges::class)->prepare($s,$proposal);$m->update(['proposal'=>$proposal]);
+  $this->assertCount(5,$proposal['_review']['items']);
+  $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0,1,2,3,4]])->assertOk();
+  $area=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];$this->assertSame($fields['inventory_rules'],$area['inventory_rules']);$this->assertSame($fields['choices'],$area['choices']);
+ }
  public function test_selected_changes_apply_across_pages_and_skipped_changes_stay_untouched(): void {
   [$u,$s,$p,$second,$m]=$this->fixture();
   $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[1,2,3,4]])->assertOk()->assertJsonPath('revision',2);

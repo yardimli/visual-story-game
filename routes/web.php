@@ -26,6 +26,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/stories/{story}/pages/{page}/visuals',[\App\Http\Controllers\SceneController::class,'show'])->name('visuals.show');
     Route::put('/stories/{story}/pages/{page}/visuals',[\App\Http\Controllers\SceneController::class,'update'])->name('visuals.update');
     Route::patch('/stories/{story}/pages/{page}/images/{image}',[\App\Http\Controllers\SceneController::class,'moveImage'])->name('images.move');
+    Route::post('/stories/{story}/pages/{page}/images/{image}/retry',[\App\Http\Controllers\SceneController::class,'retry'])->middleware('throttle:6,1,image-generation:')->name('images.retry');
     Route::post('/stories/{story}/pages/{page}/images',[\App\Http\Controllers\SceneController::class,'generate'])->middleware('throttle:6,1,image-generation:')->name('images.generate');
     Route::post('/stories/{story}/messages/{message}/changes',[\App\Http\Controllers\CompanionChangesController::class,'store'])->name('companion.changes');
     Route::get('/companion', [ChatController::class,'history'])->name('companion.history');
@@ -37,7 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/stories/{story}/pages/manage',[StudioController::class,'structure'])->name('pages.manage');
     Route::post('/stories/{story}/apply/{message}',[StudioController::class,'apply'])->name('stories.apply');
     Route::post('/stories/{story}/restore/{revision}',[StudioController::class,'restore'])->name('stories.restore');
+    Route::post('/stories/{story}/image-name',[\App\Http\Controllers\ImageNameController::class,'store'])->middleware('throttle:10,1,ai-image-name:')->name('images.name');
     Route::post('/stories/{story}/assets',[AssetController::class,'store'])->name('assets.store');
+    Route::patch('/assets/{asset}',[AssetController::class,'update'])->name('assets.update');
     Route::get('/assets/{asset}',[AssetController::class,'show'])->name('assets.show');
     Route::post('/stories/{story}/chat',[ChatController::class,'store'])->middleware('throttle:10,1,ai-chat:')->name('chat.store');
     Route::get('/ai/image-endpoints',[ChatController::class,'imageEndpoints'])->middleware('throttle:120,1,image-catalog:')->name('ai.image-endpoints');

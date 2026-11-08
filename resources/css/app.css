@@ -184,3 +184,5 @@ textarea {
 .preview-outgoing-image { z-index: 1; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .preview-hotspot, .preview-hotspot:hover, .preview-hotspot:focus { border: 0; outline: none; box-shadow: none; background: transparent; }
 .object-preview-dialog[open], .object-preview-dialog[open]::backdrop { animation: game-fade-in 200ms linear both; }
+
+.area-interaction-panel { width: min(480px, calc(100vw - 3rem)); max-height: calc(100dvh - 3rem); overflow-y: auto; color: white; background: #171717; }

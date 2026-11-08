@@ -6,15 +6,15 @@ use Illuminate\Validation\ValidationException;
 class LlmBudget {
     public function expireOverdue(?int $userId=null): int {
         $count=0;
-        LlmRequest::whereIn('status',['reserved','uncertain'])->where('created_at','<=',now()->subMinutes(3))
+        LlmRequest::whereIn('status',['reserved','uncertain'])->where('created_at','<=',now()->subMinutes(4))
             ->when($userId,fn($q)=>$q->where('user_id',$userId))->select(['id','user_id'])->chunkById(100,function($rows) use (&$count) {
                 foreach($rows as $row) $count+=DB::transaction(function() use($row) {
                     $u=User::whereKey($row->user_id)->lockForUpdate()->first();
                     $r=LlmRequest::whereKey($row->id)->lockForUpdate()->first();
-                    if(!$u || !$r || !in_array($r->status,['reserved','uncertain']) || $r->created_at->gt(now()->subMinutes(3)))return 0;
+                    if(!$u || !$r || !in_array($r->status,['reserved','uncertain']) || $r->created_at->gt(now()->subMinutes(4)))return 0;
                     if($r->funding==='platform'){$u->llm_reserved-=$r->reserved;$u->save();}
                     $r->update(['status'=>'failed','cost'=>0]);
-                    \App\Models\ImageGeneration::where('llm_request_id',$r->id)->whereIn('status',['queued','running','failed'])->update(['status'=>'failed','error'=>'Request exceeded the three-minute limit. Any reserved trial credit was released. Start a new request to try again.']);
+                    \App\Models\ImageGeneration::where('llm_request_id',$r->id)->whereIn('status',['queued','running','failed'])->update(['status'=>'failed','error'=>'Request exceeded the four-minute limit. Any reserved trial credit was released. Start a new request to try again.']);
                     return 1;
                 });
             });
@@ -29,10 +29,11 @@ class LlmBudget {
             if (LlmRequest::where('user_id',$u->id)->where('request_key',$requestKey)->exists())
                 throw ValidationException::withMessages(['message'=>'This request was already submitted. Reload to see its result.']);
             $personal = filled($u->openrouter_key);
-            if (!$personal && $u->llm_spent >= config('story.allowance'))
-                throw ValidationException::withMessages(['message'=>'Your free $1 credit has been used. Add your own OpenRouter key in AI settings to continue.']);
-            if (!$personal && ($u->llm_spent + $u->llm_reserved + $amount > config('story.allowance')))
-                throw ValidationException::withMessages(['message'=>'This request needs an estimated $'.number_format($amount/1000000,6).' reservation, but $'.number_format(max(0,config('story.allowance')-$u->llm_spent-$u->llm_reserved)/1000000,6).' of trial credit is available. No generation was started. Choose a lower-cost model/settings or add a personal OpenRouter key in AI settings.']);
+            $credits=$u->creditTotal();
+            if (!$personal && $u->llm_spent >= $credits)
+                throw ValidationException::withMessages(['message'=>'Your AI credits have been used. Add your own OpenRouter key in AI settings to continue.']);
+            if (!$personal && ($u->llm_spent + $u->llm_reserved + $amount > $credits))
+                throw ValidationException::withMessages(['message'=>'This request needs an estimated $'.number_format($amount/1000000,6).' reservation, but $'.number_format(max(0,$credits-$u->llm_spent-$u->llm_reserved)/1000000,6).' of AI credit is available. No generation was started. Choose a lower-cost model/settings or add a personal OpenRouter key in AI settings.']);
             if (!$personal) { $u->llm_reserved += $amount; $u->save(); }
             return LlmRequest::create(['user_id'=>$u->id,'story_id'=>$story?->id,'request_key'=>$requestKey,
                 'model'=>$model,'funding'=>$personal?'personal':'platform','reserved'=>$personal?0:$amount]);
@@ -51,7 +52,7 @@ class LlmBudget {
             $r->update(['cost'=>$cost,'status'=>$cost===null?'uncertain':$status,'provider_id'=>$providerId]);
         });
     }
-    public function quotation(array $model, array $messages): array {
+    public function quotation(array $model, array $messages, ?int $maxOutputTokens=null): array {
         $input = strlen(json_encode($messages, JSON_UNESCAPED_UNICODE)) + 1024;
         $pricing = $this->pricingForReservation($model['pricing'] ?? [], $input);
         foreach (['prompt','completion'] as $field) {
@@ -67,7 +68,7 @@ class LlmBudget {
             if (!in_array($field,['prompt','completion','request','input_cache_read','input_cache_write','internal_reasoning']) && (float)$price > 0)
                 throw ValidationException::withMessages(['model'=>'The cost of this model cannot be estimated yet. Choose another model while we verify its pricing.']);
         }
-        $output = config('story.max_output_tokens');
+        $output = $maxOutputTokens ?? config('story.max_output_tokens');
         if ($input+$output > ($model['context_length'] ?? 4096))
             throw ValidationException::withMessages(['model'=>'The complete story context exceeds this model’s safe context limit. Choose a larger-context model.']);
         // UTF-8 bytes + framing is intentionally conservative for text-only input.

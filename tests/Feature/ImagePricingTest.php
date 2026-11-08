@@ -10,6 +10,16 @@ class ImagePricingTest extends TestCase {
   $this->assertSame($expected,$pricing->quote($rates,[],'Envelope',[[]]));
   $this->assertSame($expected,$pricing->quote($rates,['resolution'=>'4K'],'Envelope',[[]]));
  }
+ public function test_automatic_qwen_resolution_reserves_highest_catalog_tier(): void {
+  $p=new ImagePricing;$rates=[['billable'=>'input_image','unit'=>'image','cost_usd'=>0.003],['billable'=>'output_image','unit'=>'image','cost_usd'=>0.04,'variant'=>'1k'],['billable'=>'output_image','unit'=>'image','cost_usd'=>0.075,'variant'=>'2k']];
+  $this->assertSame(78750,$p->quote($rates,[],'Envelope',[]));
+  $this->assertSame(81900,$p->quote(['endpoints'=>[['pricing'=>$rates]]],[],'Envelope',[[]]));
+  $this->assertSame(45150,$p->quote($rates,['resolution'=>'1K'],'Envelope',[[]]));
+  $this->assertSame(43000,$p->cost($rates,['resolution'=>'1K'],[],[[]],[['width'=>1024,'height'=>1024]]));
+  // The reservation upper bound is not substituted for unknown actual usage.
+  $this->assertNull($p->cost($rates,[],[],[],[['width'=>1024,'height'=>1024]]));
+  $this->assertSame(42000,$p->quote([['billable'=>'output_image','unit'=>'image','cost_usd'=>0.04,'variant'=>'1k']],[],'Envelope',[]));
+ }
  public function test_zero_cost_byok_uses_upstream_total_or_complete_breakdown_once(): void {
   $p=new ImagePricing;
   $usage=['cost'=>0,'cost_details'=>['upstream_inference_cost'=>0.054928,'upstream_inference_prompt_cost'=>0.013768,'upstream_inference_completions_cost'=>0.04116]];

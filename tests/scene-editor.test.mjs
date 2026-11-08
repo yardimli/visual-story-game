@@ -296,3 +296,102 @@ test('scene crossfade waits another 250ms before inspection and closing cancels 
  t.mock.timers.tick(200);editor.closePreview();t.mock.timers.tick(250);
  assert.equal(editor.modal,null);assert.equal(editor.pendingModal,null);assert.equal(editor.sceneTransition,false);
 });
+
+test('image sidebar remembers collapse and filters archived assets without losing assignments',()=>{
+ const previous=globalThis.localStorage;const stored=new Map();
+ globalThis.localStorage={getItem:key=>stored.get(key),setItem:(key,value)=>stored.set(key,value)};
+ try{
+  const editor=sceneEditor({url:'/story/page/visuals'});
+  editor.assets=[{id:1,name:'Envelope',archived:true},{id:2,name:'Porch',archived:false}];
+  const job={id:10,name:'Old scene name',status:'completed',asset_ids:[1,2],prompt:Array.from({length:25},(_,i)=>'word'+i).join(' ')};
+  editor.jobs=[job,{id:11,status:'completed',asset_ids:[1]}];
+  assert.equal(editor.visibleJobs.length,1);assert.deepEqual(editor.jobAssets(job),[2]);assert.equal(editor.archivedCount,1);
+  editor.showArchived=true;assert.equal(editor.visibleJobs.length,2);assert.deepEqual(editor.jobAssets(job),[1,2]);
+  assert.equal(editor.jobTitle(job),'Envelope, Porch');assert.equal(editor.promptLong(job),true);assert.equal(editor.promptShort(job).split(' ').length,20);
+  editor.rememberCard(job,false);const reopened=sceneEditor({url:'/story/page/visuals'});reopened.loadCardStates();assert.equal(reopened.cardOpen(job),false);
+ }finally{globalThis.localStorage=previous;}
+});
+
+test('inventory areas match carried object states, show fallback, consume keys and transition without editing story', (t)=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const editor=sceneEditor({});
+ const lock={id:'lock',label:'Door lock',action:'inventory',interaction_text:'A brass keyhole.',fallback_text:'Nothing happens.',inventory_rules:[{object_id:'envelope',response:'You lack the lock-picking skill.',consume:false},{object_id:'key',response:'The door unlocks.',target_id:'open',consume:true}]};
+ editor.document={visuals:[{id:'porch',kind:'scene',hotspots:[lock]},{id:'open',kind:'scene',hotspots:[]},{id:'key',kind:'object',name:'Key'},{id:'envelope',kind:'object',name:'Envelope'},{id:'stone',kind:'object',name:'Stone'}]};
+ editor.selected='porch';editor.startPreview();editor.inventory=[{id:'envelope',inventoryId:'slot1'},{id:'key',inventoryId:'slot2'},{id:'stone',inventoryId:'slot3'}];const original=JSON.stringify(editor.document);
+ editor.activate(lock);assert.equal(editor.modal.text,'A brass keyhole.');assert.equal(editor.previewId,'porch');
+ editor.useInventoryOnArea('not-carried');assert.equal(editor.modal.text,'A brass keyhole.');
+ editor.useInventoryOnArea('slot1');assert.equal(editor.modal.text,'You lack the lock-picking skill.');assert.equal(editor.inventory.length,3);
+ editor.useInventoryOnArea('slot3');assert.equal(editor.modal.text,'Nothing happens.');
+ editor.useInventoryOnArea('slot2');assert.equal(editor.previewId,'open');assert.equal(editor.inventory.length,2);assert.equal(editor.modal,null);
+ t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.modal.text,'The door unlocks.');assert.equal(JSON.stringify(editor.document),original);
+ editor.closePreview();
+});
+
+test('named area choices transition only after choosing, and dependencies are cleared on visual removal', (t)=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const editor=sceneEditor({});editor.changed=()=>{};editor.$refs={deleteVisualDialog:{showModal(){},close(){}}};
+ const door={id:'door',label:'Open door',action:'choices',choices:[{label:'Walk into the house',response:'You enter the hall.',target_id:'hall'}],inventory_rules:[{object_id:'key',target_id:'hall'}]};
+ editor.document={visuals:[{id:'porch',kind:'scene',hotspots:[door]},{id:'hall',kind:'scene',hotspots:[]},{id:'key',kind:'object',hotspots:[]}]};editor.selected='porch';editor.startPreview();editor.activate(door);
+ assert.equal(editor.previewId,'porch');editor.chooseAreaAction(99);assert.equal(editor.previewId,'porch');editor.chooseAreaAction(0);assert.equal(editor.previewId,'hall');t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.modal.text,'You enter the hall.');editor.closePreview();
+ editor.choose('hall');editor.requestVisualDelete();assert.equal(editor.dependentAreas,2);editor.confirmVisualDelete();assert.equal(door.choices[0].target_id,null);assert.equal(door.inventory_rules[0].target_id,null);
+ editor.choose('key');editor.requestVisualDelete();editor.confirmVisualDelete();assert.equal(door.inventory_rules.length,0);
+});
+
+test('generation names blank images with the writing model and skips naming for typed names',async()=>{
+ const before=globalThis.window;globalThis.window={};
+ try{
+  const editor=sceneEditor({generate:'/generate',url:'/visuals',nameUrl:'/name',writingModel:'openai/writer'});editor.document={visuals:[{id:'scene',name:'Old name',prompt:'A rainy porch'}]};editor.selected='scene';editor.flush=async()=>true;editor.$refs={};editor.$nextTick=fn=>fn();
+  const calls=[];editor.request=async(url,method,body)=>{calls.push({url,body});if(url==='/name')return {name:'Rainy Porch'};if(url==='/generate')return {id:3,status:'queued'};throw new Error('No refresh');};
+  await editor.generate();assert.equal(calls[0].url,'/name');assert.equal(calls[0].body.model,'openai/writer');assert.equal(calls[1].body.name,'Rainy Porch');assert.equal(editor.generationName,'');
+  calls.length=0;editor.generationName='My title';await editor.generate();assert.equal(calls[0].url,'/generate');assert.equal(calls[0].body.name,'My title');
+  calls.length=0;editor.request=async(url)=>{calls.push({url});throw new Error('Name failed');};await editor.generate();assert.equal(calls.length,1);assert.equal(calls[0].url,'/name');assert.equal(editor.generating,false);assert.equal(editor.namingImage,false);assert.equal(editor.error,'Name failed');
+ }finally{globalThis.window=before;}
+});
+
+test('loading visuals is read-only and does not announce a save',async()=>{
+ const previousWindow=globalThis.window,previousFetch=globalThis.fetch;
+ const notices=[];globalThis.window={addEventListener(){},removeEventListener(){},dispatchEvent:event=>notices.push(event),location:{href:'http://localhost:8010/stories/2/edit?tab=visuals'},history:{replaceState(){}}};
+ globalThis.fetch=async()=>({ok:true,json:async()=>({models:[],endpoints:{}})});
+ const editor=sceneEditor({url:'/visuals'});const requests=[];
+ editor.$watch=(field,callback)=>{let value=editor[field];Object.defineProperty(editor,field,{configurable:true,get:()=>value,set:next=>{value=next;callback(next);}});};
+ editor.request=async(url,method='GET')=>{requests.push({url,method});return {document:{visuals:[]},revision:7,assets:[],jobs:[]};};
+ try{await editor.init();await editor.flush();assert.deepEqual(requests,[{url:'/visuals',method:'GET'}]);assert.equal(editor.dirty,false);assert.equal(editor.status,'');assert.equal(notices.length,0);}
+ finally{editor.destroy();globalThis.window=previousWindow;globalThis.fetch=previousFetch;}
+});
+
+test('manual retry creates a new history entry without changing the current image form',async()=>{
+ const editor=sceneEditor({url:'/visuals'});const failed={id:3,status:'failed',name:'Old name',prompt:'Original prompt',model:'old/model',retry_url:'/retry/3',asset_ids:[]};editor.jobs=[failed];editor.generationName='New draft';editor.model='new/model';editor.$refs={};editor.$nextTick=fn=>fn();
+ const calls=[];editor.request=async(url,method,body)=>{calls.push({url,method,body});if(url==='/retry/3')return {id:4,status:'queued'};throw new Error('refresh unavailable');};
+ await editor.retryImage(failed);assert.equal(calls[0].url,'/retry/3');assert.ok(calls[0].body.request_key);assert.equal(editor.jobs[0].id,4);assert.equal(editor.jobs[1].status,'failed');assert.equal(editor.jobs[0].prompt,'Original prompt');assert.equal(editor.generationName,'New draft');assert.equal(editor.model,'new/model');assert.equal(editor.generating,false);
+});
+
+
+test('next page preserves inventory and editor document, then completes on last page', () => {
+ const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'outside',kind:'scene',hotspots:[]},{id:'key',kind:'object',actions:[]}]};e.selected='outside';
+ e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,title:'Inside',visuals:[{id:'inside',kind:'scene',hotspots:[]}]}];
+ e.startPreview();e.inventory=[{id:'key',inventoryId:'slot'}];const original=JSON.stringify(e.document);
+ e.activate({action:'next_page'});assert.equal(e.previewPageId,2);assert.equal(e.displayed.id,'inside');assert.equal(e.outgoingScene.id,'outside');assert.equal(e.inventory.length,1);assert.equal(JSON.stringify(e.document),original);
+ e.clearSceneTransition();e.activate({action:'next_page'});assert.equal(e.modal.label,'Story complete');
+ e.startPreview();assert.equal(e.previewId,'outside');assert.equal(e.previewPageId,1);e.closePreview();
+});
+
+test('next page with no scene does not skip ahead', () => {
+ const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'outside',kind:'scene',hotspots:[]}]};e.selected='outside';e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,visuals:[]}];e.startPreview();e.activate({action:'next_page'});assert.equal(e.previewPageId,1);assert.match(e.modal.text,/Add a scene/);e.closePreview();
+});
+
+
+test('other page image links lazily load completed cards without changing generation context', async () => {
+ const e=sceneEditor({});e.editorPageId=2;e.previewPages=[{id:1,position:1,title:'Porch',images_url:'/page1'},{id:2,position:2}];e.selected='current';e.references=['10'];e.jobs=[{id:2,status:'completed',asset_ids:[]}];e.document={visuals:[]};
+ let calls=0;e.request=async url=>{assert.equal(url,'/page1');calls++;return {jobs:[{id:1,status:'completed',asset_ids:[10]},{id:3,status:'failed',asset_ids:[]}],assets:[{id:10,name:'Porch'}]};};
+ assert.equal(e.otherImagePages.length,1);await e.togglePageImages(e.otherImagePages[0]);assert.equal(calls,1);assert.deepEqual(e.visibleJobs.map(j=>j.id),[2,1]);assert.equal(e.selected,'current');assert.deepEqual(e.references,['10']);assert.equal(e.asset(10).name,'Porch');
+ e.mergeJobs([{id:2,status:'completed',asset_ids:[]}]);assert.equal(e.visibleJobs.length,2);await e.togglePageImages(e.otherImagePages[0]);assert.equal(e.visibleJobs.length,1);assert.equal(calls,1);
+});
+
+
+test('image pickers reset to current page and filter shared images and unassigned uploads', () => {
+ const e=sceneEditor({});e.editorPageId=2;e.assets=[{id:1,page_ids:[1]},{id:2,page_ids:[2]},{id:3,page_ids:[1,2]},{id:4,page_ids:[]}];e.$refs={visualImagePicker:{showModal(){}},interactionImagePicker:{showModal(){}}};
+ e.openVisualImagePicker();assert.deepEqual(e.pickerAssets.map(a=>a.id),[2,3]);
+ e.imagePickerPage='1';assert.deepEqual(e.pickerAssets.map(a=>a.id),[1,3]);
+ e.imagePickerPage='uploads';assert.deepEqual(e.pickerAssets.map(a=>a.id),[4]);
+ e.openInteractionPicker('object');assert.equal(e.imagePickerPage,'2');
+});

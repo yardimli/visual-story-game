@@ -1,7 +1,8 @@
 <div class="space-y-3">
+<label class="field">Image name<input type="text" x-model="generationName" maxlength="160" :disabled="generating" placeholder="Leave blank: AI will create a short name from the description."></label>
 <label class="field">Image prompt<textarea x-model="visual.prompt" @input="changed()" maxlength="10000" placeholder="Describe the scene or changes to your selected references."></textarea></label>
 <label class="field">Image model<select x-model="model" @change="loadEndpoints()"><option value="">Select an image model</option><template x-for="m in models" :key="m.id"><option :value="m.id" x-text="imageModelLabel(m)"></option></template></select></label>
 <template x-if="endpoint"><div class="grid grid-cols-2 gap-3"><template x-for="key in ['quality','resolution','aspect_ratio','background'].filter(k=>endpoint.supported_parameters?.[k]?.type==='enum')" :key="key"><label class="field"><span class="capitalize" x-text="key.replaceAll('_',' ')"></span><select x-model="settings[key]"><option value="">Automatic</option><template x-for="value in endpoint.supported_parameters[key].values" :key="value"><option :value="value" x-text="value"></option></template></select></label></template></div></template>
 <div class="flex flex-wrap items-center gap-2 pt-1"><button type="button" class="btn-secondary" @click="$refs.referenceDialog.showModal()" x-text="'Reference images ('+references.length+')'"></button>
-<button type="button" class="btn-primary" @click="generate()" :disabled="uploading || generating || !model || !endpoints.length || !visual.prompt || halted" x-text="generating?'Queueing…':'Generate image'"></button></div>
+<button type="button" class="btn-primary" @click="generate()" :disabled="uploading || generating || !model || !endpoints.length || !visual.prompt || halted" x-text="generating?(namingImage?'Naming image…':'Queueing…'):'Generate image'"></button></div>
 </div>

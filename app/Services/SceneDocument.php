@@ -10,11 +10,23 @@ class SceneDocument {
    'visuals.*.id'=>'required|uuid|distinct','visuals.*.name'=>'required|string|max:160','visuals.*.kind'=>'required|in:scene,object',
    'visuals.*.description'=>'sometimes|nullable|string|max:3000','visuals.*.asset_id'=>'nullable|integer','visuals.*.prompt'=>'nullable|string|max:10000','visuals.*.hotspots'=>'present|array|max:100',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
-   'visuals.*.hotspots.*'=>'array:id,label,description,x,y,width,height,action,target_id,object_id,overlay',
+   'visuals.*.hotspots.*'=>'array:id,label,description,x,y,width,height,action,target_id,object_id,overlay,interaction_text,fallback_text,inventory_rules,choices',
    'visuals.*.hotspots.*.id'=>'required|uuid','visuals.*.hotspots.*.label'=>'required|string|max:160','visuals.*.hotspots.*.description'=>'nullable|string|max:3000',
    'visuals.*.hotspots.*.x'=>'required|numeric|min:0|max:1','visuals.*.hotspots.*.y'=>'required|numeric|min:0|max:1',
    'visuals.*.hotspots.*.width'=>'required|numeric|min:0.005|max:1','visuals.*.hotspots.*.height'=>'required|numeric|min:0.005|max:1',
-   'visuals.*.hotspots.*.action'=>'required|in:examine,inspect,transition,pickup',
+   'visuals.*.hotspots.*.action'=>'required|in:examine,inspect,transition,pickup,inventory,choices,next_page',
+   'visuals.*.hotspots.*.interaction_text'=>'sometimes|nullable|string|max:3000','visuals.*.hotspots.*.fallback_text'=>'sometimes|nullable|string|max:3000',
+   'visuals.*.hotspots.*.inventory_rules'=>'sometimes|array|max:100',
+   'visuals.*.hotspots.*.inventory_rules.*'=>'array:object_id,response,target_id,consume',
+   'visuals.*.hotspots.*.inventory_rules.*.object_id'=>'nullable|uuid',
+   'visuals.*.hotspots.*.inventory_rules.*.response'=>'nullable|string|max:3000',
+   'visuals.*.hotspots.*.inventory_rules.*.target_id'=>'nullable|uuid',
+   'visuals.*.hotspots.*.inventory_rules.*.consume'=>'sometimes|boolean',
+   'visuals.*.hotspots.*.choices'=>'sometimes|array|max:20',
+   'visuals.*.hotspots.*.choices.*'=>'array:label,response,target_id',
+   'visuals.*.hotspots.*.choices.*.label'=>'required|string|max:160',
+   'visuals.*.hotspots.*.choices.*.response'=>'nullable|string|max:3000',
+   'visuals.*.hotspots.*.choices.*.target_id'=>'nullable|uuid',
    'visuals.*.hotspots.*.target_id'=>'nullable|uuid','visuals.*.hotspots.*.object_id'=>'nullable|uuid','visuals.*.hotspots.*.overlay'=>'required|boolean',
   ])->validate();
   $visuals=collect($v['visuals'])->keyBy('id');
@@ -31,6 +43,17 @@ class SceneDocument {
    $ids=[];
    if($visual['kind']==='object' && count($visual['hotspots'])) $this->invalid('Object images cannot contain scene hotspots.');
    foreach($visual['hotspots'] as $h) {
+    $ruleObjects=[];
+    foreach($h['inventory_rules']??[] as $rule){
+     if(!empty($rule['object_id'])){
+      if(($visuals->get($rule['object_id'])['kind']??null)!=='object')$this->invalid('Inventory rule must use an object on this page.');
+      if(in_array($rule['object_id'],$ruleObjects,true))$this->invalid('Each inventory object can have only one rule per area.');
+      $ruleObjects[]=$rule['object_id'];
+     }
+    }
+    foreach(array_merge($h['inventory_rules']??[],$h['choices']??[]) as $outcome){
+     if(!empty($outcome['target_id']) && ($visuals->get($outcome['target_id'])['kind']??null)!=='scene')$this->invalid('Interaction outcome must target a scene on this page.');
+    }
     if(in_array($h['id'],$ids,true)) $this->invalid('Duplicate hotspot ID.'); $ids[]=$h['id'];
     if($h['x']+$h['width']>1.000001 || $h['y']+$h['height']>1.000001) $this->invalid('Clickable areas must stay within the image.');
     if(!empty($h['target_id']) && ($visuals->get($h['target_id'])['kind']??null)!=='scene') $this->invalid('Scene target must be a scene on this page.');

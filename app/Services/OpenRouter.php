@@ -70,7 +70,7 @@ class OpenRouter {
         // Image API has a separate schema; do not route through chat completions.
         // Keep data-URL MIME slashes literal for upstream image parsers.
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        return Http::withToken($key)->acceptJson()->connectTimeout(10)->timeout(180)
+        return Http::withToken($key)->acceptJson()->connectTimeout(10)->timeout(240)
             ->withBody($body, 'application/json')
             ->post(config('story.openrouter_url').'/images');
     }
@@ -85,6 +85,6 @@ class OpenRouter {
         // Never retry a billable request automatically.
         return Http::withToken($key)->acceptJson()->withHeaders([
             'HTTP-Referer'=>config('app.url'), 'X-Title'=>'Visual Story Game',
-        ])->connectTimeout(10)->timeout(180)->post(config('story.openrouter_url').'/chat/completions',$payload);
+        ])->connectTimeout(10)->timeout(240)->post(config('story.openrouter_url').'/chat/completions',$payload);
     }
 }

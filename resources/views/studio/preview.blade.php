@@ -13,11 +13,21 @@
 <div x-show="!asset(displayed?.asset_id)" class="p-8">Assign an image to this scene to preview it. Click outside to close.</div>
 <dialog x-ref="objectPreviewDialog" class="object-preview-dialog" aria-label="Object inspection"
  x-effect="if(modal && preview){$nextTick(()=>{if(modal && preview && !$el.open)$el.showModal();});}else if($el.open){$el.close();}" @click="if($event.target===$el)modal=null" @cancel="modal=null" @close.stop="modal=null">
-<template x-if="modal"><div class="object-preview-stage" :class="!modal.url?'object-text-only':''">
+<template x-if="modal && !modal.areaId"><div class="object-preview-stage" :class="!modal.url?'object-text-only':''">
 <img x-show="modal.url" :src="modal.url" :alt="modal.label" class="preview-object-image">
 <button type="button" class="game-object-close" aria-label="Back to scene" @click="modal=null">×</button>
 <div x-show="modal.text" class="game-description object-description" :class="inventoryActions.length?'has-actions':''" tabindex="0" role="region" aria-label="Object description" x-text="modal.text"></div>
 <div x-show="inventoryActions.length" class="game-object-actions"><template x-for="action in inventoryActions" :key="action.id"><button type="button" class="game-action" @click="performObjectAction(action.id)" :disabled="!objects.some(v=>v.id===action.target_id)" x-text="action.label"></button></template></div>
+</div></template>
+<template x-if="modal?.areaId"><div class="area-interaction-panel relative space-y-4 p-5">
+<button type="button" class="game-object-close" aria-label="Back to scene" @click="modal=null">×</button>
+<h3 class="pr-8 font-serif text-xl" x-text="modal.label"></h3>
+<div x-show="modal.text" class="max-h-20 overflow-y-auto whitespace-pre-wrap rounded bg-black/50 p-3 text-sm text-white" role="status" x-text="modal.text"></div>
+<div x-show="modalArea?.action==='inventory'" class="space-y-3">
+<button type="button" class="game-action inline-flex items-center gap-2" :aria-expanded="modal.showItems" @click="modal.showItems=!modal.showItems"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 7h14l2 14H3L5 7ZM8 7V5a4 4 0 0 1 8 0v2"/></svg>Use inventory item</button>
+<div x-show="modal.showItems" class="flex gap-2 overflow-x-auto p-1"><p x-show="!inventory.length" class="text-sm">Your inventory is empty.</p><template x-for="item in inventory" :key="item.inventoryId||item.id"><button type="button" class="inventory-item" @click="useInventoryOnArea(item.inventoryId||item.id)" :aria-label="'Use '+item.name"><img x-show="asset(item.asset_id)" :src="asset(item.asset_id)?.url" :alt="item.name" class="h-16 w-20 object-contain"><span class="block text-xs" x-text="item.name"></span></button></template></div>
+</div>
+<div x-show="modalArea?.action==='choices'" class="flex flex-wrap gap-2"><template x-for="(choice,index) in modalArea?.choices||[]" :key="index"><button type="button" class="game-action" @click="chooseAreaAction(index)" x-text="choice.label"></button></template><p x-show="!modalArea?.choices?.length" class="text-sm">No actions available.</p></div>
 </div></template>
 </dialog>
 </dialog>

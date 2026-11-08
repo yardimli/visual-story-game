@@ -437,3 +437,69 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Keep the outgoing scene fully opaque beneath the new scene throughout its 200ms fade-in; remove the old layer only after completion. Preserve the subsequent 75ms inspection delay and 200ms dialog fade. Production build and Blade compilation passed.
 
 - [x] Increase the post-transition inspection delay to 250ms, retaining the 200ms dialog fade-in. Exact-delay/cancellation regression and all 22 scene-editor tests passed; production build passed.
+
+## Image studio library organization
+- [x] Add persistent editable names for generated and reference images, keeping creator names independent of generation/visual labels.
+- [x] Replace generation-origin labels, Change scene, and Use in scene with links to every actual scene/object assignment across the story. Links open Interactions with page and visual selected; shared asset assignments remain supported.
+- [x] Show the first 20 prompt words, with Show all/Show less and Copy prompt.
+- [x] Add per-image Archive/Restore and a Show archived images control at the list bottom. Archiving retains the asset and all scene/object assignments.
+- [x] Remember expanded/collapsed generation cards in local storage per page.
+- [x] Apply asset metadata migration with owner-scoped update API and validation.
+- Verification: 19 SceneAuthoring tests (139 assertions), 23 scene-editor tests, production build, and Blade compilation passed. Localhost:8010 verified current usage links, prompt truncation, and collapsed cards surviving reload without changing story content.
+
+- [x] Compact Interactions: remove the heading row and bottom Open image generation link; move Duplicate visual beside Edit/Delete in the visual toolbar. Put New scene and New object first in Current visual instead of separate buttons.
+- [x] Keep Visual name, Visual type, Selected image, and Description visible until an image is assigned; hide them after selection and reveal with Edit. Switching visuals resets edit mode; incomplete visuals always retain the fields.
+- Verification: localhost:8010 confirmed the compact toolbar and Edit revealing initially hidden fields. Production build, Blade compilation, and 23 scene-editor tests passed.
+
+- [x] Hide failed image generation cards by default, including rejected submissions. Add Show/Hide failed generations with a count at the list bottom, independent of archived images. Sidebar count reflects visible cards; failure toast feedback remains. Existing 23 scene-editor tests, production build, and Blade compilation passed.
+
+- [x] Remove Current visual/name/type heading from image studio, leaving generation controls directly beneath the tabs. Images remain assigned through Interactions. Blade compilation passed.
+
+## Inventory-to-area interactions and named choices
+- [x] Add Use inventory on area with introductory text, a default unmatched-item response, and per-object rules. Each rule can show text, change to another scene on the same page, and optionally consume the item.
+- [x] Add all objects to quickly prepare response rules for every object state; preserve default Nothing happens behavior for unmatched carried items.
+- [x] Add Choose an action with creator-defined button labels, response text, and optional same-page scene destinations (e.g. Walk into the house).
+- [x] Run both action types in the game test dialog. Inventory chooser lists only carried items; attempts use current object state and never modify authored visuals. Keep scene/dialog transition timing.
+- [x] Extend companion hotspot proposals and prompt instructions for interaction text, fallback responses, inventory rules, and named choices; retain explicit review before applying.
+- [x] Validate object/scene targets and duplicate rules; clean references on visual deletion/type changes and preserve objects used by inventory rules.
+- Verification: 25 JavaScript tests and 24 PHP tests / 168 assertions passed; production build and Blade compilation passed. Localhost temporary fixture verified envelope failure, key consumption/unlock, delayed result dialog, and Walk into the house choice. Temporary fixture removed; user's story unchanged. Cross-page travel remains outside this page-local preview.
+
+- [x] Fix tiered image estimates (including qwen/qwen-image-3-pro) when resolution/settings are Automatic: reserve the highest applicable catalog variant rather than rejecting a valid price range. Explicit tiers still select their matching price; unknown actual costs are not replaced by the reservation estimate.
+- Verification: 7 ImagePricing tests / 25 assertions passed. Live cached Qwen catalog now quotes $0.081900 with one reference and Automatic resolution, including the existing 5% reserve margin. No paid generation submitted. Restarted local image worker to load the update.
+
+## Optional image name and AI naming
+- [x] Add a blank Image name input with a hint that AI creates a short name from the description when omitted.
+- [x] On Generate, call the selected writing model only for blank names; typed names bypass naming. Keep a generated name if image submission fails so it can be reused, and reset the field after successful queueing.
+- [x] Add owner-scoped naming endpoint using shared trial/personal-key accounting, catalog token costs, capped output allowance, recorded request/response, and no automatic retries. Naming failures do not submit image generation.
+- [x] Preserve supplied names on generation records and saved assets without sending internal naming metadata to the image provider.
+- Verification: 30 PHP tests / 192 assertions and 26 JavaScript tests passed; production build and Blade compilation passed. Localhost verified empty field/hint. No live paid naming/render requests submitted. Image worker restarted with new asset-name handling.
+
+- [x] Remove the saved-success status assignment during visual loading. Refresh only reads visual data and no longer announces a save; actual successful saves still show feedback. Initialization regression verifies GET-only requests, clean state, and no notification. All 27 scene-editor tests and production build passed.
+
+## Manual image retry and four-minute deadline
+- [x] Add Try again to failed generation cards (available through Show failed generations). Retry snapshots the original name, prompt, model, settings and reference IDs into a new job, checks current pricing/budget, and leaves current authoring fields untouched.
+- [x] Require explicit retry; block nonfailed/foreign jobs and duplicate request IDs. Retain original failed history and use no automatic provider retry.
+- [x] Increase provider HTTP calls, image worker timeout, reservation expiration, UI messaging and worker documentation to four minutes. Database retry_after remains 420 seconds.
+- Verification: focused reservation/naming/scene PHP tests, 28 JavaScript tests, production build and Blade compilation passed. No paid retry submitted during testing.
+
+## AI credit ledger
+- [x] Compact companion proposals behind a Review proposed changes button. Clicking reveals the bullet checklist, expandable before/after details, and explicit confirmation; checkbox selections are retained when collapsed.
+- [x] Add token_credits with integer microUSD amounts, grant source, description, and optional unique reference. Grant $1 on signup and backfill existing users without resetting spending or reservations.
+- [x] Use cumulative granted credits for writing, image naming, and image-generation budgets; retain personal-key billing behavior.
+- [x] Add server-admin ai:grant-credit command for additional USD credits, with amount validation and optional duplicate protection.
+- [x] List the signed-in user's credit grants and total on AI settings, with pagination.
+- Verification: migration applied; 120 PHP tests / 597 assertions, production build and Blade compilation passed. Localhost AI settings shows the demo user's $1 welcome grant and existing spend. No extra $5 granted; ready for the user's test.
+
+## Next-page click action
+- [x] Add Move to next page to clickable areas and companion validation/instructions. Preview follows active storyboard order, skips deleted pages, preserves inventory, and crossfades to the next page's first scene without changing the editor document.
+- [x] Show completion on the final page and a helpful message when the next page has no scene.
+- Verification: 30 JavaScript tests and 22 scene-authoring PHP tests (165 assertions), production build and Blade compilation passed.
+
+- [x] Image studio: put archived/failed toggles side by side, followed by a Show/Hide images link for every other active storyboard page. Load completed cards on demand without navigating or altering the generation form; allow reference selection, naming, archiving, and prompt copying on loaded images. Keep loaded cards during current-page polling.
+- Verification: 31 scene-editor JavaScript tests and 22 PHP scene-authoring tests passed; production build and Blade compilation passed.
+
+- [x] Repair Windows-1252 separator/ellipsis bytes introduced in image-history page labels; save as valid UTF-8. Checked modified files and rebuilt assets/Blade views.
+
+- [x] Simplify other-page image cards to name, image, prompt, scene/object usage links and reference selection. Hide rename/archive/model/status controls for these cards; avoid duplicated default page titles. Production build and Blade compilation passed.
+
+- [x] Default visual/object image pickers to the current page, with an Images from dropdown for other pages and unassigned uploaded references. Page membership includes generation origin and current visual assignments. Reset filter each time the picker opens. PHP scene tests, JavaScript tests, build and Blade compilation passed.

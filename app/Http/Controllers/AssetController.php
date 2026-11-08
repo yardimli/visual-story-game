@@ -16,6 +16,14 @@ class AssetController extends Controller {
         if($request->expectsJson()) return response()->json(['assets'=>$uploaded],201);
         return back()->with('status','Reference images uploaded.');
     }
+    public function update(Request $request,Asset $asset) {
+        abort_unless(Story::whereKey($asset->story_id)->where('user_id',$request->user()->id)->exists(),404);
+        $data=$request->validate(['name'=>'sometimes|required|string|max:255','archived'=>'sometimes|required|boolean']);
+        if(array_key_exists('name',$data)){$asset->name=$data['name'];$asset->custom_name=$data['name'];}
+        if(array_key_exists('archived',$data))$asset->archived_at=$data['archived']?now():null;
+        $asset->save();
+        return response()->json(['name'=>$asset->custom_name??$asset->name,'archived'=>!!$asset->archived_at]);
+    }
     public function show(Request $request,Asset $asset) {
         abort_unless(Story::whereKey($asset->story_id)->where('user_id',$request->user()->id)->exists(),404);
         return Storage::disk('local')->response($asset->path,null,['Content-Type'=>$asset->mime,'X-Content-Type-Options'=>'nosniff','Cache-Control'=>'private, max-age=3600']);

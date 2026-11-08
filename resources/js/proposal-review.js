@@ -29,7 +29,7 @@ export function selectedLegacyProposal(proposal,selected) {
  return result;
 }
 export function proposalReview(item) {
- return {entries:reviewItems(item.proposal),chosen:[],
+ return {entries:reviewItems(item.proposal),chosen:[],reviewOpen:false,
   init(){this.chosen=this.entries.map(entry=>String(entry.id));},
   toggle(){this.chosen=this.chosen.filter(id=>{const entry=this.entries.find(e=>String(e.id)===id);return entry?.depends_on==null||this.chosen.includes(String(entry.depends_on));});},
   unavailable(entry){return entry.depends_on!=null&&!this.chosen.includes(String(entry.depends_on));},

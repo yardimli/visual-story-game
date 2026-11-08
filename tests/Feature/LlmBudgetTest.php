@@ -89,7 +89,7 @@ class LlmBudgetTest extends TestCase {
         catch (ValidationException $e) { $this->assertStringNotContainsString('own OpenRouter key',$e->getMessage()); }
         $u->forceFill(['llm_spent'=>1000000])->save();
         try { $budget->reserve($u,$story,(string)Str::uuid(),'test/model',0); $this->fail('Exhausted allowance accepted'); }
-        catch (ValidationException $e) { $this->assertStringContainsString('Your free $1 credit has been used',$e->getMessage()); }
+        catch (ValidationException $e) { $this->assertStringContainsString('Your AI credits have been used',$e->getMessage()); }
     }
     private function solCatalogModel(): array {
         return ['id'=>'openai/gpt-6.1-sol','architecture'=>['output_modalities'=>['text']],'context_length'=>1000000,'pricing'=>[

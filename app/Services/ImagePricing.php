@@ -55,8 +55,8 @@ class ImagePricing {
    if(count($group)>1) {
     $matches=array_filter($group,fn($l)=>isset($l['variant'])&&in_array(strtolower((string)$l['variant']),array_map('strtolower',$settings),true));
     if($matches)$group=$matches;
-    else {$base=array_filter($group,fn($l)=>empty($l['variant']));if(!$base)return null;$group=$base;}
-   } elseif(!empty($group[0]['variant']) && !in_array(strtolower((string)$group[0]['variant']),array_map('strtolower',$settings),true)) return null;
+    else {$base=array_filter($group,fn($l)=>empty($l['variant']));if($base)$group=$base;elseif(!$reserve)return null;} // Automatic settings reserve the highest catalog tier.
+   } elseif(!$reserve && !empty($group[0]['variant']) && !in_array(strtolower((string)$group[0]['variant']),array_map('strtolower',$settings),true)) return null;
    $rates[$key]=max(array_column($group,'cost_usd'));
   }
   if(!array_filter(array_keys($rates),fn($key)=>str_starts_with($key,'output_image/')))return null;

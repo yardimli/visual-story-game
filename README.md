@@ -85,10 +85,10 @@ Open a page's **Images & interactions** tab. Add named **Scene states** for back
 Run the image queue in a **separate terminal**, keeping your existing web server running:
 
 ```sh
-php artisan queue:work database --queue=images --timeout=180 --tries=1
+php artisan queue:work database --queue=images --timeout=240 --tries=1
 ```
 
-Image jobs explicitly use the database connection even if the default queue connection is sync. Database `retry_after` is 420 seconds, longer than the 180-second worker timeout. On Windows PHP, process timeout enforcement may be unavailable; production workers should run on Ubuntu with PCNTL and a process supervisor. Restart workers after code/config updates. Jobs remain queued until a worker runs. Generation uses available trial credit or a saved personal OpenRouter key. Prompt, reference paths, settings, and endpoint prices are snapshotted; credentials never enter the queue payload. No automatic retry of paid calls. If a worker is killed during a running request, inspect provider activity before resubmitting; a running job may require operator reconciliation.
+Image jobs explicitly use the database connection even if the default queue connection is sync. Database `retry_after` is 420 seconds, longer than the 240-second worker timeout. On Windows PHP, process timeout enforcement may be unavailable; production workers should run on Ubuntu with PCNTL and a process supervisor. Restart workers after code/config updates. Jobs remain queued until a worker runs. Generation uses available trial credit or a saved personal OpenRouter key. Prompt, reference paths, settings, and endpoint prices are snapshotted; credentials never enter the queue payload. No automatic retry of paid calls. If a worker is killed during a running request, inspect provider activity before resubmitting; a running job may require operator reconciliation.
 
 For the Silent House example:
 1. Create a porch background without the note and an isolated note object.
@@ -115,6 +115,16 @@ Image generation workspace: use the Image generation link for the current page. 
 
 
 ### Three-minute AI timeout (current policy)
-Pending or uncertain AI ledger requests expire 180 seconds after creation, including queue wait time. Cleanup marks them failed and releases platform holds exactly once. Completed charges are untouched. Late results cannot re-charge an expired request; expired queued images never call the provider. HTTP provider calls time out after 180 seconds. This policy supersedes older instructions to retain ambiguous holds indefinitely. Upstream providers can still bill work after the application deadline; those costs are not re-debited from released trial credit.
+Pending or uncertain AI ledger requests expire 240 seconds after creation, including queue wait time. Cleanup marks them failed and releases platform holds exactly once. Completed charges are untouched. Late results cannot re-charge an expired request; expired queued images never call the provider. HTTP provider calls time out after 240 seconds. This policy supersedes older instructions to retain ambiguous holds indefinitely. Upstream providers can still bill work after the application deadline; those costs are not re-debited from released trial credit.
 
 Run `php artisan schedule:work` alongside the web server and image worker locally. The scheduled `ai:expire-reservations` command runs every second; production should run Laravel's scheduler through the standard minute cron (`php artisan schedule:run`), which keeps the sub-minute schedule active. Authenticated page requests, image status polling, and new reservations also clear overdue holds, so credit recovers even if the scheduler is unavailable. Run `php artisan ai:expire-reservations` for immediate cleanup. Restart long-running image/scheduler workers after code updates.
+
+
+### Grant AI credits (server administrator)
+`token_credits` records grants in integer micro-USD (`amount`: 1,000,000 = $1). New accounts receive one $1 signup grant. Existing accounts are backfilled without resetting their spend or reservations. Available credit is total grants minus platform spend and active reservations; personal-key calls remain separate.
+
+Grant an additional $5:
+```powershell
+php artisan ai:grant-credit demo@demo.com 5 --description="Testing credit"
+```
+Optional `--reference=unique-grant-id` prevents duplicate grants when repeating an admin operation. Only trusted server administrators should run this command. AI settings lists the account's grants; there is no user-accessible credit-grant endpoint.

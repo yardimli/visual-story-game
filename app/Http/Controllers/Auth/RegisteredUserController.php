@@ -36,11 +36,11 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $user = User::create([
+        $user = \Illuminate\Support\Facades\DB::transaction(fn()=>User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-        ]);
+        ]));
 
         event(new Registered($user));
 

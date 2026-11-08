@@ -9,7 +9,7 @@ class AiSettingsController extends Controller {
             ->select(['id','user_id','story_id','model','funding','status','cost','reserved','created_at'])
             ->with(['imageGeneration'=>fn($q)=>$q->select(['id','llm_request_id','name','kind','status'])])
             ->latest('id')->paginate(50)->withQueryString()->fragment('ai-call-history');
-        return view('studio.settings',['user'=>$request->user(),'calls'=>$calls]);
+        return view('studio.settings',['user'=>$request->user(),'calls'=>$calls,'credits'=>$request->user()->tokenCredits()->latest('id')->paginate(25,['*'],'credits_page')->withQueryString()]);
     }
     public function call(Request $request, int $call) {
         $entry=LlmRequest::where('user_id',$request->user()->id)->findOrFail($call);
