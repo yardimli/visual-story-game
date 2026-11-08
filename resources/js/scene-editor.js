@@ -5,7 +5,7 @@ export function sceneEditor(options) {
  return {
   generationMode:!!options.generationMode, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
   loading:true, dirty:false, saving:false, halted:false, status:'Loading scene artwork…', error:'', timer:null, active:null, polling:null, generating:false, uploading:false, uploadStatus:'', requestKey:crypto.randomUUID(),
-  typeChange:null, moveJob:null, moveTarget:'', movingImage:false, visualAction:'scene', visualName:'', visualSourceId:'', deleteVisualId:'', areaDrag:null, renamingId:'', labelDraft:'', pickerKind:'object', deleteAreaId:'', suppressImageClick:false, preview:false, previewId:'', inventory:[], collected:[], modal:null, drawing:false, drag:null, drawRect:null, imagePriceLabel, imageModelLabel,
+  typeChange:null, moveJob:null, moveTarget:'', movingImage:false, visualAction:'scene', visualName:'', visualSourceId:'', deleteVisualId:'', areaDrag:null, renamingId:'', labelDraft:'', pickerKind:'object', deleteAreaId:'', suppressImageClick:false, inventoryOpen:false, outgoingScene:null, sceneTransition:false, transitionTimer:null, pendingModal:null, preview:false, previewId:'', inventory:[], collected:[], modal:null, drawing:false, drag:null, drawRect:null, imagePriceLabel, imageModelLabel,
   async init() {
    watchNotices(this,{status:'success',error:'error',uploadStatus:'success'});
    window.vsgSceneEditor=this;
@@ -98,7 +98,7 @@ export function sceneEditor(options) {
    try{await navigator.clipboard.writeText(job.prompt||'');this.copiedPrompt=job.id;notify('Prompt copied.');}
    catch(_){this.error='Could not copy the prompt. Select the prompt text and copy it manually.';}
   },
-  duplicate(name=null){if(!this.visual||this.document.visuals.length>=100)return;const v=JSON.parse(JSON.stringify(this.visual));v.id=crypto.randomUUID();v.name=name||v.name+' copy';v.hotspots.forEach(h=>h.id=crypto.randomUUID());this.document.visuals.push(v);this.choose(v.id);this.changed();},
+  duplicate(name=null){if(!this.visual||this.document.visuals.length>=100)return;const v=JSON.parse(JSON.stringify(this.visual));v.id=crypto.randomUUID();v.name=name||v.name+' copy';v.hotspots.forEach(h=>h.id=crypto.randomUUID());(v.actions||[]).forEach(a=>a.id=crypto.randomUUID());this.document.visuals.push(v);this.choose(v.id);this.changed();},
   applyInteractionProposal(proposal,pageId){
    const target=proposal._interaction,change=proposal.interaction;
    if(target.page_id!==pageId||target.revision!==this.revision||target.visual_id!==this.selected||target.hotspot_id!==this.hotspotId||this.dirty||this.saving||!this.hotspot)throw new Error('Select the original area and request a fresh suggestion; this area has changed.');
@@ -128,13 +128,16 @@ export function sceneEditor(options) {
   requestVisualType(kind){
    const visual=this.visual;if(!visual||!['scene','object'].includes(kind)||kind===visual.kind)return;
    const areas=kind==='object'?visual.hotspots.length:0;
+   const actions=kind==='scene'?(visual.actions||[]).length:0;
+   const actionLinks=kind==='scene'?this.document.visuals.flatMap(v=>v.actions||[]).filter(a=>a.target_id===visual.id).length:0;
    const links=this.document.visuals.flatMap(v=>v.hotspots||[]).filter(h=>kind==='object'?h.target_id===visual.id:h.object_id===visual.id).length;
-   this.typeChange={id:visual.id,kind,message:`This will remove ${areas} clickable area(s) from this visual and clear ${links} incompatible interaction link(s). Affected actions will become Examine.`};
-   if(areas||links)this.$refs.visualTypeDialog.showModal();else this.confirmVisualType();
+   this.typeChange={id:visual.id,kind,message:`This will remove ${areas} clickable area(s) from this visual and remove ${actions} object action(s) and clear ${links+actionLinks} incompatible interaction link(s). Affected actions will become Examine.`};
+   if(areas||links||actions||actionLinks)this.$refs.visualTypeDialog.showModal();else this.confirmVisualType();
   },
   confirmVisualType(){
    const change=this.typeChange;if(!change)return;const visual=this.document.visuals.find(v=>v.id===change.id);if(!visual)return;
    if(change.kind==='object')visual.hotspots=[];
+   else {visual.actions=[];for(const v of this.document.visuals)for(const a of v.actions||[])if(a.target_id===visual.id)a.target_id=null;}
    for(const v of this.document.visuals)for(const h of v.hotspots||[]){
     if(change.kind==='object' && h.target_id===visual.id){h.target_id=null;if(h.action==='transition')h.action='examine';}
     if(change.kind==='scene' && h.object_id===visual.id){h.object_id=null;h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
@@ -144,10 +147,11 @@ export function sceneEditor(options) {
   },
   requestVisualDelete(){if(!this.visual)return;this.deleteVisualId=this.visual.id;this.$refs.deleteVisualDialog.showModal();},
   get deletingVisual(){return this.document.visuals.find(v=>v.id===this.deleteVisualId);},
-  get dependentAreas(){return this.document.visuals.filter(v=>v.id!==this.deleteVisualId).flatMap(v=>v.hotspots).filter(h=>h.target_id===this.deleteVisualId||h.object_id===this.deleteVisualId).length;},
+  get dependentAreas(){return this.document.visuals.filter(v=>v.id!==this.deleteVisualId).flatMap(v=>[...(v.hotspots||[]),...(v.actions||[])]).filter(h=>h.target_id===this.deleteVisualId||h.object_id===this.deleteVisualId).length;},
   confirmVisualDelete(){
    const id=this.deleteVisualId;if(!this.deletingVisual)return;
    this.document.visuals=this.document.visuals.filter(v=>v.id!==id);
+   for(const v of this.document.visuals)for(const a of v.actions||[])if(a.target_id===id)a.target_id=null;
    for(const v of this.document.visuals)for(const h of v.hotspots){
     if(h.target_id===id){h.target_id=null;if(h.action==='transition')h.action='examine';}
     if(h.object_id===id){h.object_id=null;h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
@@ -210,7 +214,7 @@ export function sceneEditor(options) {
   get areaObjectToDelete(){
    const area=this.visual?.hotspots.find(h=>h.id===this.deleteAreaId);
    const object=this.objects.find(v=>v.id===area?.object_id);if(!object)return null;
-   const shared=this.document.visuals.some(v=>(v.hotspots||[]).some(h=>h!==area && (h.object_id===object.id||h.target_id===object.id)));
+   const shared=this.document.visuals.some(v=>(v.hotspots||[]).some(h=>h!==area && (h.object_id===object.id||h.target_id===object.id)) || (v.actions||[]).some(a=>a.target_id===object.id));
    return shared?null:object;
   },
   confirmAreaDelete(){
@@ -286,13 +290,34 @@ export function sceneEditor(options) {
    if(rect.width>=.005&&rect.height>=.005)this.newHotspot(rect);
    setTimeout(()=>{this.suppressImageClick=false;},0);
   },
-  startPreview(){this.previewId=this.visual?.kind==='scene'?this.visual.id:this.scenes[0]?.id;this.preview=!!this.previewId;this.inventory=[];this.collected=[];this.modal=null;this.drawing=false;},
+  addObjectAction(){if(this.visual?.kind!=='object')return;this.visual.actions??=[];if(this.visual.actions.length>=50)return;this.visual.actions.push({id:crypto.randomUUID(),label:'New action',target_id:null});this.changed();},
+  removeObjectAction(id){this.visual.actions=(this.visual.actions||[]).filter(a=>a.id!==id);this.changed();},
+  showObjectModal(value){if(this.sceneTransition){this.pendingModal=value;}else{this.modal=value;}},
+  clearSceneTransition(){clearTimeout(this.transitionTimer);this.transitionTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
+  transitionScene(id){
+   const target=this.scenes.find(v=>v.id===id);if(!target||id===this.previewId)return;
+   this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.sceneTransition=true;this.previewId=id;
+   this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;if(this.preview)this.modal=this.pendingModal;this.pendingModal=null;},200);
+  },
+  openInventory(item){this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
+  get inventoryActions(){const item=this.inventory.find(v=>(v.inventoryId||v.id)===this.modal?.inventoryId);return item?(this.objects.find(v=>v.id===item.id)?.actions||[]):[];},
+  performObjectAction(id){
+   if(!this.preview||!this.modal?.inventoryId)return;
+   const index=this.inventory.findIndex(v=>(v.inventoryId||v.id)===this.modal.inventoryId);if(index<0)return;
+   const item=this.inventory[index],action=(this.objects.find(v=>v.id===item.id)?.actions||[]).find(a=>a.id===id);
+   const target=this.objects.find(v=>v.id===action?.target_id);if(!target)return;
+   const next={...target,inventoryId:item.inventoryId||item.id};this.inventory.splice(index,1,next);this.openInventory(next);
+  },
+  startPreview(){this.clearSceneTransition();if(!this.scenes.length){notify('Add a scene before testing interactions.','error');return;}this.previewId=this.visual?.kind==='scene'?this.visual.id:this.scenes[0]?.id;this.preview=!!this.previewId;this.inventory=[];this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
+  closePreview(){this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
   activate(h){
    if(!this.preview){if(!this.drawing)this.hotspotId=h.id;return;}
+   if(h.target_id)this.transitionScene(h.target_id);
    const object=this.document.visuals.find(v=>v.id===h.object_id);
-   if(h.action==='pickup' && object){if(!this.inventory.some(v=>v.id===object.id))this.inventory.push(object);this.collected.push(h.id);}
-   if(h.action==='inspect'||h.action==='pickup'||h.action==='examine')this.modal={label:h.label,text:h.description||'',url:object?this.asset(object.asset_id)?.url:null};
-   if(h.target_id)this.previewId=h.target_id;
+   if(h.action==='pickup' && object){if(!this.inventory.some(v=>v.id===object.id))this.inventory.push({...object,inventoryId:h.id});this.collected.push(h.id);}
+   if(h.action==='examine')this.showObjectModal({label:h.label,text:h.description||'',url:null});
+   if(h.action==='inspect' && object)this.showObjectModal({label:object.name,text:object.description||'',url:this.asset(object.asset_id)?.url});
+   if(h.action==='pickup' && object){const item=this.inventory.find(v=>v.id===object.id);if(item)this.openInventory(item);}
   }
  };
 }

@@ -22,6 +22,21 @@ class SceneAuthoringTest extends TestCase {
   return [$u,$s,$p->fresh(),$doc];
  }
  private function payload($p): array {return ['revision'=>$p->visual_revision,'visual_id'=>$p->visual_document['visuals'][0]['id'],'request_key'=>(string)Str::uuid(),'model'=>'openai/image','references'=>[],'settings'=>['quality'=>'high']];}
+ public function test_object_actions_save_reversible_links_and_reject_scene_targets(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $doc['visuals'][0]['description']='A silent porch.';$doc['visuals'][1]['description']='A sealed envelope.';
+  $closed=$doc['visuals'][1]['id'];$open=(string)Str::uuid();
+  $doc['visuals'][1]['actions']=[['id'=>(string)Str::uuid(),'label'=>'Open','target_id'=>$open]];
+  $doc['visuals'][]=['id'=>$open,'name'=>'Opened envelope','kind'=>'object','asset_id'=>null,'prompt'=>'Open envelope','hotspots'=>[],'actions'=>[['id'=>(string)Str::uuid(),'label'=>'Close','target_id'=>$closed]]];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>1,'document'=>$doc])->assertOk();
+  $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('document.visuals.0.description','A silent porch.')->assertJsonPath('document.visuals.1.description','A sealed envelope.')->assertJsonPath('document.visuals.1.actions.0.target_id',$open)->assertJsonPath('document.visuals.2.actions.0.target_id',$closed);
+  $doc['visuals'][1]['actions'][0]['target_id']=$doc['visuals'][0]['id'];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $doc['visuals'][1]['actions'][0]['target_id']=(string)Str::uuid();
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $doc['visuals'][1]['actions'][0]['target_id']=null;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertOk();
+ }
  public function test_catalog_requests_do_not_consume_generation_quota_and_generation_stays_limited(): void {
   Queue::fake();[$u,$s,$p]=$this->setupScene();
   for($i=0;$i<8;$i++) {

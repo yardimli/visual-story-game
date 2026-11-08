@@ -251,3 +251,46 @@ test('rejected image submission stays visible with its reason through status ref
   assert.equal(editor.generating,false);
  }finally{if(previous===undefined)delete globalThis.window;else globalThis.window=previous;}
 });
+
+test('inventory actions replace the same item repeatedly without changing authored objects',()=>{
+ const editor=sceneEditor({});editor.changed=()=>{};
+ const closed={id:'closed',name:'Envelope',kind:'object',asset_id:1,hotspots:[],actions:[{id:'open',label:'Open',target_id:'opened'},{id:'crumple',label:'Crumple',target_id:'ball'}]};
+ const opened={id:'opened',name:'Open envelope',kind:'object',asset_id:2,hotspots:[],actions:[{id:'close',label:'Close',target_id:'closed'}]};
+ const ball={id:'ball',name:'Paper ball',kind:'object',asset_id:3,hotspots:[],actions:[{id:'uncrumple',label:'Uncrumple',target_id:'closed'}]};
+ editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},closed,opened,ball]};editor.assets=[{id:1,url:'/closed'},{id:2,url:'/open'},{id:3,url:'/ball'}];editor.selected='scene';
+ const original=JSON.stringify(editor.document);editor.startPreview();editor.activate({id:'pickup',action:'pickup',object_id:'closed'});
+ assert.equal(editor.inventoryActions.length,2);editor.performObjectAction('open');assert.equal(editor.inventory[0].id,'opened');assert.equal(editor.modal.url,'/open');
+ editor.performObjectAction('close');assert.equal(editor.inventory[0].id,'closed');editor.performObjectAction('crumple');assert.equal(editor.inventory[0].id,'ball');
+ editor.performObjectAction('uncrumple');editor.performObjectAction('open');assert.equal(editor.inventory.length,1);assert.equal(editor.inventory[0].inventoryId,'pickup');
+ assert.equal(JSON.stringify(editor.document),original);editor.startPreview();assert.equal(editor.inventory.length,0);
+});
+
+test('linked object actions preserve area objects and clear targets when visuals are removed',()=>{
+ const editor=sceneEditor({});editor.changed=()=>{};editor.$refs={deleteVisualDialog:{showModal(){},close(){}},deleteAreaDialog:{showModal(){},close(){}}};
+ editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[{id:'area',object_id:'closed'}]},{id:'closed',kind:'object',hotspots:[]},{id:'open',kind:'object',hotspots:[],actions:[{id:'close',label:'Close',target_id:'closed'}]}]};
+ editor.selected='scene';editor.requestAreaDelete('area');assert.equal(editor.areaObjectToDelete,null);editor.confirmAreaDelete();assert.equal(editor.objects.length,2);
+ editor.choose('closed');editor.requestVisualDelete();assert.equal(editor.dependentAreas,1);editor.confirmVisualDelete();assert.equal(editor.objects[0].actions[0].target_id,null);
+});
+
+test('inspection and inventory use visual descriptions while examine uses only area text',()=>{
+ const editor=sceneEditor({});editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[],description:'A quiet room.'},{id:'object',kind:'object',name:'Envelope',description:'A sealed letter.',asset_id:1,hotspots:[],actions:[]}]};editor.selected='scene';editor.assets=[{id:1,url:'/letter'}];editor.startPreview();
+ editor.activate({id:'inspect',action:'inspect',object_id:'object',label:'Area',description:'Old area text'});assert.equal(editor.modal.label,'Envelope');assert.equal(editor.modal.text,'A sealed letter.');
+ editor.activate({id:'pickup',action:'pickup',object_id:'object',description:'Old area text'});assert.equal(editor.modal.text,'A sealed letter.');
+ editor.activate({id:'examine',action:'examine',object_id:'object',description:'Look under the rug.'});assert.equal(editor.modal.text,'Look under the rug.');assert.equal(editor.modal.url,null);
+ editor.openInventory(editor.inventory[0]);assert.equal(editor.modal.text,'A sealed letter.');
+});
+
+test('scene crossfade delays inspection and closing cancels pending inspection', async () => {
+ const editor=sceneEditor({});
+ editor.document={visuals:[{id:'before',kind:'scene'},{id:'after',kind:'scene'},{id:'letter',kind:'object',name:'Letter'}]};
+ editor.selected='before';editor.startPreview();
+ editor.activate({id:'pickup',action:'pickup',object_id:'letter',target_id:'after'});
+ assert.equal(editor.previewId,'after');assert.equal(editor.outgoingScene.id,'before');
+ assert.equal(editor.sceneTransition,true);assert.equal(editor.modal,null);
+ await new Promise(resolve=>setTimeout(resolve,100));assert.equal(editor.modal,null);
+ await new Promise(resolve=>setTimeout(resolve,130));
+ assert.equal(editor.sceneTransition,false);assert.equal(editor.outgoingScene,null);assert.equal(editor.modal.label,'Letter');
+ editor.startPreview();editor.activate({id:'inspect',action:'inspect',object_id:'letter',target_id:'after'});
+ editor.closePreview();await new Promise(resolve=>setTimeout(resolve,220));
+ assert.equal(editor.modal,null);assert.equal(editor.pendingModal,null);assert.equal(editor.sceneTransition,false);
+});

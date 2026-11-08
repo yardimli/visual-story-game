@@ -6,9 +6,10 @@ use Illuminate\Validation\ValidationException;
 class SceneDocument {
  public function validate(Story $story, array $document): array {
   $v=Validator::make($document,[
-   'visuals'=>'present|array|max:100', 'visuals.*'=>'array:id,name,kind,asset_id,prompt,hotspots',
+   'visuals'=>'present|array|max:100', 'visuals.*'=>'array:id,name,kind,asset_id,prompt,hotspots,actions,description',
    'visuals.*.id'=>'required|uuid|distinct','visuals.*.name'=>'required|string|max:160','visuals.*.kind'=>'required|in:scene,object',
-   'visuals.*.asset_id'=>'nullable|integer','visuals.*.prompt'=>'nullable|string|max:10000','visuals.*.hotspots'=>'present|array|max:100',
+   'visuals.*.description'=>'sometimes|nullable|string|max:3000','visuals.*.asset_id'=>'nullable|integer','visuals.*.prompt'=>'nullable|string|max:10000','visuals.*.hotspots'=>'present|array|max:100',
+   'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
    'visuals.*.hotspots.*'=>'array:id,label,description,x,y,width,height,action,target_id,object_id,overlay',
    'visuals.*.hotspots.*.id'=>'required|uuid','visuals.*.hotspots.*.label'=>'required|string|max:160','visuals.*.hotspots.*.description'=>'nullable|string|max:3000',
    'visuals.*.hotspots.*.x'=>'required|numeric|min:0|max:1','visuals.*.hotspots.*.y'=>'required|numeric|min:0|max:1',
@@ -21,6 +22,12 @@ class SceneDocument {
   if($story->assets()->whereIn('id',$assets)->count()!==$assets->count()) $this->invalid('An image does not belong to this story.');
   // Drafts may have unfinished interaction links; supplied links must still be valid.
   foreach($visuals as $visual) {
+   $actionIds=[];
+   if($visual['kind']==='scene' && count($visual['actions']??[]))$this->invalid('Only objects can have inventory actions.');
+   foreach($visual['actions']??[] as $action){
+    if(in_array($action['id'],$actionIds,true))$this->invalid('Duplicate object action ID.');$actionIds[]=$action['id'];
+    if(!empty($action['target_id']) && ($visuals->get($action['target_id'])['kind']??null)!=='object')$this->invalid('Action replacement must be an object on this page.');
+   }
    $ids=[];
    if($visual['kind']==='object' && count($visual['hotspots'])) $this->invalid('Object images cannot contain scene hotspots.');
    foreach($visual['hotspots'] as $h) {

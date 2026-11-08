@@ -401,3 +401,31 @@ Generation workspace verification: 85-test regression passed before two new test
 - Verification: 18 scene-editor JavaScript tests, 31 focused PHP tests / 159 assertions, build, and Blade compilation passed.
 
 - [x] Hard-code image reservation estimates to 2,048 output tokens and 2,048 tokens per reference image. Retain prompt allowance, catalog rates, 5% margin, and actual-usage settlement; pixel-priced models still use image dimensions. ImagePricing tests passed, including fixed token estimates across resolutions.
+
+- [x] Move Test interactions to the right end of the shared tab navigation, including image studio. Open a native modal preview with scene hotspots, transitions, object inspection, inventory, Reset, and Close. Teleport the dialog outside hidden editor tabs so it works from any tab; closing clears runtime preview state without changing authored scene images. Removed inline preview inventory. Verified 18 scene-editor tests, production build, and Blade compilation.
+
+## Inventory object actions
+- [x] Add an Inventory actions editor for object visuals: multiple named actions, each selecting a replacement object on the same page, with autosave and removal controls. Allow incomplete targets while drafting; reject non-object/foreign targets and duplicate action IDs on save.
+- [x] Support cycles (Open → opened envelope; Close → closed envelope) and multiple transformations such as Crumple/Uncrumple. In the test dialog, show actions when inspecting inventory items and replace that inventory slot's object/image without mutating authored visuals; Reset clears runtime changes.
+- [x] Preserve objects referenced by actions when deleting areas. Clear action targets when their visual is deleted or converted into a scene, warn before conversion removes actions, and regenerate action IDs when duplicating visuals.
+- Verification: 20 scene-editor tests, 18 scene feature tests / 124 assertions, production build, and Blade compilation passed. Includes repeated cycles, multiple actions, inventory image replacement, missing/invalid targets, and dependency cleanup.
+
+## Object inspection dialog and visual descriptions
+- [x] Add autosaved Description textareas to every scene/object visual with server validation and companion visual-field support. Show scene descriptions in the preview and object descriptions for inspection, pickup, and inventory transformations.
+- [x] Move object inspection into a centered native dialog over the test scene, with its image/text inside and action buttons in a bottom-left footer. Preserve Back to scene, keyboard dismissal, and zoom.
+- [x] Show clickable-area Description only for Examine; other actions expose Object image and Scene after click. Remove the overlay toggle from this form while retaining existing saved overlay data.
+- Verification: scene-editor behavior tests and description persistence checks passed; 21 focused PHP tests, production build, and Blade compilation passed before added description assertions.
+
+## Image-focused preview and themed scrolling
+- [x] Use thin theme-colored scrollbars throughout documents and overflow panels in Light, Dark, and Paper.
+- [x] Keep Choose an image header/footer fixed with only the image grid scrolling; remove the outer dialog scrollbar.
+- [x] Fit Test interactions to the scene image within the viewport, remove its header/Reset/Close controls, and dismiss by clicking outside or pressing Escape.
+- [x] Overlay a bottom-left inventory icon that toggles a horizontal inventory tray. Selecting an item collapses the tray and opens object inspection with its actions.
+- [x] Overlay scene/object descriptions in translucent dark boxes with white text and an 80px maximum scrollable height. Hide scene descriptions while inventory is expanded.
+- Verification: 21 scene-editor tests, production build, and Blade compilation passed. Checked on localhost:8010: image-sized preview, inventory inspection/collapse, outside dismissal, and exactly one scrollable region in the image picker. Authored story data unchanged.
+
+## Preview transitions
+- [x] Remove hotspot rectangles/highlights in test mode; clickable areas use a pointer cursor only.
+- [x] Crossfade outgoing and incoming scene images simultaneously over 200ms, retaining the outgoing image during the transition.
+- [x] Queue object/inventory inspection until the scene transition finishes, then fade the dialog and backdrop in over 100ms. Cancel pending inspection when preview closes/restarts.
+- Verification: 22 scene-editor tests passed, including delayed inspection and cancellation; production build and Blade compilation passed.

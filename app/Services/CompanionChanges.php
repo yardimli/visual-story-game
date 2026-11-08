@@ -9,7 +9,7 @@ class CompanionChanges {
  public const RULES=[
   'story'=>['title'=>'required|string|max:160','premise'=>'required|string|max:5000','genre'=>'required|string|max:80','language'=>'required|string|max:80','style'=>'nullable|string|max:5000','bible'=>'nullable|string|max:40000','llm_model'=>'nullable|string|max:200','image_model'=>'nullable|string|max:200'],
   'page'=>['title'=>'required|string|max:160','narrative'=>'nullable|string|max:10000','scene_prompt'=>'nullable|string|max:10000','video_prompt'=>'nullable|string|max:5000','interaction_plan'=>'nullable|string|max:10000','completion'=>'nullable|string|max:2000'],
-  'visual'=>['name'=>'required|string|max:160','prompt'=>'nullable|string|max:10000','asset_id'=>'nullable|integer'],
+  'visual'=>['name'=>'required|string|max:160','description'=>'nullable|string|max:3000','prompt'=>'nullable|string|max:10000','asset_id'=>'nullable|integer'],
   'hotspot'=>['label'=>'required|string|max:160','description'=>'nullable|string|max:3000','action'=>'required|in:examine,inspect,pickup,transition','object_id'=>'nullable|uuid','target_id'=>'nullable|uuid','overlay'=>'required|boolean','x'=>'required|numeric|min:0|max:1','y'=>'required|numeric|min:0|max:1','width'=>'required|numeric|min:0.005|max:1','height'=>'required|numeric|min:0.005|max:1'],
  ];
  public function prepare(Story $story,array $proposal, $pages=null): array {

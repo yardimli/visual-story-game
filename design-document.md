@@ -442,3 +442,13 @@ Draft interactions may temporarily lack an object or destination while the creat
 
 ### Image generation visual context
 Opening image generation carries the selected scene/object visual in the URL. Its name and type are read-only in this workspace; naming remains in the content editor. Completed generation cards offer Change scene to move the generation to another visual on the same page. This preserves original rendering inputs and existing scene assignments; Use in scene assigns an output to its associated visual without changing the active generation context.
+
+### Inventory object transformations
+Object visuals may define multiple named inventory actions. Each action replaces the selected inventory item with another object visual on the same page, including its image and available actions. Cyclic links are supported: a closed envelope can Open into an opened envelope, which can Close back into the closed one; Crumple and Uncrumple can connect further states. These local object states do not branch page progression. Creators author each object/image and link actions in the Interactions tab. The test dialog runs transformations in local inventory state without altering authored assets. Draft actions may lack a target; these actions are disabled in preview until linked.
+
+Scene and object visuals each carry their own player-facing description. Inventory inspection opens a centered game dialog over the scene, displaying the current object's image and description with its available transformations at the bottom-left. Transformations update all three. Clickable-area descriptions are reserved for Examine actions; Inspect/Pickup use the linked object's description.
+
+### Image-focused interaction preview
+The test preview fits the scene image inside the viewport without surrounding header controls; outside click or Escape closes it. A bottom-left inventory icon toggles a horizontal tray over the scene. Selecting an item collapses the tray and opens its object dialog. Scene and object descriptions overlay their images in translucent dark boxes with white text, capped at 80px with scrolling. Scene descriptions sit above the inventory icon and hide while the tray is open. Scrollbars throughout the interface are thin and follow the selected Light, Dark, or Paper palette; image-picker dialogs scroll only their image grid.
+
+Preview hotspots remain visually unoutlined, using the pointer cursor to indicate interaction. Scene changes crossfade both image layers simultaneously for 200ms. Object inspection triggered by that interaction waits until the scene transition completes, then fades in over 100ms. Closing or restarting preview cancels pending transitions and inspection.

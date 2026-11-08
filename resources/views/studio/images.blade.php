@@ -48,5 +48,6 @@
 <label class="flex items-start gap-2 p-2 text-xs"><input type="checkbox" :value="String(a.id)" x-model="references" class="mt-0.5 shrink-0"><span class="min-w-0 break-words" x-text="a.name"></span></label>
 </div></template></div><p x-show="!assets.length" class="text-sm text-stone-500">No images uploaded yet.</p>
 </div></div></dialog>
+@include('studio.preview')
 </section></div>
 </x-studio-layout>
