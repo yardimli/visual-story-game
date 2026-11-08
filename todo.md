@@ -429,3 +429,11 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Crossfade outgoing and incoming scene images simultaneously over 200ms, retaining the outgoing image during the transition.
 - [x] Queue object/inventory inspection until the scene transition finishes, then fade the dialog and backdrop in over 100ms. Cancel pending inspection when preview closes/restarts.
 - Verification: 22 scene-editor tests passed, including delayed inspection and cancellation; production build and Blade compilation passed.
+
+- [x] Refine scene transition layering: incoming image on top fades in for 200ms; outgoing image holds for 100ms then fades out quickly over 50ms. Keep hotspots above both image layers and inspection timing unchanged. Production build passed.
+
+- [x] Wait 75ms after the 200ms scene transition before opening inspection, then fade the dialog/backdrop in over 200ms. Cancel the pending delay on preview close/restart. Verified exact timing and cancellation with mocked timers; all 22 scene-editor tests and production build passed.
+
+- [x] Keep the outgoing scene fully opaque beneath the new scene throughout its 200ms fade-in; remove the old layer only after completion. Preserve the subsequent 75ms inspection delay and 200ms dialog fade. Production build and Blade compilation passed.
+
+- [x] Increase the post-transition inspection delay to 250ms, retaining the 200ms dialog fade-in. Exact-delay/cancellation regression and all 22 scene-editor tests passed; production build passed.

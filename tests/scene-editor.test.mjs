@@ -280,17 +280,19 @@ test('inspection and inventory use visual descriptions while examine uses only a
  editor.openInventory(editor.inventory[0]);assert.equal(editor.modal.text,'A sealed letter.');
 });
 
-test('scene crossfade delays inspection and closing cancels pending inspection', async () => {
+test('scene crossfade waits another 250ms before inspection and closing cancels it', (t) => {
+ t.mock.timers.enable({apis:['setTimeout']});
  const editor=sceneEditor({});
  editor.document={visuals:[{id:'before',kind:'scene'},{id:'after',kind:'scene'},{id:'letter',kind:'object',name:'Letter'}]};
  editor.selected='before';editor.startPreview();
  editor.activate({id:'pickup',action:'pickup',object_id:'letter',target_id:'after'});
  assert.equal(editor.previewId,'after');assert.equal(editor.outgoingScene.id,'before');
  assert.equal(editor.sceneTransition,true);assert.equal(editor.modal,null);
- await new Promise(resolve=>setTimeout(resolve,100));assert.equal(editor.modal,null);
- await new Promise(resolve=>setTimeout(resolve,130));
- assert.equal(editor.sceneTransition,false);assert.equal(editor.outgoingScene,null);assert.equal(editor.modal.label,'Letter');
+ t.mock.timers.tick(200);
+ assert.equal(editor.sceneTransition,false);assert.equal(editor.outgoingScene,null);assert.equal(editor.modal,null);
+ t.mock.timers.tick(249);assert.equal(editor.modal,null);
+ t.mock.timers.tick(1);assert.equal(editor.modal.label,'Letter');
  editor.startPreview();editor.activate({id:'inspect',action:'inspect',object_id:'letter',target_id:'after'});
- editor.closePreview();await new Promise(resolve=>setTimeout(resolve,220));
+ t.mock.timers.tick(200);editor.closePreview();t.mock.timers.tick(250);
  assert.equal(editor.modal,null);assert.equal(editor.pendingModal,null);assert.equal(editor.sceneTransition,false);
 });

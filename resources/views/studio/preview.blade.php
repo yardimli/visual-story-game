@@ -2,7 +2,7 @@
 <dialog x-ref="previewDialog" class="preview-dialog" aria-label="Test interactions" @click="if($event.target===$el)$el.close()" @close="closePreview()" @cancel="if(modal){$event.preventDefault();modal=null;}">
 <template x-if="preview && asset(displayed?.asset_id)"><div class="preview-stage">
 <img :src="asset(displayed.asset_id).url" :alt="displayed.name" class="preview-scene-image" :class="sceneTransition ? 'scene-fade-in' : ''" draggable="false">
-<template x-if="outgoingScene && asset(outgoingScene.asset_id)"><img :src="asset(outgoingScene.asset_id).url" alt="" class="preview-outgoing-image scene-fade-out" aria-hidden="true"></template>
+<template x-if="outgoingScene && asset(outgoingScene.asset_id)"><img :src="asset(outgoingScene.asset_id).url" alt="" class="preview-outgoing-image" aria-hidden="true"></template>
 <template x-for="h in currentHotspots" :key="h.id"><button type="button" :style="style(h)" :aria-label="h.label" class="preview-hotspot absolute cursor-pointer border-0 bg-transparent focus:outline-none" :disabled="sceneTransition" @click="activate(h)"><template x-if="h.overlay && visualAsset(h.object_id)"><img :src="visualAsset(h.object_id).url" alt="" class="h-full w-full object-contain"></template></button></template>
 <div x-show="displayed?.description && !inventoryOpen" class="game-description scene-description" tabindex="0" role="region" aria-label="Scene description" x-text="displayed?.description"></div>
 <div class="game-inventory">

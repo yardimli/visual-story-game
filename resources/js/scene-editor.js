@@ -5,7 +5,7 @@ export function sceneEditor(options) {
  return {
   generationMode:!!options.generationMode, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
   loading:true, dirty:false, saving:false, halted:false, status:'Loading scene artwork…', error:'', timer:null, active:null, polling:null, generating:false, uploading:false, uploadStatus:'', requestKey:crypto.randomUUID(),
-  typeChange:null, moveJob:null, moveTarget:'', movingImage:false, visualAction:'scene', visualName:'', visualSourceId:'', deleteVisualId:'', areaDrag:null, renamingId:'', labelDraft:'', pickerKind:'object', deleteAreaId:'', suppressImageClick:false, inventoryOpen:false, outgoingScene:null, sceneTransition:false, transitionTimer:null, pendingModal:null, preview:false, previewId:'', inventory:[], collected:[], modal:null, drawing:false, drag:null, drawRect:null, imagePriceLabel, imageModelLabel,
+  typeChange:null, moveJob:null, moveTarget:'', movingImage:false, visualAction:'scene', visualName:'', visualSourceId:'', deleteVisualId:'', areaDrag:null, renamingId:'', labelDraft:'', pickerKind:'object', deleteAreaId:'', suppressImageClick:false, inventoryOpen:false, outgoingScene:null, sceneTransition:false, transitionTimer:null, modalTimer:null, pendingModal:null, preview:false, previewId:'', inventory:[], collected:[], modal:null, drawing:false, drag:null, drawRect:null, imagePriceLabel, imageModelLabel,
   async init() {
    watchNotices(this,{status:'success',error:'error',uploadStatus:'success'});
    window.vsgSceneEditor=this;
@@ -292,12 +292,12 @@ export function sceneEditor(options) {
   },
   addObjectAction(){if(this.visual?.kind!=='object')return;this.visual.actions??=[];if(this.visual.actions.length>=50)return;this.visual.actions.push({id:crypto.randomUUID(),label:'New action',target_id:null});this.changed();},
   removeObjectAction(id){this.visual.actions=(this.visual.actions||[]).filter(a=>a.id!==id);this.changed();},
-  showObjectModal(value){if(this.sceneTransition){this.pendingModal=value;}else{this.modal=value;}},
-  clearSceneTransition(){clearTimeout(this.transitionTimer);this.transitionTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
+  showObjectModal(value){if(this.sceneTransition || this.modalTimer!==null){this.pendingModal=value;}else{this.modal=value;}},
+  clearSceneTransition(){clearTimeout(this.transitionTimer);clearTimeout(this.modalTimer);this.transitionTimer=null;this.modalTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
   transitionScene(id){
    const target=this.scenes.find(v=>v.id===id);if(!target||id===this.previewId)return;
    this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.sceneTransition=true;this.previewId=id;
-   this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;if(this.preview)this.modal=this.pendingModal;this.pendingModal=null;},200);
+   this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview)this.modal=this.pendingModal;this.pendingModal=null;},250);},200);
   },
   openInventory(item){this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
   get inventoryActions(){const item=this.inventory.find(v=>(v.inventoryId||v.id)===this.modal?.inventoryId);return item?(this.objects.find(v=>v.id===item.id)?.actions||[]):[];},
