@@ -12,6 +12,22 @@ class StudioTest extends TestCase {
         $story->pages()->create(['position'=>1,'title'=>'Arrival']);
         return $story;
     }
+    public function test_editor_tabs_and_dashboard_history_are_scoped_to_owner(): void {
+        $u=User::factory()->create();$s=$this->story($u);$p=$s->pages()->first();$this->actingAs($u);
+        $this->get(route('stories.edit',$s))->assertOk()->assertSeeInOrder(['Page plan','Interactions','Image generation ↗','References','Story bible'])->assertSeeInOrder(['Completion condition','Move earlier'])->assertDontSee('Linear progression');
+        $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSeeInOrder(['Page plan','Interactions','aria-current="page"','Image generation ↗','References','Story bible'],false);
+        $this->get(route('dashboard',['history'=>$s->id]))->assertOk()->assertSee('History · Workshop')->assertSee('Your first save will create a revision.');
+        $this->actingAs(User::factory()->create())->get(route('dashboard',['history'=>$s->id]))->assertNotFound();
+    }
+    public function test_inline_reference_upload_returns_library_thumbnails_without_generating(): void {
+        Storage::fake('local');$u=User::factory()->create();$s=$this->story($u);
+        $response=$this->actingAs($u)->postJson(route('assets.store',$s),['images'=>[UploadedFile::fake()->image('note.png'),UploadedFile::fake()->image('stone.png')],'role'=>'reference']);
+        $response->assertCreated()->assertJsonCount(2,'assets')->assertJsonPath('assets.0.name','note.png');
+        $assets=$s->assets()->get();$this->assertCount(2,$assets);
+        foreach($assets as $asset){Storage::disk('local')->assertExists($asset->path);$this->get(route('assets.show',$asset))->assertOk();}
+        $this->assertDatabaseCount('image_generations',0);
+        $this->actingAs(User::factory()->create())->postJson(route('assets.store',$s),['images'=>[UploadedFile::fake()->image('other.png')],'role'=>'reference'])->assertNotFound();
+    }
     public function test_creates_single_short_and_novel_drafts(): void {
         $u=User::factory()->create();$this->actingAs($u);
         foreach([1,3,50] as $count) {
@@ -32,21 +48,18 @@ class StudioTest extends TestCase {
         $this->put(route('stories.update',$s),[])->assertNotFound();
         $this->post(route('chat.store',$s),[])->assertNotFound();
     }
-    public function test_page_save_versions_and_invalidates_approval(): void {
-        $u=User::factory()->create();$s=$this->story($u);$s->update(['plan_approved_at'=>now()]);
+    public function test_page_save_versions_and_rejects_stale_writes(): void {
+        $u=User::factory()->create();$s=$this->story($u);
         $this->actingAs($u)->put(route('pages.update',[$s,$s->pages->first()]),['revision'=>1,'title'=>'Changed'])->assertRedirect();
         $this->assertSame(2,$s->fresh()->revision);
-        $this->assertNull($s->fresh()->plan_approved_at);
         $this->assertSame('Arrival',$s->revisions->first()->snapshot['pages'][0]['title']);
         $this->put(route('pages.update',[$s,$s->pages->first()]),['revision'=>1,'title'=>'Stale'])->assertSessionHasErrors('revision');
     }
-    public function test_complete_plan_required_and_can_be_approved(): void {
-        $u=User::factory()->create();$s=$this->story($u);$this->actingAs($u);
-        $this->post(route('stories.approve',$s),['revision'=>1])->assertSessionHasErrors('plan');
-        $s->update(['bible'=>'Full story']);
-        $s->pages->first()->update(array_fill_keys(['narrative','scene_prompt','video_prompt','interaction_plan','completion'],'Planned'));
-        $this->post(route('stories.approve',$s),['revision'=>1])->assertRedirect();
-        $this->assertNotNull($s->fresh()->plan_approved_at);
+    public function test_editor_has_no_full_plan_approval_gate(): void {
+        $u=User::factory()->create();$s=$this->story($u);
+        $this->actingAs($u)->get(route('stories.edit',$s))->assertOk()->assertDontSee('Approve full plan');
+        $this->get(route('dashboard'))->assertOk()->assertDontSee('Plan approved');
+        $this->post('/stories/'.$s->id.'/approve',['revision'=>1])->assertNotFound();
     }
     public function test_key_is_encrypted_hidden_and_not_flashed_on_validation_error(): void {
         $u=User::factory()->create();$key='sk-or-v1-personal-secret';

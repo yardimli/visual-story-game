@@ -40,10 +40,39 @@ class OpenRouter {
             return $response->json('endpoints') ?? $response->json('data.endpoints') ?? [];
         });
     }
+    public function allImageEndpoints(): array {
+        $models=$this->imageModels();$endpoints=[];$missing=[];$unavailable=[];
+        foreach($models as $model) {
+            $id=$model['id'];$cached=Cache::get('openrouter.image-endpoints.'.hash('sha256',$id));
+            if($cached!==null)$endpoints[$id]=$cached;else $missing[]=$id;
+        }
+        if($missing) {
+            // Only request uncached, allowlisted IDs, concurrently on the server.
+            $responses=Http::pool(function ($pool) use ($missing) {
+                return array_map(function ($id) use ($pool) {
+                    $path=implode('/',array_map('rawurlencode',explode('/',$id)));
+                    return $pool->as($id)->acceptJson()->connectTimeout(5)->timeout(20)
+                        ->get(config('story.openrouter_url').'/images/models/'.$path.'/endpoints');
+                },$missing);
+            });
+            foreach($missing as $id) {
+                $response=$responses[$id]??null;
+                if(!$response instanceof \Illuminate\Http\Client\Response || !$response->successful()) {
+                    $endpoints[$id]=[];$unavailable[]=$id;continue;
+                }
+                $endpoints[$id]=$response->json('endpoints')??$response->json('data.endpoints')??[];
+                Cache::put('openrouter.image-endpoints.'.hash('sha256',$id),$endpoints[$id],900);
+            }
+        }
+        return ['models'=>$models,'endpoints'=>(object)$endpoints,'unavailable'=>$unavailable];
+    }
     public function generateImage(string $key, array $payload) {
         // Image API has a separate schema; do not route through chat completions.
-        return Http::withToken($key)->acceptJson()->connectTimeout(10)->timeout(300)
-            ->post(config('story.openrouter_url').'/images',$payload);
+        // Keep data-URL MIME slashes literal for upstream image parsers.
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return Http::withToken($key)->acceptJson()->connectTimeout(10)->timeout(180)
+            ->withBody($body, 'application/json')
+            ->post(config('story.openrouter_url').'/images');
     }
     public function model(string $id): array {
         $model = collect($this->models())->firstWhere('id',$id);
@@ -56,6 +85,6 @@ class OpenRouter {
         // Never retry a billable request automatically.
         return Http::withToken($key)->acceptJson()->withHeaders([
             'HTTP-Referer'=>config('app.url'), 'X-Title'=>'Visual Story Game',
-        ])->connectTimeout(10)->timeout(120)->post(config('story.openrouter_url').'/chat/completions',$payload);
+        ])->connectTimeout(10)->timeout(180)->post(config('story.openrouter_url').'/chat/completions',$payload);
     }
 }

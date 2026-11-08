@@ -1,19 +1,28 @@
+import {aiCallHistory} from './ai-call-history';
+import {proposalReview, selectedLegacyProposal} from './proposal-review';
+import {imageCatalog} from './image-catalog';
+import {notify, watchNotices, toastCenter} from './toasts';
 import './bootstrap';
 import './textarea-autosize';
 
 import Alpine from 'alpinejs';
+import {sceneEditor} from './scene-editor';
 import {studioAutosave} from './autosave';
 import {proposalTargets, displayMessage} from './companion-proposals';
 import {selectableModels, rememberedModel, rememberModel, modelLabel, imagePriceLabel} from './model-preferences';
 
 window.Alpine = Alpine;
+Alpine.data('aiCallHistory', aiCallHistory);
+Alpine.data('toastCenter', toastCenter);
+Alpine.data('proposalReview', proposalReview);
 Alpine.data('studioAutosave', studioAutosave);
+Alpine.data('sceneEditor', sceneEditor);
 
 Alpine.data('modelPicker', (initial, modality = 'text') => ({
     modelLabel,
     imagePriceLabel, endpoints: [], pricingError: '', pricingLoading: false, pricingRequest: 0,
     models: [], selected: initial, error: '', sending: false,
-    init() { this.selected = rememberedModel(this.storageKey(), initial); this.$watch('selected', () => this.loadPricing()); this.load(); },
+    init() { watchNotices(this,{error:'error',pricingError:'error'}); this.selected = rememberedModel(this.storageKey(), initial); this.$watch('selected', () => this.loadPricing()); this.load(); },
     storageKey() { return modality === 'text' ? 'vsg-writing-model' : 'vsg-image-model'; },
     remember() { rememberModel(this.storageKey(), this.selected); },
     async loadPricing() {
@@ -23,19 +32,18 @@ Alpine.data('modelPicker', (initial, modality = 'text') => ({
         if (!this.selected) return;
         this.pricingLoading = true;
         try {
-            const response = await fetch('/ai/image-endpoints?model='+encodeURIComponent(this.selected), {headers:{Accept:'application/json'}});
-            if (!response.ok) throw new Error();
-            const data = await response.json();
-            if (request === this.pricingRequest) this.endpoints = data.endpoints;
+            const data = await imageCatalog();
+            if (request === this.pricingRequest) this.endpoints = data.endpoints[this.selected] || [];
         } catch (_) { if (request === this.pricingRequest) this.pricingError = 'Could not load image pricing. Please retry.'; }
         finally { if (request === this.pricingRequest) this.pricingLoading = false; }
     },
     async load() {
         this.error = '';
         try {
-            const response = await fetch('/ai/models?modality='+modality, {headers: {'Accept':'application/json'}});
-            if (!response.ok) throw new Error('Catalog unavailable');
-            const data = await response.json();
+            const data = modality === 'image' ? await imageCatalog() : await (async()=>{
+                const response=await fetch('/ai/models?modality=text',{headers:{Accept:'application/json'}});
+                if(!response.ok)throw new Error('Catalog unavailable');return response.json();
+            })();
             const choice = this.selected;
             this.models = selectableModels(data.models, modality);
             this.$nextTick(() => {
@@ -50,8 +58,9 @@ Alpine.data('modelPicker', (initial, modality = 'text') => ({
 Alpine.data('creativeCompanion', (options) => ({
     modelLabel, displayMessage,
     messages: options.messages, models: [], model: options.model, prompt: '', error: '', notice: '',
-    sending: false, catalogError: false, remaining: options.remaining,
+    sending: false, applying: false, catalogError: false, remaining: options.remaining,
     async init() {
+        watchNotices(this,{notice:'success',error:'error'});
         this.model = rememberedModel('vsg-writing-model', options.model);
         this.loadModels();
         if (options.history) {
@@ -76,7 +85,7 @@ Alpine.data('creativeCompanion', (options) => ({
                 this.model = this.models.some(m => m.id === choice) ? choice : '';
                 this.remember();
             });
-        } catch (_) { this.catalogError = true; }
+        } catch (_) { this.catalogError = true; this.error='Model catalog unavailable. Reload models from AI settings.'; }
     },
     draft() {
         const form = document.querySelector('[data-companion-form="create"]');
@@ -90,7 +99,7 @@ Alpine.data('creativeCompanion', (options) => ({
             if (window.vsgAutosave && !(await window.vsgAutosave.flush())) throw new Error('Resolve unsaved changes before sending a message.');
             const response = await fetch(options.endpoint, {
                 method:'POST', headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},
-                body:JSON.stringify({message,model:this.model,request_key:crypto.randomUUID(),page_id:options.pageId,form:this.draft()})
+                body:JSON.stringify({message,model:this.model,request_key:crypto.randomUUID(),page_id:options.pageId,image_visual_id:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.visual?.id:undefined,active_tab:window.vsgSceneEditor?.generationMode?'images':window.vsgAutosave?.tab,visual_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.selected:undefined,hotspot_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.hotspotId||undefined:undefined,image_settings:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.settings:undefined,reference_ids:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.references.map(Number):undefined,form:this.draft()})
             });
             const data = await response.json();
             if (!response.ok) throw new Error(Object.values(data.errors ?? {}).flat().join(' ') || data.message || 'Request failed.');
@@ -103,11 +112,41 @@ Alpine.data('creativeCompanion', (options) => ({
         } catch (e) { this.error = e.message || 'Connection interrupted. Check your allowance before trying again.'; }
         finally { this.sending = false; }
     },
-    fill(item) {
+    async applyReviewed(item,chosen){
+        if(this.applying||!chosen.length)return;
+        if(!item.proposal._review){await this.fill({...item,proposal:selectedLegacyProposal(item.proposal,chosen)});return;}
+        this.applying=true;this.error='';
+        try {
+            if(window.vsgAutosave && !(await window.vsgAutosave.flush()))throw new Error('Resolve unsaved changes before applying this proposal.');
+            const response=await fetch(options.changesBase+'/'+item.id+'/changes',{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},body:JSON.stringify({selected:chosen.map(Number)})});
+            const data=await response.json();if(!response.ok)throw new Error(Object.values(data.errors??{}).flat().join(' ')||data.message||'Could not apply changes.');
+            if(data.navigate)window.location.assign(data.navigate);else window.location.reload();
+        }catch(e){this.error=e.message;}finally{this.applying=false;}
+    },
+    async fill(item) {
         this.notice = ''; this.error = '';
         if (options.revision && item.revision !== (window.vsgAutosave?.revision ?? options.revision)) {
             this.error = 'This suggestion belongs to an older revision. Ask for an updated suggestion.'; return;
         }
+        const editor=window.vsgSceneEditor;
+        if(item.proposal?._interaction){
+            try {
+                if(window.vsgAutosave?.tab!=='visuals'||!editor)throw new Error('Open Interactions and select the original area to apply this suggestion.');
+                const objectId=editor.applyInteractionProposal(item.proposal,options.pageId);
+                if(!(await editor.flush()))return;
+                if(objectId){const url=new URL(options.imageStudio,window.location.origin);url.searchParams.set('visual',objectId);window.location.assign(url.href);}
+                else this.notice='Area description updated.';
+            } catch(e){this.error=e.message;}
+            return;
+        }
+        if(editor?.generationMode) {
+            const target=item.proposal?._image;
+            const prompt=item.proposal?.pages?.find(p=>Number(p.position)===Number(options.position))?.scene_prompt;
+            if(!target || target.id!==editor.visual?.id || target.revision!==editor.revision || editor.dirty || editor.saving){this.error='Select the original visual and ask for a fresh prompt suggestion before applying it.';return;}
+            if(typeof prompt!=='string'||prompt.length>10000){this.error='This suggestion has no valid image prompt.';return;}
+            editor.visual.prompt=prompt;editor.changed();window.dispatchEvent(new Event('textarea-refresh'));this.notice='Image prompt applied and autosaving. Generate when you are ready.';return;
+        }
+        if(item.proposal?._image){this.error='Open Image generation to apply this image prompt suggestion.';return;}
         const targets = proposalTargets(item.proposal, options.pageId, options.position);
         let count = 0, tab = '';
         for (const [name, values, keys] of targets) {
@@ -129,4 +168,16 @@ Alpine.data('creativeCompanion', (options) => ({
     }
 }));
 
+Alpine.data('modelCatalogReload', () => ({
+ busy:false,
+ async reload(){
+  if(this.busy)return;this.busy=true;
+  try {
+   const [response]=await Promise.all([fetch('/ai/models?modality=text',{headers:{Accept:'application/json'}}),imageCatalog(true)]);
+   if(!response.ok)throw new Error();
+   window.dispatchEvent(new Event('vsg-models-reload'));notify('Model catalogs reloaded.');
+  } catch(_){notify('Could not reload model catalogs. Please try again.','error');}
+  finally{this.busy=false;}
+ }
+}));
 Alpine.start();

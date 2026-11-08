@@ -1,5 +1,5 @@
 <x-guest-layout>
-<p class="eyebrow">YOUR FIRST CHAPTER</p><h2 class="mt-3 font-serif text-3xl">Make room for an idea.</h2><p class="mb-7 mt-3 text-sm leading-6 text-stone-500 dark:text-stone-400">Create your free account. Start with $1 of included AI writing credit.</p>
+<p class="eyebrow">YOUR FIRST CHAPTER</p><h2 class="mt-3 font-serif text-3xl">Make room for an idea.</h2><p class="mb-7 mt-3 text-sm leading-6 text-stone-500 dark:text-stone-400">Create your free account. Start with $1 of included AI credit for writing and images.</p>
 <form method="POST" action="{{ route('register') }}" class="space-y-5">@csrf
 <div><x-input-label for="name" value="Your name" /><x-text-input id="name" class="mt-2 w-full" name="name" :value="old('name')" required autofocus autocomplete="name" /><x-input-error :messages="$errors->get('name')" class="mt-2" /></div>
 <div><x-input-label for="email" value="Email address" /><x-text-input id="email" class="mt-2 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" placeholder="you@example.com" /><x-input-error :messages="$errors->get('email')" class="mt-2" /></div>

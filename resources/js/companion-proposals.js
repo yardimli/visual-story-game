@@ -17,7 +17,7 @@ export function displayMessage(item) {
     return item.content.replace(/```json\s*([\s\S]*?)```/gi, (block, json) => {
         try {
             const data = JSON.parse(json);
-            return data && typeof data === 'object' && ['form','story','bible','pages','premise','title','genre','language','style'].some(key => key in data) ? '' : block;
+            return data && typeof data === 'object' && ['changes','interaction','form','story','bible','pages','premise','title','genre','language','style'].some(key => key in data) ? '' : block;
         } catch (_) { return block; }
     }).trim() || 'Draft changes are ready. Fill the form to review them before saving.';
 }

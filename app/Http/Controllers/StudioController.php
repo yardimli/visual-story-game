@@ -7,13 +7,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 class StudioController extends Controller {
     public function index(Request $request) {
-        return view('studio.index',['stories'=>Story::where('user_id',$request->user()->id)->withCount(['pages','pages as ready_pages_count'=>function($q) { foreach(['narrative','scene_prompt','video_prompt','interaction_plan','completion'] as $field) $q->whereNotNull($field)->whereRaw('TRIM('.$field.') <> ?', ['']); }])->latest('updated_at')->get()]);
+        $historyStory=$request->filled('history')?Story::where('user_id',$request->user()->id)->findOrFail($request->integer('history')):null;
+        return view('studio.index',['historyStory'=>$historyStory,'revisions'=>$historyStory?->revisions()->latest()->limit(20)->get(),'stories'=>Story::where('user_id',$request->user()->id)->withCount(['pages','pages as ready_pages_count'=>function($q) { foreach(['narrative','scene_prompt','video_prompt','interaction_plan','completion'] as $field) $q->whereNotNull($field)->whereRaw('TRIM('.$field.') <> ?', ['']); }])->latest('updated_at')->get()]);
     }
     public function store(Request $request) {
         $data=$request->validate(['title'=>'required|string|max:160','premise'=>'required|string|max:5000','page_count'=>'required|integer|min:1|max:100','genre'=>'required|string|max:80']);
         $story=DB::transaction(function () use ($request,$data) {
             $story=Story::create(['user_id'=>$request->user()->id,'title'=>$data['title'],'premise'=>$data['premise'],'genre'=>$data['genre']]);
-            for($i=1;$i<=$data['page_count'];$i++) $story->pages()->create(['position'=>$i,'title'=>'Scene '.$i]);
+            for($i=1;$i<=$data['page_count'];$i++) $story->pages()->create(['position'=>$i,'title'=>'Page '.$i]);
             return $story;
         });
         return redirect()->route('stories.edit',$story);
@@ -21,10 +22,10 @@ class StudioController extends Controller {
     public function edit(Request $request,Story $story) {
         $this->owner($request,$story);
         $story->load(['pages','assets']);
+        $story->setRelation('assets',\App\Models\Asset::withGenerationNames($story->assets,$story->id));
         $page=$request->filled('page') ? $story->pages->firstWhere('id',(int)$request->page) : $story->pages->first();
         abort_unless($page,404);
-        return view('studio.edit',['story'=>$story,'page'=>$page,'messages'=>$story->messages()->latest()->limit(40)->get()->reverse(),
-            'revisions'=>$story->revisions()->latest()->limit(8)->get()]);
+        return view('studio.edit',['story'=>$story,'page'=>$page,'messages'=>$story->messages()->latest()->limit(40)->get()->reverse()]);
     }
     public function update(Request $request,Story $story,StoryDraft $draft) {
         $this->owner($request,$story);
@@ -32,7 +33,7 @@ class StudioController extends Controller {
         $revision=$data['revision'];unset($data['revision']);
         $draft->change($story,$revision,'Project details',fn($s)=>$s->update($data));
         if ($request->expectsJson()) return response()->json(['revision'=>(int)$revision+1]);
-        return back()->with('status','Story saved. Review the plan again before generation.');
+        return back()->with('status','Story saved.');
     }
     public function page(Request $request,Story $story,StoryPage $page,StoryDraft $draft) {
         $this->owner($request,$story); abort_unless($page->story_id===$story->id,404);
@@ -42,16 +43,33 @@ class StudioController extends Controller {
         if ($request->expectsJson()) return response()->json(['revision'=>(int)$revision+1]);
         return back()->with('status','Page saved.');
     }
-    public function approve(Request $request,Story $story) {
-        $this->owner($request,$story);$request->validate(['revision'=>'required|integer']);
-        DB::transaction(function () use($request,$story) {
-            $s=Story::whereKey($story->id)->lockForUpdate()->firstOrFail();
-            abort_unless($s->revision===(int)$request->revision,409);
-            $ready=filled($s->bible)&&$s->pages()->get()->every(fn($p)=>filled($p->narrative)&&filled($p->scene_prompt)&&filled($p->video_prompt)&&filled($p->interaction_plan)&&filled($p->completion));
-            if(!$ready) throw \Illuminate\Validation\ValidationException::withMessages(['plan'=>'Complete the story bible and every page’s prose, prompts, interactions, and completion rule first.']);
-            $s->update(['plan_approved_at'=>now()]);
+    public function structure(Request $request, Story $story, StoryDraft $draft, \App\Services\PageOrder $order) {
+        $this->owner($request,$story);
+        $data=$request->validate(['revision'=>'required|integer','action'=>'required|in:add,up,down,remove','page_id'=>'required_unless:action,add|integer']);
+        $selected=null;
+        $draft->change($story,(int)$data['revision'],'Page structure: '.$data['action'],function($s) use ($data,$order,&$selected) {
+            $ids=$s->pages()->pluck('id')->all();
+            if ($data['action']==='add') {
+                if (count($ids)>=100) throw \Illuminate\Validation\ValidationException::withMessages(['pages'=>'A story can have at most 100 pages.']);
+                $position=(int)\App\Models\StoryPage::withTrashed()->where('story_id',$s->id)->max('position')+1;
+                $new=$s->pages()->create(['position'=>$position,'title'=>'Page '.(count($ids)+1)]);
+                $ids[]=$new->id; $selected=$new->id;
+            } else {
+                $index=array_search((int)$data['page_id'],$ids,true);
+                abort_if($index===false,404);
+                if ($data['action']==='remove') {
+                    if (count($ids)===1) throw \Illuminate\Validation\ValidationException::withMessages(['pages'=>'Keep at least one page in your story.']);
+                    array_splice($ids,$index,1); $selected=$ids[min($index,count($ids)-1)];
+                } else {
+                    $target=$index+($data['action']==='up' ? -1 : 1);
+                    if (!isset($ids[$target])) throw \Illuminate\Validation\ValidationException::withMessages(['pages'=>'This page cannot move further in that direction.']);
+                    [$ids[$index],$ids[$target]]=[$ids[$target],$ids[$index]];
+                    $selected=(int)$data['page_id'];
+                }
+            }
+            $order->arrange($s,$ids);
         });
-        return back()->with('status','Complete plan approved.');
+        return redirect()->route('stories.edit',[$story,'page'=>$selected])->with('status','Page order updated. Review the linear interaction plan; restore removed pages from History.');
     }
     public function apply(Request $request,Story $story,ChatMessage $message,StoryDraft $draft) {
         $this->owner($request,$story); abort_unless($message->story_id===$story->id && $message->proposal,404);
@@ -78,9 +96,10 @@ class StudioController extends Controller {
         $request->validate(['revision'=>'required|integer']);
         $draft->change($story,(int)$request->revision,'Restore revision '.$revision->revision,function($s)use($revision) {
             $s->update($revision->snapshot['story']);
+            app(\App\Services\PageOrder::class)->arrange($s,array_column($revision->snapshot['pages'],'id'));
             foreach($revision->snapshot['pages'] as $page) { $id=$page['id'];unset($page['id']);$s->pages()->whereKey($id)->update($page); }
         });
-        return back()->with('status','Earlier draft restored.');
+        return redirect()->route('stories.edit',$story)->with('status','Earlier draft restored, including page order and removed pages.');
     }
     private function owner(Request $request,Story $story): void { abort_unless($story->user_id===$request->user()->id,404); }
 }

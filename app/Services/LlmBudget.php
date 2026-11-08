@@ -4,7 +4,24 @@ use App\Models\{User,LlmRequest,Story};
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 class LlmBudget {
+    public function expireOverdue(?int $userId=null): int {
+        $count=0;
+        LlmRequest::whereIn('status',['reserved','uncertain'])->where('created_at','<=',now()->subMinutes(3))
+            ->when($userId,fn($q)=>$q->where('user_id',$userId))->select(['id','user_id'])->chunkById(100,function($rows) use (&$count) {
+                foreach($rows as $row) $count+=DB::transaction(function() use($row) {
+                    $u=User::whereKey($row->user_id)->lockForUpdate()->first();
+                    $r=LlmRequest::whereKey($row->id)->lockForUpdate()->first();
+                    if(!$u || !$r || !in_array($r->status,['reserved','uncertain']) || $r->created_at->gt(now()->subMinutes(3)))return 0;
+                    if($r->funding==='platform'){$u->llm_reserved-=$r->reserved;$u->save();}
+                    $r->update(['status'=>'failed','cost'=>0]);
+                    \App\Models\ImageGeneration::where('llm_request_id',$r->id)->whereIn('status',['queued','running','failed'])->update(['status'=>'failed','error'=>'Request exceeded the three-minute limit. Any reserved trial credit was released. Start a new request to try again.']);
+                    return 1;
+                });
+            });
+        return $count;
+    }
     public function reserve(User $user, ?Story $story, string $requestKey, string $model, int $amount): LlmRequest {
+        $this->expireOverdue($user->id);
         return DB::transaction(function () use ($user,$story,$requestKey,$model,$amount) {
             $u = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             if ($u->openrouter_key !== $user->openrouter_key)
@@ -15,13 +32,14 @@ class LlmBudget {
             if (!$personal && $u->llm_spent >= config('story.allowance'))
                 throw ValidationException::withMessages(['message'=>'Your free $1 credit has been used. Add your own OpenRouter key in AI settings to continue.']);
             if (!$personal && ($u->llm_spent + $u->llm_reserved + $amount > config('story.allowance')))
-                throw ValidationException::withMessages(['message'=>'This request needs more credit than is currently available. Choose a lower-cost model or shorten the request. Credit reserved for pending requests becomes available after billing is confirmed.']);
+                throw ValidationException::withMessages(['message'=>'This request needs an estimated $'.number_format($amount/1000000,6).' reservation, but $'.number_format(max(0,config('story.allowance')-$u->llm_spent-$u->llm_reserved)/1000000,6).' of trial credit is available. No generation was started. Choose a lower-cost model/settings or add a personal OpenRouter key in AI settings.']);
             if (!$personal) { $u->llm_reserved += $amount; $u->save(); }
             return LlmRequest::create(['user_id'=>$u->id,'story_id'=>$story?->id,'request_key'=>$requestKey,
                 'model'=>$model,'funding'=>$personal?'personal':'platform','reserved'=>$personal?0:$amount]);
         });
     }
     public function settle(LlmRequest $request, ?int $cost, string $status, ?string $providerId=null): void {
+        $this->expireOverdue($request->user_id);
         DB::transaction(function () use ($request,$cost,$status,$providerId) {
             $u = User::whereKey($request->user_id)->lockForUpdate()->firstOrFail();
             $r = LlmRequest::whereKey($request->id)->lockForUpdate()->firstOrFail();

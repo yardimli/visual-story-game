@@ -32,4 +32,27 @@ class ImageCatalogTest extends TestCase {
         Http::assertSent(fn($r)=>str_ends_with($r->url(),'/images') && $r['prompt']==='A scene');
         Http::assertSentCount(1);
     }
+    public function test_reference_mime_slashes_are_literal_in_the_wire_json(): void {
+        Http::fake(['*/images'=>Http::response(['data'=>[]])]);
+        $payload = [
+            'model'=>'openai/image',
+            'prompt'=>"Keep the \"note\".\nPreserve C:\\scene.",
+            'input_references'=>array_map(fn ($mime)=>[
+                'type'=>'image_url',
+                'image_url'=>['url'=>'data:'.$mime.';base64,/w=='],
+            ], ['image/png', 'image/jpeg', 'image/webp']),
+        ];
+        app(OpenRouter::class)->generateImage('test-key', $payload);
+        Http::assertSent(function ($request) use ($payload) {
+            $body = $request->body();
+            $this->assertSame($payload, json_decode($body, true, 512, JSON_THROW_ON_ERROR));
+            $this->assertTrue($request->hasHeader('Content-Type', 'application/json'));
+            foreach (['image/png', 'image/jpeg', 'image/webp'] as $mime) {
+                $this->assertStringContainsString('data:'.$mime.';base64,/w==', $body);
+            }
+            $this->assertStringNotContainsString('\\/', $body);
+            return true;
+        });
+        Http::assertSentCount(1);
+    }
 }

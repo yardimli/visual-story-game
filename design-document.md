@@ -2,7 +2,7 @@
 
 Source: https://chatgpt.com/space/page_2a58c5a302008191b1e3edf3894693fe
 
-This design defines a Laravel platform where users create, publish, discover, and play cinematic interactive stories. Supported formats include single-page stories, short stories of 2–5 pages, and longer novels of approximately 40–50 pages. Each page combines a short video, an illustrated scene, concise narrative text, and point-and-click interactions. Every format is fully preplanned before asset production.
+This design defines a Laravel platform where users create, publish, discover, and play cinematic interactive stories. Supported formats include single-page stories, short stories of 2–5 pages, and longer novels of approximately 40–50 pages. Each page combines a short video, one or more illustrated scenes, concise narrative text, and point-and-click interactions. Storyboard entries are pages; scene and object visuals belong within a page. Every format is fully preplanned before asset production.
 
 The story follows one fixed route and ending. Players explore, collect items, use tools, and solve puzzles to advance along that route. Local scene changes and different orders of exploration do not create branching story paths.
 
@@ -70,11 +70,11 @@ The chat can generate and edit image prompts and video prompts, then initiate im
 
 Provide separate selectors for the OpenRouter LLM and the OpenRouter image model. Let the creator choose any OpenRouter LLM available to their account rather than a fixed curated writing-model list. Show the selected model on each response and preserve conversation history when switching models. Show capability limitations explicitly; never silently substitute another model.
 
-Chat context includes the approved story bible, page order, current page and selection, relevant inventory dependencies, approved assets, reference attachments, and the current draft revision. Allow the creator to target the whole story, a page, an object, or a prompt. Keep an explicit context summary for long projects and retrieve relevant details rather than silently dropping established story facts.
+Chat context includes the current story bible, page order, current page and selection, relevant inventory dependencies, approved assets, reference attachments, and the current draft revision. Allow the creator to target the whole story, a page, an object, or a prompt. Keep an explicit context summary for long projects and retrieve relevant details rather than silently dropping established story facts.
 
 Show proposed story and gameplay changes as reviewable edits with Apply and Undo. A direct creator command may apply changes within its stated scope, with a visible change summary and revision history. Chat edits and form edits update the same structured project data. Validate model output before applying changes; models without tool support can still draft content, with validated application actions handling structured edits and generation.
 
-Before media generation, the complete story, page contents, interactions, item dependencies, and asset manifest must be planned and approved, even for one page. Show prompts, reference thumbnails, selected models or workflows, target assets, and estimated work in generation cards. An explicit Generate action starts the requested jobs. Return progress and completed previews to the conversation and asset library; a text reply alone must never imply a render completed.
+Creators can switch freely between planning and media creation. No complete-plan approval is required. Each generation action only requires its own prompt, compatible model, and necessary input assets. Show prompts, reference thumbnails, selected models or workflows, target assets, and estimated work in generation cards. An explicit Generate action starts the requested jobs. Return progress and completed previews to the conversation and asset library; a text reply alone must never imply a render completed.
 
 The scene canvas supports zoom, polygon or rectangle hotspot drawing, object labels, and an overlay toggle. Selecting a hotspot opens a plain-language rule builder: **When the player uses [brass key] on [chest], if [chest is locked], then [open chest], [show updated scene], and [display text].**
 
@@ -96,7 +96,7 @@ Container contents and close-up puzzles open focused dialogs over the scene. On 
 
 4. **Plan dependencies.** Specify where each required item is obtained, where it is used, whether it is consumed, and which later pages depend on it. Distinguish optional discoveries from required actions.
 
-5. **Approve the storyboard.** Review the complete linear journey, interaction rules, item dependencies, and asset manifest before media production. The creator chat assists with planning and revisions; the creator approves the production plan.
+5. **Iterate on the storyboard.** Review and revise the linear journey, interactions, and asset needs while creating scenes. Move between planning and production at any time; there is no full-plan approval step.
 
 6. **Produce scene artwork.** Use the selected OpenRouter image model and creator-approved prompts. Upload one or more reference images for compatible image-edit models to guide composition, characters, objects, or style. Generate the base scene and the required video input images while maintaining visual consistency.
 
@@ -229,7 +229,7 @@ Store reference assets under the project’s access controls and transmit only t
 
 ## Asset workflow
 
-1. Use creator chat or manual editing to prepare image and video prompts from the approved story bible, complete page plan, uploaded references, and camera instructions.
+1. Use creator chat or manual editing to prepare image and video prompts from the current story bible, available page plan, uploaded references, and camera instructions.
 
 2. Generate candidate scene images with the selected OpenRouter image model, supplying the prompt and one or more references when using a compatible image-edit model; let the creator approve an output.
 
@@ -358,7 +358,7 @@ The Publish screen provides a readiness checklist with links to the affected pag
 
 - Mouse, touch, keyboard access, text readability, and reduced motion work as intended.
 
-- The complete story and asset plan is approved before generation for every supported length.
+- Creators can generate individual scenes at any story length without completing or approving the entire plan.
 
 - Creator chat changes and manual edits stay synchronized, undo works, and model switching preserves story context.
 
@@ -395,9 +395,9 @@ Success means a creator can plan a complete linear novel, produce and review its
 - Laravel 10 with Laravel Breeze for registration, login, password resets, and profile management.
 - Tailwind CSS for the creator, discovery, and player interfaces.
 - Preserve existing database values and OPEN_ROUTER_KEY in the project .env. Keep secrets out of source control.
-- Platform-funded LLM usage is limited to US $1 per user, interpreted as a lifetime allowance. Require a personal OpenRouter key to continue beyond it. Store personal keys encrypted and never return them to the browser.
+- Platform-funded writing and image usage is limited to US $1 per user, interpreted as a lifetime allowance. Require a personal OpenRouter key to continue beyond it. Store personal keys encrypted and never return them to the browser.
 - Enforce the allowance on the server with a usage ledger, concurrent-request protection, conservative reservations, and actual-cost reconciliation. An uncertain provider outcome must not release credit automatically.
-- Image generation is separately metered; the $1 allowance applies to LLM chat. Require a personal key for image generation until a separate platform image budget is configured.
+- Image generation and LLM chat draw from one lifetime $1 trial allowance. Reserve image cost before queueing, then settle from catalog rates. Require a personal key once the shared allowance is exhausted.
 
 
 ## Persistent companion and explicit form submission
@@ -408,10 +408,37 @@ The companion may suggest form drafts but cannot submit them. On the dashboard, 
 Chat uses the same lifetime $1 allowance, encrypted personal-key routing, cost reservation, and reconciliation rules everywhere. The image model selector is separate from the writing model selector; selecting a model does not generate an image or incur a generation charge.
 
 ### Model policy and token accounting (updated)
-`OPENROUTER_PROVIDERS=deepseek,anthropic,openai,moonshotai,google,qwen` controls the visible editorial catalog by model ID author prefix, not inference hosting provider. Changes apply after `php artisan config:clear` if configuration is cached. Text-output models are filtered by the editorial policy (legacy/coding/lite and small Qwen exclusions), with latest version/snapshot per product family; batch/free variants are omitted. Image-only models are excluded from this editorial catalog; a dedicated generation catalog remains future work.
+`OPENROUTER_PROVIDERS=deepseek,anthropic,openai,moonshotai,google,qwen` controls the visible editorial catalog by model ID author prefix, not inference hosting provider. Changes apply after `php artisan config:clear` if configuration is cached. Text-output models are filtered by the editorial policy (legacy/coding/lite and small Qwen exclusions), with latest version/snapshot per product family; batch/free variants are omitted. Image-only models are excluded from this editorial catalog; a dedicated image catalog supplies generation models.
 
 Dropdown prices are catalog USD per million input/output tokens. The app allowance now charges `(prompt_tokens × prompt_rate + completion_tokens × completion_rate)` in USD, rounded up to integer microUSD. Catalog API rates are per token. OpenRouter `usage.cost` is ignored, including for BYOK zero-cost responses. Applicable long-context and UTC schedule overrides are applied from a request-time pricing snapshot. Cache discounts and separate add-on charges do not alter this app token-rate formula; completion totals already include reasoning. Personal keys continue to bypass the platform allowance. Missing/invalid token counts retain the reservation for reconciliation. Historical settled records are not rewritten.
 
-Image discovery update: the image selector now uses GET /api/v1/images/models and reads provider pricing/capabilities from /images/models/{author}/{slug}/endpoints. Text editorial exclusions do not apply; OPENROUTER_PROVIDERS and batch/free exclusions still apply. Display price lines by their image/megapixel/token units and variants. The image transport uses POST /api/v1/images with prompt/reference inputs, not chat completions. The creation queue, validation, asset storage, and image-specific accounting remain pending; selecting a model makes no paid request.
+Image discovery update: the image selector now uses GET /api/v1/images/models and reads provider pricing/capabilities from /images/models/{author}/{slug}/endpoints. Text editorial exclusions do not apply; OPENROUTER_PROVIDERS and batch/free exclusions still apply. Display price lines by their image/megapixel/token units and variants. The image transport uses POST /api/v1/images with prompt/reference inputs, not chat completions. The creation queue, capability validation, and private asset storage are implemented; image jobs use shared trial credit or a saved personal key. Selecting a model makes no paid request.
 
-Autosave update: existing story and page fields save automatically after a 400ms typing pause. Applying a companion proposal also autosaves. Writes are serialized across forms with revision checks; validation failures retain text, and ambiguous failures/conflicts stop automatic retries. The editor shows save status and waits for pending changes before navigation, chat, approval, or restore. Creation, uploads, and account/security actions remain explicit. This supersedes the earlier manual Save-button behavior for existing story/page forms.
+Autosave update: existing story and page fields save automatically after a 400ms typing pause. Applying a companion proposal also autosaves. Writes are serialized across forms with revision checks; validation failures retain text, and ambiguous failures/conflicts stop automatic retries. The editor shows save status and waits for pending changes before navigation, chat or restore. Creation, uploads, and account/security actions remain explicit. This supersedes the earlier manual Save-button behavior for existing story/page forms.
+
+## Scene artwork and interaction authoring
+Each page owns a visual document protected by a concurrency revision with named scene states and object images. A scene state is a background and its clickable rectangles; an object image is an isolated prop or close-up, usable as an overlay, inspection window, or inventory preview. Images generated for the same visual remain separate assets until the creator chooses one.
+
+For the Silent House example: author a porch background without the note, generate the note separately, and place its image in a hotspot rectangle. Clicking it opens the readable note close-up. A stone hotspot can open a separate close-up of the stone with a key, or switch to another scene state depicting the opened stone. A pickup hotspot may add an object to the preview inventory and switch to an empty/removed state. These are independent images, not automatic mutations of one background.
+
+The Images & interactions tab provides named visuals, prompt/model/provider settings, private reference selection, generated versions, image assignment, normalized rectangle drawing and numeric coordinates, action editing, and a local resettable preview. Changes autosave independently of prose. Generate is explicit and queued; jobs snapshot input assets, prompt, validated settings, and pricing. Results never silently replace selected images or hotspot layouts. Image and chat requests share the free $1 trial credit; a saved personal key bypasses the trial balance. Published playthrough persistence and conditional crafting rules remain subsequent milestones.
+
+
+Image routing update: the generation model dropdown displays endpoint catalog prices with image, megapixel, or million-token units and ranges across providers/settings. OpenRouter chooses the provider automatically; no `provider.only` constraint is sent. Optional settings are limited to common endpoint capabilities. Trial reservation uses the highest endpoint quote. Settlement uses the returned provider identity when available, or identical computed costs across endpoints; ambiguous provider-dependent costs retain their reservation for reconciliation rather than guessing. Existing queued jobs keep their original snapshots.
+
+
+Image generation workspace: use the Image generation link for the current page. The dedicated page keeps the creative companion visible, shows generated images with their immutable request prompts/model names, and provides Generate scene, Generate object, and Edit this image. Editing selects the source render as a reference and produces a new version. The companion can propose the selected visual’s image prompt; applying it checks the visual ID/revision and autosaves only that prompt. Rendering remains an explicit action. The Interactions tab focuses on content, selected assets, clickable areas, and preview.
+
+
+AI timeout policy update: reserved and uncertain requests expire after 180 seconds from enqueue/request creation, release their trial holds exactly once, and become failed. Late provider responses do not charge the released allowance. Completed billing remains intact. Background scheduler and page-request fallback enforce the deadline; upstream costs after timeout remain a platform risk. This supersedes indefinite retention of uncertain reservations.
+
+
+### Companion context and creator review
+The companion receives the complete saved authoring structure: story settings, all pages and their written fields, visual states and object prompts, clickable areas and links, and reference metadata. The active screen, page, visual, and selected area guide its focus. Image-generation job history and account credentials are excluded.
+
+Replies propose changes rather than executing them. Each change appears as an expandable checklist item with its current and proposed values. Creators can uncheck changes before confirming. New proposals may target existing story, page, visual, and area fields across pages. Preparing a linked object image and opening its generation workspace are separately reviewed steps. Confirmed changes are validated against ownership and saved revisions, applied atomically, and recorded in revision history. Rendering remains an explicit separate action.
+
+Draft interactions may temporarily lack an object or destination while the creator prepares assets. Existing links must still refer to valid visuals on the page. The editor retains its active tab in the URL, and an object-generation handoff opens the exact prepared visual.
+
+### Image generation visual context
+Opening image generation carries the selected scene/object visual in the URL. Its name and type are read-only in this workspace; naming remains in the content editor. Completed generation cards offer Change scene to move the generation to another visual on the same page. This preserves original rendering inputs and existing scene assignments; Use in scene assigns an output to its associated visual without changing the active generation context.

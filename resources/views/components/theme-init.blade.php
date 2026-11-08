@@ -1,24 +1,34 @@
 <script>
 (() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const valid = value => ['light', 'dark', 'paper'].includes(value);
     let preference;
     try { preference = localStorage.getItem('vsg-theme'); } catch (_) {}
-    const apply = dark => {
-        document.documentElement.classList.toggle('dark', dark);
-        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        window.dispatchEvent(new CustomEvent('vsg-theme-change', {detail: dark}));
+    if (!valid(preference)) preference = null;
+    const apply = theme => {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        document.documentElement.classList.toggle('paper', theme === 'paper');
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+        window.dispatchEvent(new CustomEvent('vsg-theme-change', {detail: theme}));
     };
-    apply(preference === 'dark' || (preference !== 'light' && media.matches));
+    const system = () => media.matches ? 'dark' : 'light';
+    apply(preference || system());
+    window.setVsgTheme = theme => {
+        if (!valid(theme)) return;
+        preference = theme;
+        try { localStorage.setItem('vsg-theme', theme); } catch (_) {}
+        apply(theme);
+    };
     window.toggleVsgTheme = () => {
-        preference = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
-        try { localStorage.setItem('vsg-theme', preference); } catch (_) {}
-        apply(preference === 'dark');
+        const themes = ['light', 'dark', 'paper'];
+        window.setVsgTheme(themes[(themes.indexOf(document.documentElement.dataset.theme) + 1) % themes.length]);
     };
-    media.addEventListener('change', event => { if (!preference) apply(event.matches); });
+    media.addEventListener('change', () => { if (!preference) apply(system()); });
     window.addEventListener('storage', event => {
-        if (event.key !== 'vsg-theme') return;
-        preference = event.newValue;
-        apply(preference === 'dark' || (!preference && media.matches));
+        if (event.key !== 'vsg-theme' && event.key !== null) return;
+        preference = valid(event.newValue) ? event.newValue : null;
+        apply(preference || system());
     });
 })();
 </script>

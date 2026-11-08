@@ -6,6 +6,7 @@
 <x-theme-init />@vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
+<x-toasts />
 <header class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-6 lg:px-8"><x-brand /><x-theme-toggle /></header>
 <main class="mx-auto grid min-h-[calc(100vh-180px)] max-w-7xl items-center gap-12 px-5 py-8 lg:grid-cols-2 lg:gap-24 lg:px-8">
 <aside class="hidden lg:block">

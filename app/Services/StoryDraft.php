@@ -13,7 +13,7 @@ class StoryDraft {
                 'pages'=>$locked->pages()->get()->map->only(['id','position','title','narrative','scene_prompt','video_prompt','interaction_plan','completion'])->all(),
             ]]);
             $callback($locked);
-            $locked->forceFill(['revision'=>$locked->revision+1,'plan_approved_at'=>null])->save();
+            $locked->forceFill(['revision'=>$locked->revision+1])->save();
         });
     }
 }

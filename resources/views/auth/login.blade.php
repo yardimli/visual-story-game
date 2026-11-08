@@ -1,6 +1,6 @@
 <x-guest-layout>
 <p class="eyebrow">WELCOME BACK</p><h2 class="mt-3 font-serif text-3xl">Your stories are waiting.</h2><p class="mb-7 mt-3 text-sm leading-6 text-stone-500 dark:text-stone-400">Sign in and pick up where your imagination left off.</p>
-<x-auth-session-status class="mb-4" :status="session('status')" />
+
 <form method="POST" action="{{ route('login') }}" class="space-y-5">@csrf
 <div><x-input-label for="email" value="Email address" /><x-text-input id="email" class="mt-2 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" placeholder="you@example.com" /><x-input-error :messages="$errors->get('email')" class="mt-2" /></div>
 <div><x-input-label for="password" value="Password" /><x-text-input id="password" class="mt-2 w-full" type="password" name="password" required autocomplete="current-password" /><x-input-error :messages="$errors->get('password')" class="mt-2" /></div>

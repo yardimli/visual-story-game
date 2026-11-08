@@ -52,3 +52,88 @@ textarea {
 /* Keep a long companion message accessible without shrinking its textarea. */
 .companion-panel { overflow-y: auto; }
 .companion-panel > header, .companion-panel > form { flex-shrink: 0; }
+
+/* Native modal top layer covers the entire viewport and traps keyboard focus. */
+.image-viewer { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #09090b; color: white; overflow: hidden; }
+.image-viewer::backdrop { background: #09090b; }
+
+/* Keep generation and history independently scrollable beside the companion. */
+.image-workspace-grid { display: grid; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
+.image-controls, .image-results-scroll { min-height: 0; }
+.image-controls-column { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.image-controls { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.image-results { min-width: 0; display: flex; flex-direction: column; }
+.image-results-scroll { overflow-y: auto; overscroll-behavior: contain; }
+.reference-dialog { width: min(760px, calc(100vw - 2rem)); max-height: 85dvh; padding: 0; }
+.reference-dialog::backdrop { background: rgb(0 0 0 / .55); }
+@media (min-width: 768px) {
+    .image-workspace-grid { grid-template-columns: minmax(200px, 32%) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+    .image-results { grid-column: 1; grid-row: 1; }
+    .image-controls-column { grid-column: 2; grid-row: 1; }
+    .image-results { min-height: 0; }
+}
+@media (max-width: 767px) {
+    .image-results-scroll { max-height: 65dvh; }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+    .studio-with-companion:has(.image-workspace) { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+
+/* Compact composer; model picker and send action share one baseline. */
+.companion-panel .companion-model, .companion-panel .companion-send { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
+.companion-panel .companion-model { font-size: 11px; padding-left: 8px; }
+.companion-panel .companion-send { padding-left: 12px; padding-right: 12px; }
+.toast-stack { position: fixed; inset: auto auto 16px 16px; margin: 0; padding: 0; width: min(380px, calc(100vw - 32px)); border: 0; background: transparent; overflow: visible; z-index: 100; pointer-events: none; }
+.toast-stack > div + div { margin-top: 8px; }
+.toast-stack::backdrop { display: none; }
+
+/* Headers and tabs stay outside the independently scrolling editor panels. */
+.story-editor-workspace { height: calc(100dvh - 81px); display: flex; flex-direction: column; overflow: hidden; }
+.story-editor-bar, .editor-tabs { flex-shrink: 0; }
+.editor-tabs { background: inherit; }
+.story-editor-grid { flex: 1; min-height: 0; overflow: hidden; }
+.story-editor-column { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.storyboard-panel, .story-editor-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.story-editor-content { flex: 1; }
+.storyboard-panel { overflow-x: hidden; }
+@media (max-width: 1023px) {
+    .story-editor-grid { grid-template-rows: auto minmax(0, 1fr); }
+    .storyboard-panel { max-height: 180px; }
+}
+@media (max-width: 767px) {
+    .image-workspace-grid { grid-template-rows: minmax(0, 1fr) minmax(0, .65fr); }
+    .image-controls { overflow-y: auto; overscroll-behavior: contain; }
+    .image-results { min-height: 0; }
+}
+
+.visual-toolbar .btn-primary, .visual-toolbar .btn-secondary { padding: .5rem .65rem; font-size: .75rem; white-space: nowrap; }
+
+/* Paper: medium warm surfaces with ink-colored text; artwork keeps its own colors. */
+.paper body { background-color: #c7baa3; color: #302b24; }
+.paper :is(.bg-white, .bg-white\/60, .bg-white\/80, .feature-card, .companion-panel) { background-color: #d9cdb8; }
+.paper :is(.bg-stone-50, .bg-gray-50) { background-color: #cfc2ab; }
+.paper :is(.bg-stone-100, .bg-gray-100) { background-color: #c7baa3; }
+.paper :is(.bg-stone-200, .bg-gray-200) { background-color: #bcae95; }
+.paper :is(.text-stone-900, .text-stone-800, .text-gray-900, .text-gray-800) { color: #302b24; }
+.paper :is(.text-stone-700, .text-stone-600, .text-gray-700, .text-gray-600, .field) { color: #484035; }
+.paper :is(.text-stone-500, .text-stone-400, .text-gray-500, .text-gray-400, .eyebrow) { color: #655a49; }
+.paper :is(.border-stone-100, .border-stone-200, .border-stone-300, .border-gray-100, .border-gray-200, .border-gray-300, .companion-panel) { border-color: #ab9b80; }
+.paper .field input:not([type=file]), .paper .field textarea, .paper .field select,
+.paper :is(input[type=email], input[type=password], input[type=text], textarea, select) { background-color: #e0d5c2; border-color: #a8997e; color: #302b24; }
+.paper ::placeholder { color: #776a56; }
+.paper .btn-primary, .paper .vsg-mark { background-color: #514534; color: #fff3d9; }
+.paper .btn-primary:hover { background-color: #403628; }
+.paper .btn-secondary, .paper .theme-toggle { background-color: #d9cdb8; border-color: #ab9b80; color: #40372b; }
+.paper .btn-secondary:hover, .paper .hover\:bg-stone-50:hover, .paper .hover\:bg-stone-100:hover { background-color: #c3b498; }
+.paper .badge { background-color: #bdad91; color: #41382b; }
+.paper :is(.bg-amber-50, .bg-amber-100) { background-color: #cbb28a; }
+.paper .bg-amber-200 { background-color: #c3a474; }
+.paper :is(.border-amber-200, .border-amber-300) { border-color: #aa8b5b; }
+.paper :is(.text-amber-700, .text-amber-950) { color: #503b1e; }
+.paper dialog:not(.image-viewer) { background-color: #d9cdb8; color: #302b24; }
+.paper .toast-stack { background: transparent; }
+
+.image-zoom-button { position: absolute; top: .5rem; left: .5rem; z-index: 40; display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid rgb(255 255 255 / .35); border-radius: .5rem; background: rgb(28 25 23 / .35); color: white; cursor: zoom-in; backdrop-filter: blur(3px); }
+.image-zoom-button:hover { background: rgb(28 25 23 / .7); }
+.image-zoom-button:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
