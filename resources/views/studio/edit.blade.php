@@ -1,32 +1,11 @@
 <x-studio-layout :title="$story->title" :story="$story" :page="$page">
-<div class="story-editor-workspace" x-data="studioAutosave({{ $story->revision }}, {tabs:true})" @input="changed($event)" @change="changed($event)" @companion-filled.window="tab=$event.detail.tab || tab">
+<div class="story-editor-workspace" x-data="studioAutosave({{ $story->revision }}, {tabs:true,pageId:{{ $page->id }},position:{{ $page->position }},imageBase:'{{ url('/stories/'.$story->id.'/pages') }}'})" @input="changed($event)" @change="changed($event)" @companion-filled.window="tab=$event.detail.tab || tab">
 @include('studio.story-header')
-<div class="story-editor-grid grid lg:grid-cols-[240px_minmax(0,1fr)]">
-<aside class="storyboard-panel min-w-0 border-b border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-950 p-5 lg:border-b-0 lg:border-r" aria-label="Storyboard">
-<p class="eyebrow mb-4 whitespace-nowrap">STORYBOARD / {{ $story->pages->count() }} {{ Str::plural('PAGE',$story->pages->count()) }}</p>
-<div class="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-@foreach($story->pages as $p)<a href="{{ route('stories.edit',[$story,'page'=>$p->id]) }}" class="flex min-w-40 lg:min-w-0 lg:w-full items-center gap-3 rounded-lg border p-3 text-sm {{ $p->id===$page->id ? 'border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950' : 'border-transparent hover:bg-stone-100 dark:hover:bg-stone-800' }}"><span class="grid h-8 w-8 shrink-0 place-items-center rounded bg-white dark:bg-stone-900 font-mono text-xs text-stone-400">{{ str_pad($p->position,2,'0',STR_PAD_LEFT) }}</span><span class="min-w-0"><span class="block font-medium">Page {{ $p->position }}</span>@unless(preg_match('/^(?:Scene|Page) \d+$/i',$p->title))<span class="block truncate text-xs text-stone-500 dark:text-stone-400" title="{{ $p->title }}">{{ $p->title }}</span>@endunless</span>@if($p->narrative && $p->completion)<span class="ml-auto text-emerald-600" title="Writing started">•</span>@endif</a>@endforeach</div>
-<form method="POST" action="{{ route('pages.manage',$story) }}" @submit="submitAction($event)" class="mt-4">@csrf<input type="hidden" name="revision" value="{{ $story->revision }}"><input type="hidden" name="action" value="add"><button class="btn-secondary w-full" @disabled($story->pages->count()>=100)>+ Add page</button></form>
-<div class="mt-7 hidden border-t border-stone-200 dark:border-stone-700 pt-5 text-xs leading-5 text-stone-400 lg:block">One story. One path.<br>Each page can contain multiple scenes.</div>
-</aside>
+<div class="story-editor-grid grid grid-cols-1">
 <div class="story-editor-column min-w-0">
 <div class="editor-tabs min-w-0 px-5 pt-5 lg:px-8">@include('studio.tabs')</div>
-<main class="story-editor-content min-w-0 p-5 lg:p-8">
-<section x-show="tab==='page'"><form data-autosave @submit.prevent="flush()" data-companion-form="page" action="{{ route('pages.update',[$story,$page]) }}" method="POST" class="space-y-6">@csrf @method('PUT')<input type="hidden" name="revision" value="{{ $story->revision }}">
-<label class="field">Page title<input name="title" value="{{ old('title',$page->title) }}" required maxlength="160"></label>
-<label class="field">Narrative overlay <span class="font-normal text-stone-400">What the player reads after the video</span><textarea name="narrative" rows="5" placeholder="The room has been waiting for someone…">{{ old('narrative',$page->narrative) }}</textarea></label>
-<div class="rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 p-5 space-y-5"><div class="flex items-center justify-between"><h2 class="font-serif text-xl">Set the scene</h2><span class="text-xs text-stone-400">VISUAL DIRECTION</span></div>
-<label class="field">Scene image prompt<textarea name="scene_prompt" rows="4" placeholder="Location, framing, lighting, objects, and visual style">{{ old('scene_prompt',$page->scene_prompt) }}</textarea></label>
-<label class="field">Video prompt<textarea name="video_prompt" rows="3" placeholder="10–15 seconds of camera movement and atmosphere">{{ old('video_prompt',$page->video_prompt) }}</textarea></label></div>
-<label class="field">Interaction plan<textarea name="interaction_plan" rows="4" placeholder="What can the player examine, collect, unlock, or assemble?">{{ old('interaction_plan',$page->interaction_plan) }}</textarea></label>
-<label class="field">Completion condition<textarea name="completion" rows="2" placeholder="What must happen before continuing or finishing?">{{ old('completion',$page->completion) }}</textarea></label>
-<p class="text-xs text-stone-400">Changes save automatically.</p>
-</form><div class="mt-8 mb-3 flex flex-wrap gap-2">
-@foreach(['up'=>'Move earlier','down'=>'Move later','remove'=>'Remove page'] as $action=>$label)
-<form method="POST" action="{{ route('pages.manage',$story) }}" @submit="submitAction($event)">@csrf<input type="hidden" name="revision" value="{{ $story->revision }}"><input type="hidden" name="page_id" value="{{ $page->id }}"><input type="hidden" name="action" value="{{ $action }}"><button class="btn-secondary" @disabled(($action==='up' && $page->position===1)||($action==='down' && $page->position===$story->pages->count())||($action==='remove' && $story->pages->count()===1))>{{ $label }}</button></form>
-@endforeach
-</div><p class="mb-5 text-xs text-stone-400">Removed pages can be recovered from History on the dashboard. Review item and scene dependencies after changing page order.</p>
-</section>
+<main class="story-editor-content min-w-0 p-5 lg:p-8" :style="tab==='visuals'?'padding-top: .5rem':null">
+@include('studio.page-documents')
 <section x-show="tab==='story'" x-cloak><h2 class="mb-6 font-serif text-2xl">The world behind the story</h2>
 <form data-autosave @submit.prevent="flush()" data-companion-form="story" method="POST" action="{{ route('stories.update',$story) }}" class="space-y-5">@csrf @method('PUT')<input type="hidden" name="revision" value="{{ $story->revision }}">
 @foreach(['title'=>'Title','genre'=>'Genre','language'=>'Language'] as $field=>$label)<label class="field">{{ $label }}<input name="{{ $field }}" required value="{{ $story->$field }}"></label>@endforeach

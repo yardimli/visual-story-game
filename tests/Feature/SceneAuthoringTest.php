@@ -21,6 +21,18 @@ class SceneAuthoringTest extends TestCase {
   Cache::put('openrouter.image-endpoints.'.hash('sha256','openai/image'),[['provider_tag'=>'openai','supported_parameters'=>['input_references'=>['type'=>'range','max'=>2],'quality'=>['type'=>'enum','values'=>['high']]],'pricing'=>[['billable'=>'output_image','unit'=>'image','cost_usd'=>0.05]]]],60);
   return [$u,$s,$p->fresh(),$doc];
  }
+ public function test_description_positions_round_trip_and_reject_invalid_values(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $doc['visuals'][0]['description_position']='bottom';
+  $doc['visuals'][0]['hotspots'][0]['description_position']='top';
+  $doc['visuals'][0]['hotspots'][0]['choices']=[['label'=>'Enter','response'=>'Welcome','target_id'=>null,'description_position'=>'bottom']];
+  $result=app(\App\Services\SceneDocument::class)->validate($s,$doc);
+  $this->assertSame('bottom',$result['visuals'][0]['description_position']);
+  $this->assertSame('bottom',$result['visuals'][0]['hotspots'][0]['choices'][0]['description_position']);
+  $doc['visuals'][0]['description_position']='left';
+  $this->expectException(\Illuminate\Validation\ValidationException::class);
+  app(\App\Services\SceneDocument::class)->validate($s,$doc);
+ }
  public function test_next_page_action_and_ordered_preview_pages(): void {
   [$u,$s,$p,$doc]=$this->setupScene();
   $doc['visuals'][0]['hotspots'][0]['action']='next_page';
@@ -257,5 +269,43 @@ class SceneAuthoringTest extends TestCase {
   $job=ImageGeneration::first();$u->forceFill(['openrouter_key'=>null])->save();Http::fake();
   (new GenerateSceneImage($job->id))->handle(app(OpenRouter::class));
   Http::assertNothingSent();$this->assertSame('failed',$job->fresh()->status);$this->assertSame(0,$u->fresh()->llm_spent);
+ }
+ public function test_independent_draft_saves_and_generates_in_place_once_without_changing_scenes(): void {
+  Queue::fake();[$u,$s,$p,$doc]=$this->setupScene();
+  $fields=['name'=>'Empty stone','prompt'=>'Open stone without key','video_prompt'=>'Slow push in','model'=>'openai/image','references'=>[],'settings'=>['quality'=>'high']];
+  $id=$this->postJson(route('images.draft',[$s,$p]),$fields)->assertOk()->json('id');
+  $this->assertDatabaseCount('llm_requests',0);Queue::assertNothingPushed();
+  $this->postJson(route('images.draft',[$s,$p]),$fields+['draft_id'=>$id])->assertOk();$this->assertDatabaseCount('image_generations',1);
+  $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('jobs.0.status','draft')->assertJsonPath('jobs.0.video_prompt','Slow push in')->assertJsonPath('jobs.0.settings.quality','high');
+  $payload=['draft_id'=>$id,'revision'=>$p->visual_revision,'request_key'=>(string)Str::uuid(),'model'=>'openai/image','references'=>[],'settings'=>['quality'=>'high'],'name'=>'Empty stone'];
+  $this->postJson(route('images.generate',[$s,$p]),$payload)->assertAccepted()->assertJsonPath('id',$id);
+  $this->assertDatabaseCount('image_generations',1);$this->assertSame($doc,$p->fresh()->visual_document);Queue::assertPushed(GenerateSceneImage::class,1);
+  $this->postJson(route('images.generate',[$s,$p]),array_merge($payload,['request_key'=>(string)Str::uuid()]))->assertUnprocessable();
+  $this->postJson(route('images.draft',[$s,$p]),$fields+['draft_id'=>$id])->assertUnprocessable();
+  $new=$this->postJson(route('images.draft',[$s,$p]),$fields)->assertOk()->json('id');$this->assertNotSame($new,$id);
+  $this->actingAs(User::factory()->create())->postJson(route('images.draft',[$s,$p]),$fields)->assertNotFound();
+ }
+ public function test_explicit_page_destinations_validate_ownership_and_migrate_old_links(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();$next=$s->pages()->create(['position'=>2,'title'=>'Hall','visual_document'=>$doc]);
+  $doc['visuals'][0]['hotspots'][0]['action']='page';$doc['visuals'][0]['hotspots'][0]['target_page_id']=$next->id;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>1,'document'=>$doc])->assertOk();
+  $other=Story::create(['user_id'=>$u->id,'title'=>'Other','premise'=>'Other']);$foreign=$other->pages()->create(['position'=>1,'title'=>'Foreign']);
+  $doc['visuals'][0]['hotspots'][0]['target_page_id']=$foreign->id;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $doc['visuals'][0]['hotspots'][0]['action']='next_page';unset($doc['visuals'][0]['hotspots'][0]['target_page_id']);
+  $p->refresh()->update(['visual_document'=>$doc]);$next->update(['visual_document'=>$doc]);
+  (require database_path('migrations/2026_11_09_000002_explicit_page_destinations.php'))->up();
+  $this->assertSame('page',$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['action']);$this->assertSame($next->id,$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['target_page_id']);
+  $this->assertSame('complete',$next->fresh()->visual_document['visuals'][0]['hotspots'][0]['action']);
+ }
+ public function test_destination_scene_must_be_a_scene_on_selected_page(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();$sceneId=(string)Str::uuid();$objectId=(string)Str::uuid();
+  $next=$s->pages()->create(['position'=>2,'title'=>'Hall','visual_document'=>['visuals'=>[['id'=>$sceneId,'kind'=>'scene','name'=>'Far corner','hotspots'=>[]],['id'=>$objectId,'kind'=>'object','name'=>'Key','hotspots'=>[]]]]]);
+  $area=&$doc['visuals'][0]['hotspots'][0];$area['action']='page';$area['target_page_id']=$next->id;$area['target_scene_id']=$sceneId;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>1,'document'=>$doc])->assertOk();
+  $this->assertSame($sceneId,$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['target_scene_id']);
+  $area['target_scene_id']=$objectId;$this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $area['target_scene_id']=$doc['visuals'][0]['id'];$this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
+  $area['target_page_id']=$p->id;$this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertOk();
  }
 }

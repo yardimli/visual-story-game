@@ -1,3 +1,6 @@
+import {readChatStream, streamingMessage} from './chat-stream';
+import {pageDocument,companionResize} from './page-documents';
+import {animatedDescription} from './animated-description';
 import {aiCallHistory} from './ai-call-history';
 import {proposalReview, selectedLegacyProposal} from './proposal-review';
 import {imageCatalog} from './image-catalog';
@@ -17,6 +20,9 @@ Alpine.data('toastCenter', toastCenter);
 Alpine.data('proposalReview', proposalReview);
 Alpine.data('studioAutosave', studioAutosave);
 Alpine.data('sceneEditor', sceneEditor);
+Alpine.data('pageDocument',pageDocument);
+Alpine.data('companionResize',companionResize);
+Alpine.data('animatedDescription', animatedDescription);
 
 Alpine.data('modelPicker', (initial, modality = 'text') => ({
     modelLabel,
@@ -56,9 +62,9 @@ Alpine.data('modelPicker', (initial, modality = 'text') => ({
 }));
 
 Alpine.data('creativeCompanion', (options) => ({
-    modelLabel, displayMessage,
+    modelLabel, displayMessage, streamingMessage,
     messages: options.messages, models: [], model: options.model, prompt: '', error: '', notice: '',
-    sending: false, applying: false, catalogError: false, remaining: options.remaining,
+    sending: false, waitingForResponse:false, applying: false, catalogError: false, remaining: options.remaining,
     async init() {
         watchNotices(this,{notice:'success',error:'error'});
         this.model = rememberedModel('vsg-writing-model', options.model);
@@ -93,24 +99,30 @@ Alpine.data('creativeCompanion', (options) => ({
     },
     async send() {
         if (this.sending || !this.prompt.trim() || !this.model) return;
-        this.sending = true; this.error = ''; this.notice = '';
-        const message = this.prompt;
+        this.sending = true; this.waitingForResponse=true; this.error = ''; this.notice = '';this.scroll();
+        const message = this.prompt;let streamingIndex=null;
         try {
             if (window.vsgAutosave && !(await window.vsgAutosave.flush())) throw new Error('Resolve unsaved changes before sending a message.');
             const response = await fetch(options.endpoint, {
                 method:'POST', headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},
-                body:JSON.stringify({message,model:this.model,request_key:crypto.randomUUID(),page_id:options.pageId,image_visual_id:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.visual?.id:undefined,active_tab:window.vsgSceneEditor?.generationMode?'images':window.vsgAutosave?.tab,visual_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.selected:undefined,hotspot_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.hotspotId||undefined:undefined,image_settings:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.settings:undefined,reference_ids:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.references.map(Number):undefined,form:this.draft()})
+                body:JSON.stringify({stream:true,message,model:this.model,request_key:crypto.randomUUID(),page_id:window.vsgAutosave?.activePageId||options.pageId,image_visual_id:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.visual?.id:undefined,active_tab:window.vsgSceneEditor?.generationMode?'images':window.vsgAutosave?.tab,visual_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.selected:undefined,hotspot_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.hotspotId||undefined:undefined,image_draft:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.generationSnapshot():undefined,image_settings:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.settings:undefined,reference_ids:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.references.map(Number):undefined,form:this.draft()})
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(Object.values(data.errors ?? {}).flat().join(' ') || data.message || 'Request failed.');
-            this.messages.push({role:'user',content:message},data.message);
-            this.remaining = data.remaining;
-            this.prompt = '';
+            if(!response.ok){const data=await response.json();throw new Error(Object.values(data.errors??{}).flat().join(' ')||data.message||'Request failed.');}
+            if(response.headers.get('Content-Type')?.includes('text/event-stream')){
+                this.messages.push({role:'user',content:message},{id:'stream:'+crypto.randomUUID(),role:'assistant',content:'',streaming:true});
+                streamingIndex=this.messages.length-1;this.waitingForResponse=false;this.prompt='';this.scroll();
+                await readChatStream(response,(event,data)=>{
+                    if(event==='delta'){this.messages[streamingIndex].content+=data.text;this.scroll();}
+                    if(event==='complete'){this.messages.splice(streamingIndex,1,data.message);this.remaining=data.remaining;this.scroll();}
+                });
+            }else{
+                const data=await response.json();this.messages.push({role:'user',content:message},data.message);this.remaining=data.remaining;this.prompt='';
+            }
             this.$nextTick(() => window.dispatchEvent(new Event('textarea-refresh')));
             this.remember();
             this.scroll();
-        } catch (e) { this.error = e.message || 'Connection interrupted. Check your allowance before trying again.'; }
-        finally { this.sending = false; }
+        } catch (e) {if(streamingIndex!==null && this.messages[streamingIndex]?.streaming){const item=this.messages[streamingIndex];item.content=streamingMessage(item.content).text;item.streaming=false;item.interrupted=true;} this.error = e.message || 'Connection interrupted. Check your allowance before trying again.'; }
+        finally { this.sending = false;this.waitingForResponse=false; }
     },
     async applyReviewed(item,chosen){
         if(this.applying||!chosen.length)return;
@@ -147,7 +159,7 @@ Alpine.data('creativeCompanion', (options) => ({
             editor.visual.prompt=prompt;editor.changed();window.dispatchEvent(new Event('textarea-refresh'));this.notice='Image prompt applied and autosaving. Generate when you are ready.';return;
         }
         if(item.proposal?._image){this.error='Open Image generation to apply this image prompt suggestion.';return;}
-        const targets = proposalTargets(item.proposal, options.pageId, options.position);
+        const targets = proposalTargets(item.proposal, window.vsgAutosave?.activePageId||options.pageId, window.vsgAutosave?.activePosition||options.position);
         let count = 0, tab = '';
         for (const [name, values, keys] of targets) {
             const form = document.querySelector(`[data-companion-form="${name}"]`);

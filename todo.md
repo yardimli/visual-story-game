@@ -503,3 +503,47 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Simplify other-page image cards to name, image, prompt, scene/object usage links and reference selection. Hide rename/archive/model/status controls for these cards; avoid duplicated default page titles. Production build and Blade compilation passed.
 
 - [x] Default visual/object image pickers to the current page, with an Images from dropdown for other pages and unassigned uploaded references. Page membership includes generation origin and current visual assignments. Reset filter each time the picker opens. PHP scene tests, JavaScript tests, build and Blade compilation passed.
+
+- [x] Test interactions now opens a starting-inventory dialog with object checkboxes, thumbnails, descriptions and source pages across the story. Start test seeds only selected items; cancel leaves the preview closed and empty selection starts with no items. Test inventory uses copies and never changes authored objects. Verified 33 JavaScript tests, production build and Blade compilation.
+
+## Animated preview descriptions and pickup feedback
+- [x] Add top/bottom description placement (default top) for scenes, objects, examine areas, area interaction text, inventory rule responses and choice responses; validate and support companion proposals.
+- [x] Animate expanding white-text descriptions with word-by-word highlights, translucent dark fill, rounded 2px white border, light shadow and 150px scrolling cap. Click/keyboard reveals all; outside click dismisses; auto-fade runs five seconds after reveal completes. Respect reduced motion and clean up timers.
+- [x] Route examine and text-only transition outcomes to scene overlays. Pickups animate toward inventory and pulse the inventory button/count without automatically opening inspection; show the object's description when provided. Manual inventory inspection retains object actions and animated descriptions.
+- Verification: 33 scene-editor and 2 animated-description JavaScript tests, 27 PHP authoring/companion tests (190 assertions), build and Blade compilation passed. Localhost verified progressive scene text, click-to-reveal styling and pickup inventory count without item dialog; authored story unchanged.
+
+## Document-style page planning and resizable chat
+- [x] Remove storyboard aside; show every active page as a two-column Quill document (Narrative overlay left, Interaction plan right). Add formatting/highlighting, expanding matched-height columns, 300px minimum content height, active-row accent and cursor-driven page context/URL.
+- [x] Place page title, move up/down, remove and insert blank page after controls together. Preserve autosave revision checks and flush before structural actions/navigation.
+- [x] Store validated Quill deltas alongside plain text, clear obsolete formatting on companion prose replacement, and preserve formatting in revision snapshots. Reject embedded content/unsafe formats.
+- [x] Remove Completion condition from page editing. Move existing page image/video prompts into visual documents, drop page prompt columns, and expose video prompt in image studio. Keep prompt edits out of new page proposals.
+- [x] Increase default chat width from 360px to 432px, add mouse/keyboard splitter and remember width. Remove You/Companion bubble labels.
+- [x] Open proposal review in a 65vw by 70dvh dialog with initially expanded details, checkboxes, scrolling body and fixed confirmation footer.
+- Verification: 125 PHP tests / 622 assertions, 50 JavaScript tests, asset build and Blade compilation passed. Localhost verified active page URL, review dialog sizing, mouse resizing, bold formatting save/reload, title autosave and inserting a blank page in a disposable QA story. Migration applied; existing prompt text preserved in visual records.
+
+- [x] Add OPENROUTER_HTTP_REFERER to environment configuration and send HTTP-Referer plus X-OpenRouter-Title from APP_NAME on all authenticated chat/image requests, including personal keys and image naming. Preserve public unauthenticated discovery. Added HTTP-fake regression coverage.
+
+- [x] Replace Current visual native select with an HTML dropdown: select rows, drag handles, keyboard/up/down ordering controls, scrollable list and compact New scene/New object footer buttons. Reordering autosaves the visual array while preserving selected visual and ID-based interaction links.
+
+- [x] Scroll Page plan to the active page when returning from another tab or image studio, keeping the editor cursor and other panels unchanged.
+
+- [x] Compact Interactions top padding to 8px, remove the visible Current visual label, and layer the visual dropdown above image zoom controls.
+
+- [x] Companion can propose creating a page after an existing page, including narrative, scene artwork and clickable areas, as one selectable review operation.
+- [x] Companion can prepare independent image draft cards without paid generation or changing scene assignments.
+- [x] Rename Generated versions to Images; select and highlight cards to load names, prompts, models, references and settings; generate drafts in place and preserve completed originals when generating a new image.
+- [x] Add Create new image to clear the generation form and selection; persist draft prompts and restore selected images through the URL.
+
+- [x] Add Help beside companion credits with a themed capability dialog, review workflow and limitations, plus collapsed technical context/schema documentation. Keep this guide updated with companion capabilities; edit-field lists are generated from server validation rules.
+
+- [x] Companion returns Quill-compatible HTML for Narrative overlay and Interaction plan only, sanitized and converted to validated deltas with plain-text game output; preserve formatting in new pages and show safe formatted review previews. Other fields remain plain text; Help updated.
+
+- [x] Stream companion prose through SSE; hide partial JSON fences behind animated Preparing changes… dots, expose proposals only after validation/persistence, settle final token usage, and handle interrupted streams without automatic retries. Help and streaming regression tests updated.
+
+- [x] Reference images dialog: remove inline renaming, keep one scrolling content area, add named-page filter defaulting to All images on opening, and preserve reference selections across filters.
+
+- [x] Replace next-page action with Move to page and named destination dropdown; validate same-story targets and preserve inventory during previews. Migrate existing next-page links to explicit destinations (last-page endings to Finish story), update companion schemas/Help, and move toasts to the top center.
+
+- [x] Decouple areas from automatic object creation/renaming/deletion; drawing only adds an area and opening image studio does not create missing objects. Keep explicit image selection and reviewed companion object creation. Show animated Thinking… immediately on chat submission and until response text starts.
+
+- [x] Move to page now selects a page/scene pair, lists every scene with page title, validates destination ownership/type, and previews the exact scene. Legacy page-only links default to the first scene. Companion instructions and Help updated.

@@ -1,7 +1,7 @@
 import {watchNotices} from './toasts.js';
 export function studioAutosave(initialRevision, options = {}) {
     return {
-        tab: 'page', revision: initialRevision, status: 'All changes saved', error: '', busy: false,
+        activePageId:options.pageId||null, activePosition:options.position||null, tab: 'page', revision: initialRevision, status: 'All changes saved', error: '', busy: false,
         pending: new Set(), timer: null, active: null, stopped: false,
         init() {
             watchNotices(this,{status:'success',error:'error'});
@@ -11,7 +11,8 @@ export function studioAutosave(initialRevision, options = {}) {
                 const current=new URL(window.location.href).searchParams.get('tab');
                 this.tab=allowed.includes(current)?current:'page';
                 const sync=tab=>{if(!allowed.includes(tab))return;const url=new URL(window.location.href);url.searchParams.set('tab',tab);window.history.replaceState(null,'',url);};
-                sync(this.tab);this.$watch('tab',sync);
+                sync(this.tab);this.$watch('tab',tab=>{sync(tab);if(tab==='page')this.scrollToActivePage();});
+                if(this.tab==='page')this.scrollToActivePage();
             }
             this.unload = event => { if (this.busy || this.pending.size) { event.preventDefault(); event.returnValue = ''; } };
             window.addEventListener('beforeunload', this.unload);
@@ -24,6 +25,23 @@ export function studioAutosave(initialRevision, options = {}) {
             document.addEventListener('click', this.navigation);
         },
         destroy() { clearTimeout(this.timer); window.removeEventListener('beforeunload',this.unload); document.removeEventListener('click',this.navigation); delete window.vsgAutosave; },
+        selectPage(id,position){this.activePageId=Number(id);this.activePosition=position;const url=new URL(window.location.href);url.searchParams.set('page',id);url.searchParams.delete('visual');window.history.replaceState(null,'',url);},
+        scrollToActivePage(){
+            this.$nextTick(()=>{
+                if(this.tab!=='page' || !this.activePageId)return;
+                const content=this.$el.querySelector('.story-editor-content');
+                const page=content?.querySelector(`[data-page-id="${Number(this.activePageId)}"]`);
+                if(!page)return;
+                const top=content.scrollTop+page.getBoundingClientRect().top-content.getBoundingClientRect().top-content.clientTop;
+                content.scrollTo({top:Math.max(0,top-16),behavior:'instant'});
+            });
+        },
+        async switchTab(next){
+            if(next==='visuals' && this.activePageId && this.activePageId!==options.pageId){if(await this.flush()){const url=new URL(window.location.href);url.searchParams.set('tab','visuals');window.location.assign(url.href);}return;}
+            this.tab=next;
+        },
+        async openImages(){if(!(await this.flush()))return;window.location.assign(options.imageBase+'/'+this.activePageId+'/image-studio');},
+        async testActivePage(){if(this.activePageId!==options.pageId){if(await this.flush()){const url=new URL(window.location.href);url.searchParams.set('tab','visuals');url.searchParams.set('test','1');window.location.assign(url.href);}}else window.vsgSceneEditor?.preparePreview();},
         changed(event) {
             const form = event.target.closest('form[data-autosave]');
             if (!form || !event.target.name || event.target.name === 'revision') return;

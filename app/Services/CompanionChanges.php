@@ -1,6 +1,6 @@
 <?php
 namespace App\Services;
-use App\Models\{Story,ChatMessage};
+use App\Models\{Story,ChatMessage,ImageGeneration};
 use Illuminate\Support\Facades\{DB,Validator};
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -8,9 +8,9 @@ use Illuminate\Validation\ValidationException;
 class CompanionChanges {
  public const RULES=[
   'story'=>['title'=>'required|string|max:160','premise'=>'required|string|max:5000','genre'=>'required|string|max:80','language'=>'required|string|max:80','style'=>'nullable|string|max:5000','bible'=>'nullable|string|max:40000','llm_model'=>'nullable|string|max:200','image_model'=>'nullable|string|max:200'],
-  'page'=>['title'=>'required|string|max:160','narrative'=>'nullable|string|max:10000','scene_prompt'=>'nullable|string|max:10000','video_prompt'=>'nullable|string|max:5000','interaction_plan'=>'nullable|string|max:10000','completion'=>'nullable|string|max:2000'],
-  'visual'=>['name'=>'required|string|max:160','description'=>'nullable|string|max:3000','prompt'=>'nullable|string|max:10000','asset_id'=>'nullable|integer'],
-  'hotspot'=>['interaction_text'=>'nullable|string|max:3000','fallback_text'=>'nullable|string|max:3000','inventory_rules'=>'array|max:100','choices'=>'array|max:20','label'=>'required|string|max:160','description'=>'nullable|string|max:3000','action'=>'required|in:examine,inspect,pickup,transition,inventory,choices,next_page','object_id'=>'nullable|uuid','target_id'=>'nullable|uuid','overlay'=>'required|boolean','x'=>'required|numeric|min:0|max:1','y'=>'required|numeric|min:0|max:1','width'=>'required|numeric|min:0.005|max:1','height'=>'required|numeric|min:0.005|max:1'],
+  'page'=>['title'=>'required|string|max:160','narrative'=>'nullable|string|max:10000','interaction_plan'=>'nullable|string|max:10000'],
+  'visual'=>['video_prompt'=>'nullable|string|max:5000','description_position'=>'sometimes|in:top,bottom','name'=>'required|string|max:160','description'=>'nullable|string|max:3000','prompt'=>'nullable|string|max:10000','asset_id'=>'nullable|integer'],
+  'hotspot'=>['target_scene_id'=>'nullable|uuid','target_page_id'=>'nullable|integer','description_position'=>'sometimes|in:top,bottom','interaction_text'=>'nullable|string|max:3000','fallback_text'=>'nullable|string|max:3000','inventory_rules'=>'array|max:100','choices'=>'array|max:20','label'=>'required|string|max:160','description'=>'nullable|string|max:3000','action'=>'required|in:examine,inspect,pickup,transition,inventory,choices,next_page,page,complete','object_id'=>'nullable|uuid','target_id'=>'nullable|uuid','overlay'=>'required|boolean','x'=>'required|numeric|min:0|max:1','y'=>'required|numeric|min:0|max:1','width'=>'required|numeric|min:0.005|max:1','height'=>'required|numeric|min:0.005|max:1'],
  ];
  public function prepare(Story $story,array $proposal, $pages=null): array {
   $pages=($pages??$story->pages()->get())->keyBy('id');$requests=$proposal['changes']??[];$items=[];
@@ -35,9 +35,22 @@ class CompanionChanges {
   foreach($requests as $request){
    if(!is_array($request))$this->invalid('Invalid proposed change.');
    $scope=$request['scope']??'';$page=null;$visual=null;$hotspot=null;$base=['scope'=>$scope];$label='Story';$before=$story->toArray();
+   if($scope==='create_page'){
+    $fields=Validator::make($request['fields']??[],self::RULES['page']+['visuals'=>'sometimes|array|max:100'])->validate();
+    $after=$pages->get($request['after_page_id']??null);if(!$after)$this->invalid('Choose an existing page to insert after.');
+    $visuals=$fields['visuals']??[];
+    foreach($visuals as &$v){$v['id']=(string)Str::uuid();$v['hotspots']??=[];foreach($v['hotspots'] as &$h){$h['id']=(string)Str::uuid();$h+=['overlay'=>false,'target_id'=>null,'object_id'=>null,'description'=>''];}unset($h);}unset($v);
+    foreach(['narrative','interaction_plan'] as $textField)if(array_key_exists($textField,$fields))$fields=array_merge($fields,PageRichText::companion($textField,$fields[$textField]));
+    $fields['visual_document']=app(SceneDocument::class)->validate($story,['visuals'=>$visuals]);unset($fields['visuals']);
+    $items[]=['id'=>count($items),'scope'=>'create_page','after_page_id'=>$after->id,'title'=>'Create page after '.$after->title.' / '.$fields['title'],'before'=>null,'after'=>$fields];continue;
+   }
    if($scope!=='story'){
     $page=$pages->get($request['page_id']??null);if(!$page)$this->invalid('A proposed page is outside this story.');
     $base['page_id']=$page->id;$base['visual_revision']=$page->visual_revision;$label='Page '.$page->position.' · '.$page->title;$before=$page->toArray();
+   }
+   if($scope==='image'){
+    $fields=app(ImageDrafts::class)->validate($story,$request['fields']??[]);
+    $items[]=array_merge($base,['id'=>count($items),'title'=>$label.' / Prepare image: '.($fields['name']??'Untitled image'),'before'=>null,'after'=>$fields]);continue;
    }
    if(in_array($scope,['visual','hotspot','object'])){
     $visual=collect($page->visual_document['visuals']??[])->firstWhere('id',$request['visual_id']??null);if(!$visual)$this->invalid('Unknown visual in proposal.');
@@ -58,7 +71,8 @@ class CompanionChanges {
      if(!isset(self::RULES[$scope][$field]))$this->invalid('Unsupported proposal field.');
      Validator::make([$field=>$value],[$field=>self::RULES[$scope][$field]])->validate();
      if(($before[$field]??null)===$value)continue;
-     $items[]=array_merge($base,['id'=>count($items),'field'=>$field,'title'=>$label.' / '.ucfirst(str_replace('_',' ',$field)),'before'=>$before[$field]??null,'after'=>$value]);
+     $rich=$scope==='page' && in_array($field,['narrative','interaction_plan'],true)?PageRichText::companion($field,$value):null;
+     $items[]=array_merge($base,$rich?['rich_delta'=>$rich[$field.'_delta']]:[],['id'=>count($items),'field'=>$field,'title'=>$label.' / '.ucfirst(str_replace('_',' ',$field)),'before'=>$before[$field]??null,'after'=>$rich?$rich[$field]:$value]);
     }
    }
    if(!empty($request['open_image_generation']) && in_array($scope,['visual','object']) && count($items)){
@@ -75,11 +89,13 @@ class CompanionChanges {
    $all=collect($review['items'])->keyBy('id');$items=[];sort($selected);
    foreach($selected as $id){if(!$all->has($id))$this->invalid('Unknown selected change.');$items[]=$all[$id];}
    foreach($items as $item)if(isset($item['depends_on'])&&!in_array($item['depends_on'],$selected,true))$this->invalid('Select the object preparation before opening its image workspace.');
-   $pages=$s->pages()->lockForUpdate()->get()->keyBy('id');$documents=[];$pageFields=[];$storyFields=[];$objects=[];$navigate=null;
+   $pages=$s->pages()->lockForUpdate()->get()->keyBy('id');$documents=[];$pageFields=[];$storyFields=[];$objects=[];$navigate=null;$newPages=[];$newImages=[];
    foreach($items as $item){
     $scope=$item['scope'];if($scope==='story'){$storyFields[$item['field']]=$item['after'];continue;}
+    if($scope==='create_page'){$newPages[]=$item;continue;}
     $page=$pages->get($item['page_id']);if(!$page)$this->invalid('A proposed page no longer exists.');
-    if($scope==='page'){$pageFields[$page->id][$item['field']]=$item['after'];continue;}
+    if($scope==='image'){$newImages[]=$item;continue;}
+    if($scope==='page'){if(!isset(self::RULES['page'][$item['field']]))$this->invalid('This proposal uses a retired page field. Ask for a fresh proposal in image studio.');$pageFields[$page->id][$item['field']]=$item['after'];if(array_key_exists('rich_delta',$item))$pageFields[$page->id][$item['field'].'_delta']=$item['rich_delta'];continue;}
     if($page->visual_revision!==$item['visual_revision'])$this->invalid('Scene artwork changed. Ask for a fresh proposal.');
     $documents[$page->id]??=$page->visual_document??['visuals'=>[]];$doc=&$documents[$page->id];
     $vi=array_search($item['visual_id'],array_column($doc['visuals'],'id'),true);if($vi===false)$this->invalid('The visual no longer exists.');
@@ -92,8 +108,22 @@ class CompanionChanges {
     else {if($doc['visuals'][$oi]['kind']!=='object')$this->invalid('Invalid object reference.');$doc['visuals'][$oi]=array_merge($doc['visuals'][$oi],$item['after']);}
     $doc['visuals'][$vi]['hotspots'][$hi]['object_id']=$objectId;$objects[$item['id']]=$objectId;
    }
-   foreach($documents as $id=>$doc)app(SceneDocument::class)->validate($s,$doc);
-   $s->revisions()->create(['revision'=>$s->revision,'reason'=>'Applied selected companion changes','snapshot'=>['story'=>$s->only(array_keys(self::RULES['story'])),'pages'=>$pages->values()->map->only(['id','position','title','narrative','scene_prompt','video_prompt','interaction_plan','completion','visual_document','visual_revision'])->all()]]);
+   foreach($documents as $id=>$doc)app(SceneDocument::class)->validate($s,$doc,$id);
+   $s->revisions()->create(['revision'=>$s->revision,'reason'=>'Applied selected companion changes','snapshot'=>['story'=>$s->only(array_keys(self::RULES['story'])),'pages'=>$pages->values()->map->only(['id','position','title','narrative','interaction_plan','narrative_delta','interaction_plan_delta','visual_document','visual_revision'])->all()]]);
+   if($pages->count()+count($newPages)>100)$this->invalid('A story can have at most 100 pages.');
+   $insertedAfter=[];
+   foreach($newPages as $item){
+    $anchor=$insertedAfter[$item['after_page_id']]??$item['after_page_id'];
+    $after=$s->pages()->find($anchor);if(!$after)$this->invalid('The insertion page no longer exists.');
+    foreach($s->pages()->reorder('position','desc')->where('position','>',$after->position)->get() as $later)$later->increment('position');
+    app(SceneDocument::class)->validate($s,$item['after']['visual_document']);
+    $created=$s->pages()->create($item['after']+['position'=>$after->position+1]);$insertedAfter[$item['after_page_id']]=$created->id;
+    $navigate=route('stories.edit',['story'=>$s,'page'=>$created,'tab'=>'page']);
+   }
+   foreach($newImages as $item){
+    $draft=app(ImageDrafts::class)->save($s,$pages[$item['page_id']],$item['after']);
+    $navigate=route('images.studio',[$s,$pages[$item['page_id']]]).'?image='.$draft->id;
+   }
    if($storyFields)$s->fill($storyFields);
    $s->revision++;$s->save();
    foreach($pageFields as $id=>$fields)$pages[$id]->update($fields);

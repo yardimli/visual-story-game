@@ -1,12 +1,31 @@
 <template x-teleport="body">
+<dialog x-ref="previewInventoryDialog" class="image-picker-dialog reference-dialog rounded-2xl border border-stone-200 bg-white text-stone-900 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100" aria-labelledby="preview-inventory-title" @click="if($event.target===$el)$el.close()">
+<div class="flex max-h-[85dvh] flex-col">
+<header class="flex items-center justify-between gap-3 border-b border-stone-200 p-4 dark:border-stone-700"><h2 id="preview-inventory-title" class="font-serif text-xl">Starting inventory</h2><button type="button" class="btn-secondary" @click="$refs.previewInventoryDialog.close()">Cancel</button></header>
+<div class="min-h-0 space-y-3 overflow-y-auto p-4">
+<p class="text-sm text-stone-500">Choose items to carry during this test, or start with an empty inventory.</p>
+<p x-show="!previewInventoryItems.length" class="text-sm text-stone-500">No object items have been created yet.</p>
+<template x-for="item in previewInventoryItems" :key="item.id"><label class="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 p-3 dark:border-stone-700">
+<input type="checkbox" class="mt-1 shrink-0 rounded" :value="item.id" x-model="previewInventorySelection">
+<img x-show="asset(item.asset_id)" :src="asset(item.asset_id)?.url" alt="" class="h-16 w-20 shrink-0 rounded object-contain">
+<span class="min-w-0"><span class="block font-semibold" x-text="item.name"></span><span class="block text-xs text-stone-500" x-text="item.sourcePage"></span><span class="mt-1 block whitespace-pre-wrap break-words text-sm" x-text="item.description || 'No description yet.'"></span></span>
+</label></template>
+</div>
+<footer class="flex items-center justify-between gap-3 border-t border-stone-200 p-4 dark:border-stone-700"><span class="text-sm" x-text="previewInventorySelection.length+' selected'"></span><button type="button" class="btn-primary" @click="confirmPreviewInventory()">Start test</button></footer>
+</div></dialog>
+</template>
+<template x-teleport="body">
 <dialog x-ref="previewDialog" class="preview-dialog" aria-label="Test interactions" @click="if($event.target===$el)$el.close()" @close="closePreview()" @cancel="if(modal){$event.preventDefault();modal=null;}">
 <template x-if="preview && asset(displayed?.asset_id)"><div class="preview-stage">
 <img :src="asset(displayed.asset_id).url" :alt="displayed.name" class="preview-scene-image" :class="sceneTransition ? 'scene-fade-in' : ''" draggable="false">
 <template x-if="outgoingScene && asset(outgoingScene.asset_id)"><img :src="asset(outgoingScene.asset_id).url" alt="" class="preview-outgoing-image" aria-hidden="true"></template>
 <template x-for="h in currentHotspots" :key="h.id"><button type="button" :style="style(h)" :aria-label="h.label" class="preview-hotspot absolute cursor-pointer border-0 bg-transparent focus:outline-none" :disabled="sceneTransition" @click="activate(h)"><template x-if="h.overlay && visualAsset(h.object_id)"><img :src="visualAsset(h.object_id).url" alt="" class="h-full w-full object-contain"></template></button></template>
-<div x-show="displayed?.description && !inventoryOpen" class="game-description scene-description" tabindex="0" role="region" aria-label="Scene description" x-text="displayed?.description"></div>
+<div x-show="!inventoryOpen && !modal">
+@include('studio.animated-description',['text'=>"preview && !sceneTransition ? (narration?.text ?? displayed?.description) : ''",'position'=>"narration?.position || displayed?.description_position || 'top'",'identity'=>"previewId+':'+narrationVersion",'extraClass'=>'scene-narration'])
+</div>
+<template x-if="pickupFlight?.url"><img :src="pickupFlight.url" alt="" class="pickup-flight" :style="{'--pickup-x':pickupFlight.x+'%','--pickup-y':pickupFlight.y+'%'}"></template>
 <div class="game-inventory">
-<button type="button" class="inventory-toggle" aria-label="Inventory" :aria-expanded="inventoryOpen" @click="inventoryOpen=!inventoryOpen"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 7h14l2 14H3L5 7ZM8 7V5a4 4 0 0 1 8 0v2M8 12h8"/></svg><span class="text-xs" x-text="inventory.length"></span></button>
+<button type="button" class="inventory-toggle" :class="inventoryPulse?'inventory-pulse':''" aria-label="Inventory" :aria-expanded="inventoryOpen" @click="inventoryOpen=!inventoryOpen"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 7h14l2 14H3L5 7ZM8 7V5a4 4 0 0 1 8 0v2M8 12h8"/></svg><span class="text-xs" x-text="inventory.length"></span></button>
 <div x-show="inventoryOpen" class="inventory-tray" aria-label="Inventory items"><p x-show="!inventory.length" class="p-3 text-sm">No items collected.</p><template x-for="item in inventory" :key="item.inventoryId||item.id"><button type="button" class="inventory-item" @click="openInventory(item)"><img x-show="asset(item.asset_id)" :src="asset(item.asset_id)?.url" :alt="item.name" class="h-14 w-16 object-contain"><span class="block max-w-24 truncate text-xs" x-text="item.name"></span></button></template></div>
 </div>
 </div></template>
@@ -16,13 +35,13 @@
 <template x-if="modal && !modal.areaId"><div class="object-preview-stage" :class="!modal.url?'object-text-only':''">
 <img x-show="modal.url" :src="modal.url" :alt="modal.label" class="preview-object-image">
 <button type="button" class="game-object-close" aria-label="Back to scene" @click="modal=null">×</button>
-<div x-show="modal.text" class="game-description object-description" :class="inventoryActions.length?'has-actions':''" tabindex="0" role="region" aria-label="Object description" x-text="modal.text"></div>
+@include('studio.animated-description',['text'=>"modal?.text",'position'=>"modal?.position || 'top'",'identity'=>"modal?.label+':'+(modal?.version||0)",'extraClass'=>'object-narration'])
 <div x-show="inventoryActions.length" class="game-object-actions"><template x-for="action in inventoryActions" :key="action.id"><button type="button" class="game-action" @click="performObjectAction(action.id)" :disabled="!objects.some(v=>v.id===action.target_id)" x-text="action.label"></button></template></div>
 </div></template>
-<template x-if="modal?.areaId"><div class="area-interaction-panel relative space-y-4 p-5">
+<template x-if="modal?.areaId"><div class="area-interaction-panel relative flex flex-col gap-4 p-5">
 <button type="button" class="game-object-close" aria-label="Back to scene" @click="modal=null">×</button>
 <h3 class="pr-8 font-serif text-xl" x-text="modal.label"></h3>
-<div x-show="modal.text" class="max-h-20 overflow-y-auto whitespace-pre-wrap rounded bg-black/50 p-3 text-sm text-white" role="status" x-text="modal.text"></div>
+@include('studio.animated-description',['text'=>"modal?.text",'position'=>"modal?.position || 'top'",'identity'=>"modal?.areaId+':'+(modal?.version||0)",'extraClass'=>'area-narration'])
 <div x-show="modalArea?.action==='inventory'" class="space-y-3">
 <button type="button" class="game-action inline-flex items-center gap-2" :aria-expanded="modal.showItems" @click="modal.showItems=!modal.showItems"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 7h14l2 14H3L5 7ZM8 7V5a4 4 0 0 1 8 0v2"/></svg>Use inventory item</button>
 <div x-show="modal.showItems" class="flex gap-2 overflow-x-auto p-1"><p x-show="!inventory.length" class="text-sm">Your inventory is empty.</p><template x-for="item in inventory" :key="item.inventoryId||item.id"><button type="button" class="inventory-item" @click="useInventoryOnArea(item.inventoryId||item.id)" :aria-label="'Use '+item.name"><img x-show="asset(item.asset_id)" :src="asset(item.asset_id)?.url" :alt="item.name" class="h-16 w-20 object-contain"><span class="block text-xs" x-text="item.name"></span></button></template></div>

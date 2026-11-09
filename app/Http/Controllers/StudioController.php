@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Validator;
 class StudioController extends Controller {
     public function index(Request $request) {
         $historyStory=$request->filled('history')?Story::where('user_id',$request->user()->id)->findOrFail($request->integer('history')):null;
-        return view('studio.index',['historyStory'=>$historyStory,'revisions'=>$historyStory?->revisions()->latest()->limit(20)->get(),'stories'=>Story::where('user_id',$request->user()->id)->withCount(['pages','pages as ready_pages_count'=>function($q) { foreach(['narrative','scene_prompt','video_prompt','interaction_plan','completion'] as $field) $q->whereNotNull($field)->whereRaw('TRIM('.$field.') <> ?', ['']); }])->latest('updated_at')->get()]);
+        return view('studio.index',['historyStory'=>$historyStory,'revisions'=>$historyStory?->revisions()->latest()->limit(20)->get(),'stories'=>Story::where('user_id',$request->user()->id)->withCount(['pages','pages as ready_pages_count'=>function($q) { foreach(['narrative','interaction_plan'] as $field) $q->whereNotNull($field)->whereRaw('TRIM('.$field.') <> ?', ['']); }])->latest('updated_at')->get()]);
     }
     public function store(Request $request) {
         $data=$request->validate(['title'=>'required|string|max:160','premise'=>'required|string|max:5000','page_count'=>'required|integer|min:1|max:100','genre'=>'required|string|max:80']);
@@ -37,7 +37,8 @@ class StudioController extends Controller {
     }
     public function page(Request $request,Story $story,StoryPage $page,StoryDraft $draft) {
         $this->owner($request,$story); abort_unless($page->story_id===$story->id,404);
-        $data=$request->validate(['revision'=>'required|integer','title'=>'required|string|max:160','narrative'=>'nullable|string|max:10000','scene_prompt'=>'nullable|string|max:10000','video_prompt'=>'nullable|string|max:5000','interaction_plan'=>'nullable|string|max:10000','completion'=>'nullable|string|max:2000']);
+        $data=$request->validate(['revision'=>'required|integer','title'=>'required|string|max:160','narrative'=>'nullable|string|max:10000','narrative_delta'=>'nullable|json|max:200000','interaction_plan_delta'=>'nullable|json|max:200000','interaction_plan'=>'nullable|string|max:10000','scene_prompt'=>'prohibited','video_prompt'=>'prohibited']);
+        $data=\App\Services\PageRichText::normalize($data);
         $revision=$data['revision'];unset($data['revision']);
         $draft->change($story,$revision,'Page '.$page->position,fn()=> $page->update($data));
         if ($request->expectsJson()) return response()->json(['revision'=>(int)$revision+1]);
@@ -45,15 +46,15 @@ class StudioController extends Controller {
     }
     public function structure(Request $request, Story $story, StoryDraft $draft, \App\Services\PageOrder $order) {
         $this->owner($request,$story);
-        $data=$request->validate(['revision'=>'required|integer','action'=>'required|in:add,up,down,remove','page_id'=>'required_unless:action,add|integer']);
+        $data=$request->validate(['revision'=>'required|integer','action'=>'required|in:add,insert,up,down,remove','page_id'=>'required_unless:action,add|integer']);
         $selected=null;
         $draft->change($story,(int)$data['revision'],'Page structure: '.$data['action'],function($s) use ($data,$order,&$selected) {
             $ids=$s->pages()->pluck('id')->all();
-            if ($data['action']==='add') {
+            if (in_array($data['action'],['add','insert'])) {
                 if (count($ids)>=100) throw \Illuminate\Validation\ValidationException::withMessages(['pages'=>'A story can have at most 100 pages.']);
                 $position=(int)\App\Models\StoryPage::withTrashed()->where('story_id',$s->id)->max('position')+1;
-                $new=$s->pages()->create(['position'=>$position,'title'=>'Page '.(count($ids)+1)]);
-                $ids[]=$new->id; $selected=$new->id;
+                $new=$s->pages()->create(['position'=>$position,'title'=>$data['action']==='insert'?'Untitled page':'Page '.(count($ids)+1)]);
+                if($data['action']==='insert'){$index=array_search((int)$data['page_id'],$ids,true);abort_if($index===false,404);array_splice($ids,$index+1,0,[$new->id]);}else{$ids[]=$new->id;} $selected=$new->id;
             } else {
                 $index=array_search((int)$data['page_id'],$ids,true);
                 abort_if($index===false,404);
@@ -97,7 +98,7 @@ class StudioController extends Controller {
         $draft->change($story,(int)$request->revision,'Restore revision '.$revision->revision,function($s)use($revision) {
             $s->update($revision->snapshot['story']);
             app(\App\Services\PageOrder::class)->arrange($s,array_column($revision->snapshot['pages'],'id'));
-            foreach($revision->snapshot['pages'] as $page) { $id=$page['id'];unset($page['id']);$s->pages()->whereKey($id)->update($page); }
+            foreach($revision->snapshot['pages'] as $page) { $id=$page['id'];unset($page['id'],$page['scene_prompt'],$page['video_prompt']);$s->pages()->whereKey($id)->firstOrFail()->update($page); }
         });
         return redirect()->route('stories.edit',$story)->with('status','Earlier draft restored, including page order and removed pages.');
     }

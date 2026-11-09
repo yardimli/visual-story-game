@@ -21,11 +21,19 @@ class SceneController extends Controller {
   }
   return response()->json(['remaining'=>$r->user()->availableCredit()/1000000,'page_id'=>$page->id,'preview_pages'=>$story->pages()->get(['id','position','title','visual_document'])->map(fn($p)=>['id'=>$p->id,'position'=>$p->position,'images_url'=>route('visuals.show',[$story,$p]),'title'=>$p->title,'visuals'=>$p->visual_document['visuals']??[]]),'document'=>$page->visual_document??['visuals'=>[]],'revision'=>$page->visual_revision,
    'assets'=>Asset::withGenerationNames($story->assets()->latest()->get(),$story->id)->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a),'role'=>$a->role,'page_ids'=>array_values(array_unique($assetPages[$a->id]??[])),'archived'=>!!$a->archived_at,'update_url'=>route('assets.update',$a),'uses'=>$uses[$a->id]??[]]),
-   'jobs'=>ImageGeneration::where('story_page_id',$page->id)->latest('id')->get(['id','visual_id','name','status','error','asset_ids','created_at','payload'])->map(fn($j)=>['id'=>$j->id,'visual_id'=>$j->visual_id,'name'=>$j->name,'status'=>$j->status,'error'=>$j->error,'asset_ids'=>$j->asset_ids,'created_at'=>$j->created_at,'prompt'=>$j->payload['prompt']??'','model'=>$j->payload['model']??'','retry_url'=>route('images.retry',[$story,$page,$j])])]);
+   'jobs'=>ImageGeneration::where('story_page_id',$page->id)->latest('id')->get(['id','visual_id','name','status','error','asset_ids','created_at','payload','references'])->map(fn($j)=>['id'=>$j->id,'visual_id'=>$j->visual_id,'name'=>$j->name,'status'=>$j->status,'error'=>$j->error,'asset_ids'=>$j->asset_ids,'created_at'=>$j->created_at,'prompt'=>$j->payload['prompt']??'','model'=>$j->payload['model']??'','video_prompt'=>$j->payload['_video_prompt']??'','references'=>array_column($j->references??[],'id'),'settings'=>array_intersect_key($j->payload??[],array_flip(['quality','resolution','aspect_ratio','background'])),'retry_url'=>route('images.retry',[$story,$page,$j])])]);
+ }
+ public function draft(Request $r,Story $story,StoryPage $page,\App\Services\ImageDrafts $drafts) {
+  $this->owner($r,$story,$page);$data=$r->validate(['draft_id'=>'nullable|integer']);
+  $draft=DB::transaction(function()use($r,$story,$page,$drafts,$data){
+   $draft=isset($data['draft_id'])?ImageGeneration::where('story_id',$story->id)->where('story_page_id',$page->id)->whereKey($data['draft_id'])->lockForUpdate()->firstOrFail():null;
+   return $drafts->save($story,$page,$r->all(),$draft);
+  });
+  return response()->json(['id'=>$draft->id,'status'=>'draft']);
  }
  public function update(Request $r,Story $story,StoryPage $page,SceneDocument $validator) {
   $this->owner($r,$story,$page);$data=$r->validate(['revision'=>'required|integer','document'=>'required|array']);
-  $doc=$validator->validate($story,$data['document']);
+  $doc=$validator->validate($story,$data['document'],$page->id);
   $revision=DB::transaction(function() use($page,$data,$doc) {
    $p=StoryPage::whereKey($page->id)->lockForUpdate()->firstOrFail();
    if($p->visual_revision!==(int)$data['revision']) throw ValidationException::withMessages(['revision'=>'Scene artwork changed in another tab. Reload before editing.']);
@@ -63,7 +71,7 @@ class SceneController extends Controller {
  }
  private function submit(Request $r,Story $story,StoryPage $page,OpenRouter $router,?ImageGeneration $retry=null) {
   $this->owner($r,$story,$page);
-  $d=$r->validate(['name'=>'nullable|string|max:160','revision'=>'required|integer','visual_id'=>'required|uuid','request_key'=>'required|uuid','model'=>'required|string|max:200','references'=>'present|array|max:16','references.*'=>'integer|distinct','settings'=>'present|array:quality,resolution,aspect_ratio,background','settings.*'=>'string|max:50']);
+  $d=$r->validate(['name'=>'nullable|string|max:160','revision'=>'required|integer','visual_id'=>'nullable|uuid','draft_id'=>'nullable|integer','request_key'=>'required|uuid','model'=>'required|string|max:200','references'=>'present|array|max:16','references.*'=>'integer|distinct','settings'=>'present|array:quality,resolution,aspect_ratio,background','settings.*'=>'string|max:50']);
   if(!$r->user()->openrouter_key && !config('story.openrouter_key')) throw ValidationException::withMessages(['key'=>'Image generation is not configured. Add a personal OpenRouter key in AI settings.']);
   if(!$r->user()->openrouter_key && $r->user()->llm_spent>=$r->user()->creditTotal()) throw ValidationException::withMessages(['key'=>'Your AI credits have been used. Add your own OpenRouter key in AI settings to continue.']);
   $endpoints=$router->imageEndpoints($d['model']);
@@ -80,14 +88,18 @@ class SceneController extends Controller {
   $job=DB::transaction(function() use($r,$story,$page,$d,$refs,$pricing,$retry) {
    $p=StoryPage::whereKey($page->id)->lockForUpdate()->firstOrFail();
    if(!$retry && $p->visual_revision!==(int)$d['revision']) throw ValidationException::withMessages(['revision'=>'Scene changed. Reload before generating.']);
+   $draft=isset($d['draft_id'])?ImageGeneration::where('story_page_id',$p->id)->where('story_id',$story->id)->whereKey($d['draft_id'])->lockForUpdate()->firstOrFail():null;
+   if($draft && $draft->status!=='draft')throw ValidationException::withMessages(['image'=>'This draft was already submitted. Refresh before generating again.']);
    if(ImageGeneration::where('user_id',$r->user()->id)->where('request_key',$d['request_key'])->exists()) throw ValidationException::withMessages(['request_key'=>'This generation was already submitted. Refresh job status.']);
-   $visual=$retry?['id'=>$retry->visual_id,'name'=>$retry->name,'kind'=>$retry->kind,'prompt'=>$retry->payload['prompt']??'']:collect($p->visual_document['visuals']??[])->firstWhere('id',$d['visual_id']);
+   $visual=$retry?['id'=>$retry->visual_id,'name'=>$retry->name,'kind'=>$retry->kind,'prompt'=>$retry->payload['prompt']??'']:($draft?['id'=>$draft->visual_id,'name'=>$draft->name,'kind'=>$draft->kind,'prompt'=>$draft->payload['prompt']??'']:collect($p->visual_document['visuals']??[])->firstWhere('id',$d['visual_id']??null));
    if(!$visual || !filled($visual['prompt']??'')) throw ValidationException::withMessages(['prompt'=>'Write and save a prompt for this visual first.']);
    $reserve=$r->user()->openrouter_key?0:app(ImagePricing::class)->quote($pricing,$d['settings'],$visual['prompt'],$refs);
    $ledger=app(LlmBudget::class)->reserve($r->user(),$story,$d['request_key'],$d['model'],$reserve);
    $ledger->update(['pricing_snapshot'=>$pricing]);
-   $job=ImageGeneration::create(['llm_request_id'=>$ledger->id,'user_id'=>$r->user()->id,'story_id'=>$story->id,'story_page_id'=>$page->id,'visual_id'=>$visual['id'],'name'=>$d['name']??$visual['name'],'kind'=>$visual['kind'],'request_key'=>$d['request_key'],
-    'payload'=>array_merge(['model'=>$d['model'],'prompt'=>$visual['prompt']],$d['settings'],!empty($d['name'])?['_asset_name'=>$d['name']]:[]), 'references'=>$refs,'pricing'=>$pricing]);
+   $values=['status'=>'queued','llm_request_id'=>$ledger->id,'user_id'=>$r->user()->id,'story_id'=>$story->id,'story_page_id'=>$page->id,'visual_id'=>$visual['id'],'name'=>$d['name']??$visual['name'],'kind'=>$visual['kind'],'request_key'=>$d['request_key'],
+    'payload'=>array_merge(['model'=>$d['model'],'prompt'=>$visual['prompt']],$d['settings'],!empty($d['name'])?['_asset_name'=>$d['name']]:[]), 'references'=>$refs,'pricing'=>$pricing];
+   if($retry && isset($retry->payload['_video_prompt']))$values['payload']['_video_prompt']=$retry->payload['_video_prompt'];
+   if($draft){$values['payload']['_video_prompt']=$draft->payload['_video_prompt']??'';$draft->update($values);$job=$draft;}else $job=ImageGeneration::create($values);
    GenerateSceneImage::dispatch($job->id)->onConnection('database')->onQueue('images')->afterCommit();return $job;
   });
   return response()->json(['id'=>$job->id,'status'=>$job->status],202);

@@ -64,7 +64,8 @@ textarea {
 .image-controls { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .image-results { min-width: 0; display: flex; flex-direction: column; }
 .image-results-scroll { overflow-y: auto; overscroll-behavior: contain; }
-.reference-dialog { width: min(760px, calc(100vw - 2rem)); max-height: 85dvh; padding: 0; }
+.reference-dialog { width: min(760px, calc(100vw - 2rem)); max-height: 85dvh; padding: 0; overflow: hidden; }
+.reference-dialog > div { max-height: calc(85dvh - 2px); }
 .reference-dialog::backdrop { background: rgb(0 0 0 / .55); }
 @media (min-width: 768px) {
     .image-workspace-grid { grid-template-columns: minmax(200px, 32%) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
@@ -84,7 +85,7 @@ textarea {
 .companion-panel .companion-model, .companion-panel .companion-send { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
 .companion-panel .companion-model { font-size: 11px; padding-left: 8px; }
 .companion-panel .companion-send { padding-left: 12px; padding-right: 12px; }
-.toast-stack { position: fixed; inset: auto auto 16px 16px; margin: 0; padding: 0; width: min(380px, calc(100vw - 32px)); border: 0; background: transparent; overflow: visible; z-index: 100; pointer-events: none; }
+.toast-stack { position: fixed; inset: 16px auto auto 50%; transform: translateX(-50%); margin: 0; padding: 0; width: min(380px, calc(100vw - 32px)); border: 0; background: transparent; overflow: visible; z-index: 100; pointer-events: none; }
 .toast-stack > div + div { margin-top: 8px; }
 .toast-stack::backdrop { display: none; }
 
@@ -186,3 +187,82 @@ textarea {
 .object-preview-dialog[open], .object-preview-dialog[open]::backdrop { animation: game-fade-in 200ms linear both; }
 
 .area-interaction-panel { width: min(480px, calc(100vw - 3rem)); max-height: calc(100dvh - 3rem); overflow-y: auto; color: white; background: #171717; }
+
+.animated-description { position:absolute; z-index:15; left:12px; right:12px; max-height:150px; overflow-y:auto; padding:10px 12px; border:2px solid white; border-radius:12px; background:rgb(0 0 0 / .72); color:white; box-shadow:0 3px 12px rgb(0 0 0 / .25); line-height:1.5; font-size:14px; white-space:pre-wrap; transition:height 180ms ease, opacity 300ms ease; box-sizing:border-box; }
+.animated-description.description-top { top:12px; bottom:auto; }
+.animated-description.description-bottom { bottom:68px; top:auto; }
+.description-word { color:white; opacity:.8; animation:description-word-glow 650ms ease-out; }
+@keyframes description-word-glow { from { opacity:1; text-shadow:0 0 8px white; } to { opacity:.8; text-shadow:none; } }
+.area-narration.animated-description { position:relative; left:auto; right:auto; top:auto; bottom:auto; flex-shrink:0; width:100%; }
+.area-narration.description-top { order:-1; }
+.area-narration.description-bottom { order:10; }
+.inventory-pulse { animation:inventory-pulse 650ms ease-out; }
+@keyframes inventory-pulse { 0%,100% { transform:scale(1); } 35% { transform:scale(1.2); background:#b45309; box-shadow:0 0 22px rgb(251 191 36 / .8); } }
+@media (prefers-reduced-motion:reduce) { .description-word,.inventory-pulse { animation:none; } .animated-description { transition:none; } }
+
+.pickup-flight { position:absolute; z-index:20; width:64px; height:64px; object-fit:contain; pointer-events:none; animation:pickup-to-inventory 650ms ease-in-out forwards; }
+@keyframes pickup-to-inventory { from { left:var(--pickup-x); top:var(--pickup-y); transform:translate(-50%,-50%) scale(1); opacity:1; } to { left:34px; top:calc(100% - 34px); transform:translate(-50%,-50%) scale(.3); opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .pickup-flight { display:none; } }
+
+.animated-description { white-space:normal; }
+.animated-description > div { white-space:pre-wrap; }
+
+/* Document workspace and adjustable companion */
+.studio-with-companion, .studio-with-companion:has(.image-workspace) { grid-template-columns:minmax(0,1fr) 6px var(--chat-width,432px); }
+.companion-splitter { position:sticky; top:81px; height:calc(100dvh - 81px); cursor:col-resize; touch-action:none; background:rgb(120 113 108 / .18); }
+.companion-splitter:hover, .companion-splitter:focus { background:#d97706; outline:none; }
+.story-editor-grid { grid-template-rows:minmax(0,1fr); }
+.page-document { min-height:300px; background:rgb(255 255 255 / .45); transition:background-color 150ms; }
+.dark .page-document { background:rgb(28 25 23 / .5); }
+.page-document.page-document-active { background:#fffbeb; border-color:#d97706; }
+.dark .page-document.page-document-active { background:#292016; border-color:#a16207; }
+.paper .page-document.page-document-active { background:#dfcba7; }
+.page-document-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; min-height:300px; }
+.page-writing-column { display:flex; flex-direction:column; }
+.page-writing-column .ql-container { flex:1; height:auto; min-height:250px; font:inherit; border-radius:0 0 8px 8px; }
+.page-writing-column .ql-editor { min-height:250px; height:auto; overflow:visible; color:inherit; }
+.page-writing-column .ql-toolbar { border-radius:8px 8px 0 0; flex-shrink:0; }
+.page-writing-column :is(.ql-container,.ql-toolbar) { border-color:rgb(120 113 108 / .4); background:rgb(255 255 255 / .2); }
+.dark .page-writing-column .ql-stroke { stroke:#d6d3d1; }
+.dark .page-writing-column .ql-fill { fill:#d6d3d1; }
+.dark .page-writing-column .ql-picker { color:#d6d3d1; }
+.dark .ql-picker-options { background:#292524; }
+.page-action { padding:5px 9px; min-height:32px; font-size:12px; }
+.proposal-review-dialog { width:65vw; height:70dvh; max-width:95vw; max-height:90dvh; padding:0; overflow:hidden; }
+.proposal-review-dialog::backdrop { background:rgb(0 0 0 / .55); }
+@media(max-width:767px) { .companion-splitter { display:none; } .page-document-columns { grid-template-columns:minmax(0,1fr); } .proposal-review-dialog { width:95vw; } }
+
+.page-writing-column .ql-container { display:flex; flex-direction:column; }
+.page-writing-column .ql-editor { flex:1; }
+
+.visual-select-trigger { display:flex; align-items:center; gap:12px; width:100%; min-height:42px; padding:8px 12px; border:1px solid rgb(120 113 108 / .5); border-radius:8px; background:transparent; font-weight:500; }
+.visual-select-menu { position:absolute; top:100%; left:0; right:0; margin-top:4px; z-index:50; border:1px solid rgb(120 113 108 / .5); border-radius:10px; overflow:hidden; background:#fff; box-shadow:0 8px 24px rgb(0 0 0 / .2); }
+.dark .visual-select-menu { background:#292524; }
+.paper .visual-select-menu { background:#d9cdb8; }
+.visual-select-list { max-height:320px; overflow-y:auto; padding:4px; }
+.visual-select-row { display:flex; align-items:center; gap:4px; border-radius:6px; font-weight:400; }
+.visual-select-row:hover { background:rgb(120 113 108 / .12); }
+.visual-select-current { background:rgb(217 119 6 / .17); }
+.visual-select-dragging { opacity:.45; }
+.visual-select-target { outline:2px solid #d97706; outline-offset:-2px; }
+.visual-drag-handle { cursor:grab; padding:8px; font-size:20px; touch-action:none; }
+.visual-drag-handle:active { cursor:grabbing; }
+.visual-order-button { padding:4px 7px; font-size:12px; }
+.visual-order-button:disabled { opacity:.25; }
+.visual-create-button { padding:5px 9px; min-height:30px; font-size:12px; }
+
+.rich-proposal-preview { overflow-wrap:anywhere; line-height:1.6; }
+.rich-proposal-preview p { margin:.4em 0; }
+.rich-proposal-preview h1,.rich-proposal-preview h2,.rich-proposal-preview h3 { font-weight:700; margin:.6em 0 .3em; }
+.rich-proposal-preview h1 { font-size:1.7em; }
+.rich-proposal-preview h2 { font-size:1.4em; }
+.rich-proposal-preview h3 { font-size:1.2em; }
+.rich-proposal-preview ul { list-style:disc; padding-left:1.5em; }
+.rich-proposal-preview ol { list-style:decimal; padding-left:1.5em; }
+.rich-proposal-preview blockquote { border-left:3px solid currentColor; padding-left:1em; margin:.5em 0; }
+
+.companion-stream-dots span { display:inline-block; animation:companion-dot 1.2s ease-in-out infinite; }
+.companion-stream-dots span:nth-child(2) { animation-delay:.2s; }
+.companion-stream-dots span:nth-child(3) { animation-delay:.4s; }
+@keyframes companion-dot { 0%,80%,100% { opacity:.25; transform:translateY(0); } 40% { opacity:1; transform:translateY(-2px); } }
+@media(prefers-reduced-motion:reduce) { .companion-stream-dots span { animation:none; } }

@@ -3,7 +3,7 @@ import {notify, watchNotices} from './toasts.js';
 import {selectableModels, rememberedModel, rememberModel, imagePriceLabel, imageModelLabel} from './model-preferences.js';
 export function sceneEditor(options) {
  return {
-  imagePickerPage:null, otherPageJobs:{}, loadedImagePages:[], loadingImagePages:[], previewPages:[], editorPageId:null, previewPageId:null, generationMode:!!options.generationMode, generationName:'', namingImage:false, retryingJob:null, editingVisual:false, showArchived:false, showFailed:false, cardStates:{}, expandedPrompts:{}, assetNames:{}, assetSaving:{}, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
+  visualMenuOpen:false, draggedVisualId:'', visualDropId:'', narration:null, narrationVersion:0, inventoryPulse:false, pickupFlight:null, pickupTimer:null, previewInventorySelection:[], imagePickerPage:null, referencePage:'all', otherPageJobs:{}, loadedImagePages:[], loadingImagePages:[], previewPages:[], editorPageId:null, previewPageId:null, generationMode:!!options.generationMode, generationName:'', selectedImageId:null, generationInput:{prompt:'',video_prompt:''}, namingImage:false, retryingJob:null, editingVisual:false, showArchived:false, showFailed:false, cardStates:{}, expandedPrompts:{}, assetNames:{}, assetSaving:{}, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
   loading:true, dirty:false, saving:false, halted:false, status:'Loading scene artwork…', error:'', timer:null, active:null, polling:null, generating:false, uploading:false, uploadStatus:'', requestKey:crypto.randomUUID(),
   typeChange:null, moveJob:null, moveTarget:'', movingImage:false, visualAction:'scene', visualName:'', visualSourceId:'', deleteVisualId:'', areaDrag:null, renamingId:'', labelDraft:'', pickerKind:'object', deleteAreaId:'', suppressImageClick:false, inventoryOpen:false, outgoingScene:null, sceneTransition:false, transitionTimer:null, modalTimer:null, pendingModal:null, preview:false, previewId:'', inventory:[], collected:[], modal:null, drawing:false, drag:null, drawRect:null, imagePriceLabel, imageModelLabel,
   async init() {
@@ -14,14 +14,16 @@ export function sceneEditor(options) {
    this.unload=e=>{if(this.dirty || this.saving){e.preventDefault();e.returnValue='';}};
    window.addEventListener('beforeunload',this.unload);
    try {
-    const data=await this.request(options.url);this.document=data.document;this.previewPages=data.preview_pages||[];this.editorPageId=data.page_id;this.revision=data.revision;this.assets=data.assets;this.jobs=data.jobs;this.credit(data);this.restoreVisual();
+    const data=await this.request(options.url);this.document=data.document;this.previewPages=data.preview_pages||[];this.editorPageId=data.page_id;this.revision=data.revision;this.assets=data.assets;this.jobs=data.jobs;this.upgradePageLinks();this.credit(data);this.restoreVisual();
+    if(this.generationMode){const params=new URL(window.location.href).searchParams;const job=this.jobs.find(j=>String(j.id)===params.get('image'));if(job)this.fillImageCard(job);else if(params.get('visual')){const v=this.document.visuals.find(v=>v.id===this.selected);this.generationInput={prompt:v?.prompt||'',video_prompt:v?.video_prompt||''};}}
     this.status='';
    } catch(e){this.error=e.message;this.halted=true;}
    this.loading=false;
-   try { this.models=selectableModels((await imageCatalog()).models,'image'); if(!this.models.some(m=>m.id===this.model)) this.model=''; if(this.model) await this.loadEndpoints(); } catch(e) { this.error='Image catalog unavailable. You can still edit existing visuals; reload to try discovery again.'; }
+   if(!this.generationMode && new URL(window.location.href).searchParams.get('test')==='1'){const url=new URL(window.location.href);url.searchParams.delete('test');window.history.replaceState(null,'',url);this.$nextTick(()=>this.preparePreview());}
+   try { this.models=selectableModels((await imageCatalog()).models,'image'); if(!this.models.some(m=>m.id===this.model)) this.model=''; if(this.model){const settings={...this.settings};await this.loadEndpoints();this.settings=settings;} } catch(e) { this.error='Image catalog unavailable. You can still edit existing visuals; reload to try discovery again.'; }
    this.polling=setInterval(()=>this.refresh(),5000);
   },
-  destroy(){clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
+  destroy(){clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
   async request(url,method='GET',body=null) {
    const response=await fetch(url,{method,headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},...(body ? {body:JSON.stringify(body)} : {})});
    const data=await response.json();
@@ -29,8 +31,22 @@ export function sceneEditor(options) {
    if(!response.ok){const e=new Error(Object.values(data.errors??{}).flat().join(' ')||data.message||'Request failed.');e.conflict=!!data.errors?.revision;e.validation=response.status===422;throw e;}
    return data;
   },
-  get visual(){return this.document.visuals.find(v=>v.id===this.selected);},
+  upgradePageLinks(){
+   for(const page of this.previewPages){const index=this.previewPages.indexOf(page),next=this.previewPages[index+1];
+    for(const visual of page.id===this.editorPageId?this.document.visuals:(page.visuals||[]))for(const area of visual.hotspots||[]){if(area.action==='next_page'){area.action=next?'page':'complete';area.target_page_id=next?.id||null;}}
+   }
+  },
+  get visual(){if(this.generationMode)return this.generationInput;return this.document.visuals.find(v=>v.id===this.selected);},
   get visualDetailsVisible(){return !!this.visual && (!this.visual.asset_id || this.editingVisual);},
+  visualOptionLabel(v){return (this.document.visuals.findIndex(item=>item.id===v.id)+1)+'. '+(v.kind==='scene'?'Scene · ':'Object · ')+v.name;},
+  moveVisual(id,direction){const from=this.document.visuals.findIndex(v=>v.id===id),to=from+direction;if(from<0||to<0||to>=this.document.visuals.length)return;const [visual]=this.document.visuals.splice(from,1);this.document.visuals.splice(to,0,visual);this.changed();},
+  dropVisual(targetId,event,row){
+   const id=this.draggedVisualId;this.draggedVisualId='';this.visualDropId='';
+   if(!id||id===targetId)return;
+   const from=this.document.visuals.findIndex(v=>v.id===id),target=this.document.visuals.findIndex(v=>v.id===targetId);if(from<0||target<0)return;
+   const rect=row.getBoundingClientRect();let to=target+(event.clientY>=rect.top+rect.height/2?1:0);if(from<to)to--;
+   if(to===from)return;const [visual]=this.document.visuals.splice(from,1);this.document.visuals.splice(to,0,visual);this.changed();
+  },
   selectVisualOption(value){if(value==='new:scene'||value==='new:object'){this.requestVisualName(value.slice(4));}else this.choose(value);},
   get hotspot(){return this.visual?.hotspots.find(h=>h.id===this.hotspotId);},
   get generationVisual(){
@@ -39,13 +55,12 @@ export function sceneEditor(options) {
   },
   async openGeneration(base,forInteraction=true){
    try {
-    if(forInteraction && !this.preview && ['inspect','pickup'].includes(this.hotspot?.action) && !this.generationVisual){
-     if(this.document.visuals.length>=100)throw new Error('This page has reached its 100-visual limit.');
-     const object={id:crypto.randomUUID(),kind:'object',name:this.hotspot.label,asset_id:null,prompt:'',hotspots:[]};
-     this.document.visuals.push(object);this.hotspot.object_id=object.id;this.changed();
-    }
     const target=forInteraction?this.generationVisual:this.visual;
-    if(!target)throw new Error('Select a visual before opening image generation.');
+    if(!target){
+     if(window.vsgAutosave && !(await window.vsgAutosave.flush()))return;
+     if(!(await this.flush()))return;
+     window.location.assign(base);return;
+    }
     const id=target.id;
     if(window.vsgAutosave && !(await window.vsgAutosave.flush()))return;
     if(!(await this.flush()))return;
@@ -75,7 +90,7 @@ export function sceneEditor(options) {
     const body=new FormData();body.append('role','reference');files.forEach(f=>body.append('images[]',f));
     const response=await fetch(options.upload,{method:'POST',headers:{Accept:'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},body});
     const data=await response.json();if(!response.ok)throw new Error(Object.values(data.errors??{}).flat().join(' ')||data.message||'Upload failed.');
-    this.assets=[...data.assets,...this.assets];this.references=[...new Set([...this.references,...data.assets.map(a=>String(a.id))])];
+    this.referencePage='all';this.assets=[...data.assets,...this.assets];this.references=[...new Set([...this.references,...data.assets.map(a=>String(a.id))])];
     window.dispatchEvent(new CustomEvent('vsg-assets-uploaded',{detail:data.assets}));
     this.uploadStatus=`${data.assets.length} reference image(s) uploaded and selected. Saved in References.`;
    } catch(e){this.uploadStatus='';this.error=e.message||'Upload failed. Please try again.';}
@@ -98,6 +113,35 @@ export function sceneEditor(options) {
   add(kind,name=null){if(this.document.visuals.length>=100)return;const v={id:crypto.randomUUID(),kind,name:name||(kind==='scene'?'Scene state ':'Object image ')+(this.document.visuals.filter(v=>v.kind===kind).length+1),asset_id:null,prompt:kind==='scene'?options.prompt||'':'',hotspots:[]};this.document.visuals.push(v);this.choose(v.id);this.changed();},
   selectGenerationVisual(){if(this.selected.startsWith('new:'))this.newGeneration(this.selected.slice(4));else{this.choose(this.selected);this.references=[];}},
   newGeneration(kind){this.add(kind);this.references=[];this.$nextTick(()=>this.$refs.generationForm?.scrollIntoView({behavior:'smooth',block:'nearest'}));},
+  generationSnapshot(){return {name:this.generationName,prompt:this.generationInput.prompt,video_prompt:this.generationInput.video_prompt,model:this.model,references:this.references.map(Number),settings:Object.fromEntries(Object.entries(this.settings).filter(([,v])=>v))};},
+  fillImageCard(job){
+   this.selectedImageId=job.id;this.generationName=(job.asset_ids?.length?this.asset(job.asset_ids[0])?.name:null)||job.name||'';
+   if(this.generationName==='Untitled image')this.generationName='';this.generationName=this.generationName.slice(0,160);
+   this.generationInput={prompt:job.prompt||'',video_prompt:job.video_prompt||''};this.model=job.model||this.model;
+   this.endpoints=this.models.find(m=>m.id===this.model)?.imageEndpoints||[];
+   this.settings={...(job.settings||{})};this.references=(job.references||[]).map(String);this.requestKey=crypto.randomUUID();
+   const url=new URL(window.location.href);url.searchParams.set('image',job.id);url.searchParams.delete('visual');window.history.replaceState(null,'',url);
+   this.$nextTick(()=>window.dispatchEvent(new Event('textarea-refresh')));
+  },
+  async selectImageCard(job){
+   if(job.sourcePage || this.generating || this.uploading || job.localFailure || job.status==='submitting' || this.selectedImageId===job.id)return;
+   if(!(await this.flush()))return;this.fillImageCard(job);
+  },
+  async createNewImage(){
+   if(this.generating || !(await this.flush()))return;
+   this.selectedImageId=null;this.generationName='';this.generationInput={prompt:'',video_prompt:''};this.model='';this.endpoints=[];this.settings={};this.references=[];this.requestKey=crypto.randomUUID();
+   const url=new URL(window.location.href);url.searchParams.delete('image');url.searchParams.delete('visual');window.history.replaceState(null,'',url);
+   this.$nextTick(()=>window.dispatchEvent(new Event('textarea-refresh')));
+  },
+  async saveGenerationDraft(){
+   if(!this.generationInput.prompt.trim()){this.dirty=false;return true;}
+   const selected=this.jobs.find(j=>j.id===this.selectedImageId),snapshot=this.generationSnapshot();
+   const data=await this.request(options.draftUrl,'POST',{...snapshot,draft_id:selected?.status==='draft'?selected.id:undefined});
+   const job={...snapshot,id:data.id,status:'draft',asset_ids:[]};
+   this.jobs=[job,...this.jobs.filter(j=>j.id!==data.id)];this.selectedImageId=data.id;
+   const url=new URL(window.location.href);url.searchParams.set('image',data.id);url.searchParams.delete('visual');window.history.replaceState(null,'',url);
+   return true;
+  },
   loadCardStates(){try{const saved=JSON.parse(localStorage.getItem('vsg-image-cards:'+options.url)||'{}');this.cardStates=saved&&typeof saved==='object'&&!Array.isArray(saved)?saved:{};}catch(_){this.cardStates={};}},
   cardOpen(job){return this.cardStates[job.id]??(job.localFailure || job.status!=='failed');},
   rememberCard(job,open){this.cardStates={...this.cardStates,[job.id]:open};try{localStorage.setItem('vsg-image-cards:'+options.url,JSON.stringify(this.cardStates));}catch(_){}},
@@ -208,7 +252,7 @@ export function sceneEditor(options) {
   async saveLoop(){
    while(this.dirty){
     this.dirty=false;this.saving=true;this.status='Saving visuals…';
-    try {const data=await this.request(options.url,'PUT',{revision:this.revision,document:JSON.parse(JSON.stringify(this.document))});this.revision=data.revision;this.error='';this.status='All visual changes saved';}
+    try {if(this.generationMode){await this.saveGenerationDraft();this.error='';this.status='Image draft saved';continue;}const data=await this.request(options.url,'PUT',{revision:this.revision,document:JSON.parse(JSON.stringify(this.document))});this.revision=data.revision;this.error='';this.status='All visual changes saved';}
     catch(e){this.dirty=true;this.error=e.message;this.status='Visual changes not saved';this.halted=e.conflict||!e.validation;return false;}
     finally{this.saving=false;}
    }return true;
@@ -233,17 +277,19 @@ export function sceneEditor(options) {
      this.namingImage=true;
      try{const named=await this.request(options.nameUrl,'POST',{prompt:this.visual.prompt,model:writingModel,request_key:crypto.randomUUID()});this.generationName=named.name;this.credit(named);}finally{this.namingImage=false;}
     }
-    pendingId='pending:'+this.requestKey;
+    if(this.generationMode){await this.saveGenerationDraft();}
+    const draftId=this.generationMode?this.selectedImageId:null;
+    pendingId=draftId||'pending:'+this.requestKey;
     const pending={id:pendingId,visual_id:this.visual.id,name:this.generationName.trim()||this.visual.name,prompt:this.visual.prompt,model:this.model,status:'submitting',asset_ids:[]};
-    this.jobs=[pending,...this.jobs];
+    this.jobs=[pending,...this.jobs.filter(job=>job.id!==pendingId)];
     this.$nextTick(()=>{if(this.$refs.imageResults)this.$refs.imageResults.scrollTop=0;});
-    const result=await this.request(options.generate,'POST',{name:this.generationName.trim()||undefined,revision:this.revision,visual_id:this.visual.id,request_key:this.requestKey,model:this.model,references:this.references.map(Number),settings:Object.fromEntries(Object.entries(this.settings).filter(([,v])=>v))});
+    const result=await this.request(options.generate,'POST',{name:this.generationName.trim()||undefined,revision:this.revision,visual_id:this.visual.id,draft_id:draftId||undefined,request_key:this.requestKey,model:this.model,references:this.references.map(Number),settings:Object.fromEntries(Object.entries(this.settings).filter(([,v])=>v))});
     this.jobs=this.jobs.map(job=>job.id===pendingId?{...pending,id:result.id,status:result.status}:job);
-    this.generationName='';
+    if(this.generationMode)this.selectedImageId=result.id;else this.generationName='';
     this.requestKey=crypto.randomUUID();this.status='Image queued. You can keep editing.';
     // Keep the accepted job visible even if the follow-up status read fails.
     try{const d=await this.request(options.url);this.mergeJobs(d.jobs);this.assets=d.assets;this.credit(d);}catch(_){}
-   }catch(e){this.jobs=this.jobs.map(job=>job.id===pendingId?{...job,id:'rejected:'+crypto.randomUUID(),status:'failed',localFailure:true,error:e.message}:job);this.error=e.message;}
+   }catch(e){if(this.generationMode){try{const d=await this.request(options.url);this.mergeJobs(d.jobs);}catch(_){}}this.jobs=this.jobs.map(job=>job.id===pendingId && job.status!=='draft'?{...job,id:'rejected:'+crypto.randomUUID(),status:'failed',localFailure:true,error:e.message}:job);this.error=e.message;}
    finally{this.generating=false;}
   },
   async retryImage(job){
@@ -272,29 +318,15 @@ export function sceneEditor(options) {
   useImage(id){this.visual.asset_id=Number(id);this.editingVisual=false;this.changed();},
   newHotspot(rect={x:0.1,y:0.1,width:0.2,height:0.2}){if(!this.visual||this.visual.kind!=='scene'||this.visual.hotspots.length>=100)return;const h={id:crypto.randomUUID(),label:'Clickable area',description:'',...rect,action:'examine',target_id:null,object_id:null,overlay:false};this.visual.hotspots.push(h);this.hotspotId=h.id;this.drawing=false;this.beginRename(h);this.changed();},
   requestAreaDelete(id){if(this.preview)return;this.hotspotId=id;this.deleteAreaId=id;this.$refs.deleteAreaDialog.showModal();},
-  get areaObjectToDelete(){
-   const area=this.visual?.hotspots.find(h=>h.id===this.deleteAreaId);
-   const object=this.objects.find(v=>v.id===area?.object_id);if(!object)return null;
-   const shared=this.document.visuals.some(v=>(v.hotspots||[]).some(h=>h!==area && (h.object_id===object.id||h.target_id===object.id)) || (v.actions||[]).some(a=>a.target_id===object.id) || (v.hotspots||[]).some(h=>(h.inventory_rules||[]).some(r=>r.object_id===object.id)));
-   return shared?null:object;
-  },
   confirmAreaDelete(){
    const visual=this.visual,area=visual?.hotspots.find(h=>h.id===this.deleteAreaId);if(!area)return;
-   const object=this.areaObjectToDelete;
    visual.hotspots=visual.hotspots.filter(h=>h.id!==area.id);
-   if(object)this.document.visuals=this.document.visuals.filter(v=>v.id!==object.id);
    this.hotspotId='';this.deleteAreaId='';this.renamingId='';this.areaDrag=null;this.changed();this.$refs.deleteAreaDialog.close();
   },
   beginRename(h){if(this.preview)return;this.hotspotId=h.id;this.renamingId=h.id;this.labelDraft=h.label;},
   finishRename(h){
    if(this.renamingId!==h.id)return;const label=this.labelDraft.trim();this.renamingId='';if(!label)return;
-   const oldLabel=h.label;h.label=label;
-   let object=this.objects.find(v=>v.id===h.object_id);
-   if(!object){
-    if(this.document.visuals.length>=100){this.error='Area named, but no object visual could be added: this page has reached its 100-visual limit.';this.changed();return;}
-    object={id:crypto.randomUUID(),kind:'object',name:label,asset_id:null,prompt:'',hotspots:[]};
-    this.document.visuals.push(object);h.object_id=object.id;
-   }else if(object.name===oldLabel && !this.document.visuals.some(v=>(v.hotspots||[]).some(other=>other.id!==h.id && other.object_id===object.id))){object.name=label;}
+   h.label=label;
    this.changed();
   },
   startArea(e,h,handle='move'){
@@ -321,6 +353,8 @@ export function sceneEditor(options) {
   endArea(cancel=false){const d=this.areaDrag;if(!d)return;const h=this.visual.hotspots.find(h=>h.id===d.id);if(h){if(cancel)Object.assign(h,d.original);else if(Object.keys(d.original).some(k=>h[k]!==d.original[k]))this.changed();}this.areaDrag=null;},
   areaKey(e,h){if(this.preview||e.target!==e.currentTarget)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();this.requestAreaDelete(h.id);return;}if(e.key==='F2'){e.preventDefault();this.beginRename(h);return;}const delta={ArrowLeft:[-.005,0],ArrowRight:[.005,0],ArrowUp:[0,-.005],ArrowDown:[0,.005]}[e.key];if(!delta)return;e.preventDefault();this.hotspotId=h.id;if(e.shiftKey){h.width+=delta[0];h.height+=delta[1];}else{h.x=Math.max(0,Math.min(1-h.width,h.x+delta[0]));h.y=Math.max(0,Math.min(1-h.height,h.y+delta[1]));}this.clampArea();},
   sceneLabel(v){return 'Scene '+(this.scenes.findIndex(s=>s.id===v.id)+1)+' · '+v.name+' · '+(this.asset(v.asset_id)?.name||'No image');},
+  get referenceAssets(){return this.referencePage==='all'?this.assets:this.assets.filter(a=>(a.page_ids||[]).some(id=>String(id)===String(this.referencePage)));},
+  openReferences(){this.referencePage='all';this.$refs.referenceDialog.showModal();this.$nextTick(()=>{this.$refs.referenceImagesScroll.scrollTop=0;});},
   get pickerAssets(){return this.assets.filter(a=>this.imagePickerPage==='uploads'?!a.page_ids?.length:(a.page_ids||[]).some(id=>String(id)===String(this.imagePickerPage)));},
   openVisualImagePicker(){this.imagePickerPage=String(this.editorPageId);this.$refs.visualImagePicker.showModal();},
   openInteractionPicker(kind){this.imagePickerPage=String(this.editorPageId);this.pickerKind=kind;this.$refs.interactionImagePicker.showModal();},
@@ -357,30 +391,31 @@ export function sceneEditor(options) {
   addAllInventoryRules(){if(!this.hotspot)return;for(const object of this.objects)if(!(this.hotspot.inventory_rules||[]).some(r=>r.object_id===object.id))this.addInventoryRule(object.id);},
   addAreaChoice(){if(!this.hotspot)return;this.hotspot.choices??=[];if(this.hotspot.choices.length>=20)return;this.hotspot.choices.push({label:'New action',response:'',target_id:null});this.changed();},
   get modalArea(){return this.playVisuals.find(v=>v.id===this.modal?.sceneId)?.hotspots?.find(h=>h.id===this.modal?.areaId);},
-  openAreaInteraction(h){this.inventoryOpen=false;this.showObjectModal({areaId:h.id,sceneId:this.previewId,label:h.label,text:h.interaction_text||'',showItems:false});},
+  openAreaInteraction(h){this.inventoryOpen=false;this.showObjectModal({areaId:h.id,sceneId:this.previewId,label:h.label,text:h.interaction_text||'',position:h.description_position||'top',showItems:false});},
   useInventoryOnArea(inventoryId){
    const area=this.modalArea;if(!this.preview||area?.action!=='inventory'||this.modal.sceneId!==this.previewId)return;
    const index=this.inventory.findIndex(item=>(item.inventoryId||item.id)===inventoryId);if(index<0)return;
    const rule=(area.inventory_rules||[]).find(r=>r.object_id===this.inventory[index].id);
    if(rule?.consume)this.inventory.splice(index,1);
-   this.areaOutcome(area,rule?.response?.trim() || area.fallback_text?.trim() || 'Nothing happens.',rule?.target_id);
+   this.areaOutcome(area,rule?.response?.trim() || area.fallback_text?.trim() || 'Nothing happens.',rule?.target_id,rule?.description_position||area.description_position);
   },
-  chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice)this.areaOutcome(area,choice.response||'',choice.target_id);},
-  areaOutcome(area,text,targetId){
+  chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice)this.areaOutcome(area,choice.response||'',choice.target_id,choice.description_position);},
+  areaOutcome(area,text,targetId,position=area.description_position||'top'){
    if(targetId && targetId!==this.previewId && this.scenes.some(v=>v.id===targetId)){
-    this.transitionScene(targetId);if(text)this.showObjectModal({label:area.label,text,url:null});
-   }else {this.modal={...this.modal,text,showItems:false};}
+    this.transitionScene(targetId);if(text)this.showObjectModal({label:area.label,text,position,url:null});
+   }else {this.modal={...this.modal,text,position,version:(this.modal.version||0)+1,showItems:false};}
   },
   addObjectAction(){if(this.visual?.kind!=='object')return;this.visual.actions??=[];if(this.visual.actions.length>=50)return;this.visual.actions.push({id:crypto.randomUUID(),label:'New action',target_id:null});this.changed();},
   removeObjectAction(id){this.visual.actions=(this.visual.actions||[]).filter(a=>a.id!==id);this.changed();},
-  showObjectModal(value){if(this.sceneTransition || this.modalTimer!==null){this.pendingModal=value;}else{this.modal=value;}},
+  deliverPreviewMessage(value){if(value && !value.url && !value.areaId && !value.inventoryId && !value.inspect){this.modal=null;this.narration={...value,position:value.position||'top'};this.narrationVersion++;}else this.modal=value;},
+  showObjectModal(value){if(this.sceneTransition || this.modalTimer!==null){this.pendingModal=value;}else{this.deliverPreviewMessage(value);}},
   clearSceneTransition(){clearTimeout(this.transitionTimer);clearTimeout(this.modalTimer);this.transitionTimer=null;this.modalTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
   transitionScene(id,nextPageId=this.previewPageId){
    const target=(nextPageId===this.previewPageId?this.scenes:(this.previewPages.find(p=>p.id===nextPageId)?.visuals||[]).filter(v=>v.kind==='scene')).find(v=>v.id===id);if(!target||id===this.previewId)return;
-   this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;
-   this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview)this.modal=this.pendingModal;this.pendingModal=null;},250);},200);
+   this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;
+   this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview && this.pendingModal)this.deliverPreviewMessage(this.pendingModal);this.pendingModal=null;},250);},200);
   },
-  openInventory(item){this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
+  openInventory(item){this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',position:item.description_position||'top',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
   get inventoryActions(){const item=this.inventory.find(v=>(v.inventoryId||v.id)===this.modal?.inventoryId);return item?(this.objects.find(v=>v.id===item.id)?.actions||[]):[];},
   performObjectAction(id){
    if(!this.preview||!this.modal?.inventoryId)return;
@@ -389,8 +424,17 @@ export function sceneEditor(options) {
    const target=this.objects.find(v=>v.id===action?.target_id);if(!target)return;
    const next={...target,inventoryId:item.inventoryId||item.id};this.inventory.splice(index,1,next);this.openInventory(next);
   },
-  startPreview(){this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing interactions.','error');return;}this.previewId=this.visual?.kind==='scene'?this.visual.id:this.scenes[0]?.id;this.preview=!!this.previewId;this.inventory=[];this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
-  closePreview(){this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
+  get previewInventoryItems(){
+   const pages=this.previewPages.length?this.previewPages:[{id:this.editorPageId,position:1,title:'',visuals:[]}];
+   return pages.flatMap(page=>(page.id===this.editorPageId?this.document.visuals:page.visuals).filter(v=>v.kind==='object').map(v=>({...v,sourcePage:this.pageImageLabel(page)})));
+  },
+  preparePreview(){
+   if(!this.document.visuals.some(v=>v.kind==='scene')){notify('Add a scene before testing interactions.','error');return;}
+   this.previewInventorySelection=[];this.$refs.previewInventoryDialog.showModal();
+  },
+  confirmPreviewInventory(){const selected=[...this.previewInventorySelection];this.$refs.previewInventoryDialog.close();this.startPreview(selected);},
+  startPreview(initialItems=[]){clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing interactions.','error');return;}this.previewId=this.visual?.kind==='scene'?this.visual.id:this.scenes[0]?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
+  closePreview(){clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
   nextPreviewPage(){
    if(this.sceneTransition)return;
    const index=this.previewPages.findIndex(p=>p.id===this.previewPageId),next=this.previewPages[index+1];
@@ -400,16 +444,40 @@ export function sceneEditor(options) {
    if(!scene){this.showObjectModal({label:next.title||'Next page',text:'Add a scene to the next page before testing this transition.',url:null});return;}
    this.inventoryOpen=false;this.transitionScene(scene.id,next.id);
   },
+  get pageSceneDestinations(){
+   return this.previewPages.flatMap(page=>(page.id===this.editorPageId?this.document.visuals:(page.visuals||[])).filter(v=>v.kind==='scene').map(scene=>({key:page.id+':'+scene.id,pageId:page.id,sceneId:scene.id,label:this.pageImageLabel(page)+' — '+scene.name})));
+  },
+  destinationValue(area){
+   if(!area?.target_page_id)return '';
+   const match=this.pageSceneDestinations.find(d=>Number(d.pageId)===Number(area.target_page_id) && (!area.target_scene_id || d.sceneId===area.target_scene_id));
+   return match?.key||'';
+  },
+  selectPageScene(key){
+   if(!this.hotspot)return;const destination=this.pageSceneDestinations.find(d=>d.key===key);
+   this.hotspot.target_page_id=destination?.pageId||null;this.hotspot.target_scene_id=destination?.sceneId||null;this.changed();
+  },
+  movePreviewPage(id,sceneId=null){
+   if(this.sceneTransition)return;
+   const page=this.previewPages.find(p=>Number(p.id)===Number(id));
+   if(!page){this.showObjectModal({label:'Move to page',text:'Choose an available destination page before testing this interaction.',url:null});return;}
+   const visuals=page.id===this.editorPageId?this.document.visuals:page.visuals;
+   const scene=visuals.find(v=>v.kind==='scene' && (!sceneId || v.id===sceneId));
+   if(!scene){this.showObjectModal({label:page.title,text:'Choose an available scene on the destination page before testing this transition.',url:null});return;}
+   this.inventoryOpen=false;this.transitionScene(scene.id,page.id);
+  },
+  animatePickup(object,area){clearTimeout(this.pickupTimer);this.inventoryPulse=false;this.pickupFlight=null;const start=()=>{this.inventoryPulse=true;this.pickupFlight={url:this.asset(object.asset_id)?.url,x:((area.x||0)+(area.width||0)/2)*100,y:((area.y||0)+(area.height||0)/2)*100};this.pickupTimer=setTimeout(()=>{this.inventoryPulse=false;this.pickupFlight=null;},650);};if(this.$nextTick)this.$nextTick(start);else start();},
   activate(h){
    if(!this.preview){if(!this.drawing)this.hotspotId=h.id;return;}
+   if(h.action==='page'){this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
+   if(h.action==='complete'){this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
    if(h.action==='next_page'){this.nextPreviewPage();return;}
    if(['inventory','choices'].includes(h.action)){this.openAreaInteraction(h);return;}
    if(h.target_id)this.transitionScene(h.target_id);
    const object=this.playVisuals.find(v=>v.id===h.object_id);
-   if(h.action==='pickup' && object){if(!this.inventory.some(v=>v.id===object.id))this.inventory.push({...object,inventoryId:h.id});this.collected.push(h.id);}
-   if(h.action==='examine')this.showObjectModal({label:h.label,text:h.description||'',url:null});
-   if(h.action==='inspect' && object)this.showObjectModal({label:object.name,text:object.description||'',url:this.asset(object.asset_id)?.url});
-   if(h.action==='pickup' && object){const item=this.inventory.find(v=>v.id===object.id);if(item)this.openInventory(item);}
+   if(h.action==='pickup' && object){if(!this.inventory.some(v=>v.id===object.id)){this.inventory.push({...object,inventoryId:h.id});this.animatePickup(object,h);}this.collected.push(h.id);}
+   if(h.action==='examine')this.showObjectModal({label:h.label,text:h.description||'',position:h.description_position||'top',url:null});
+   if(h.action==='inspect' && object)this.showObjectModal({inspect:true,label:object.name,text:object.description||'',position:object.description_position||'top',url:this.asset(object.asset_id)?.url});
+   if(h.action==='pickup' && object?.description)this.showObjectModal({label:object.name,text:object.description,position:object.description_position||'top',url:null});
   }
  };
 }

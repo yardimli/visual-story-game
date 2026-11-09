@@ -11,8 +11,8 @@
 <x-brand :href="route('dashboard')" />
 <nav class="ml-auto flex flex-wrap items-center gap-4 text-sm"><x-theme-toggle /><a class="hover:text-amber-700" href="{{ route('dashboard') }}">My stories</a><a class="hover:text-amber-700" href="{{ route('ai.edit') }}">AI settings</a><a href="{{ route('profile.edit') }}" class="grid h-9 w-9 place-items-center rounded-full bg-amber-100 dark:bg-amber-950 font-semibold" title="Profile">{{ strtoupper(substr(auth()->user()->name,0,1)) }}</a><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-stone-500 dark:text-stone-400">Sign out</button></form></nav>
 </div></header>
-<div @class(['studio-with-companion'=>$companion])>
+<div @class(['studio-with-companion'=>$companion]) @if($companion) x-data="companionResize()" :style="{'--chat-width':width+'px'}" @pointermove.window="resize($event)" @pointerup.window="finish()" @endif>
 <div class="min-w-0">{{ $slot }}</div>
-@if($companion)<x-companion :story="$story" :page="$page" />@endif
+@if($companion)<div class="companion-splitter" role="separator" aria-label="Resize chat panel" aria-orientation="vertical" tabindex="0" :aria-valuenow="width" aria-valuemin="300" :aria-valuemax="Math.round(window.innerWidth*.65)" @pointerdown.prevent="dragging=true;$el.setPointerCapture($event.pointerId)" @pointercancel="finish()" @keydown.left.prevent="keyboard(20)" @keydown.right.prevent="keyboard(-20)"></div><x-companion :story="$story" :page="$page" />@endif
 </div>
 </div><x-image-viewer /></body></html>

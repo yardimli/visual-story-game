@@ -25,7 +25,7 @@ class GenerateSceneImage implements ShouldQueue {
    // Funding is fixed when queued; never move a personal job onto the platform key.
    $key=$ledger?->funding==='platform'?config('story.openrouter_key'):$user->openrouter_key;
    if(!$key || !StoryPage::whereKey($job->story_page_id)->exists()) throw new \RuntimeException('Key missing or page removed.');
-   $payload=$job->payload;$assetName=$payload['_asset_name']??null;unset($payload['_asset_name']);
+   $payload=$job->payload;$assetName=$payload['_asset_name']??null;unset($payload['_asset_name'],$payload['_video_prompt']);
    foreach($job->references as $ref) {
     $bytes=Storage::disk('local')->get($ref['path']);
     if(!is_string($bytes)) throw new \RuntimeException('Reference missing.');

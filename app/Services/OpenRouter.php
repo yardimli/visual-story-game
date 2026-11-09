@@ -4,6 +4,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 class OpenRouter {
+    private function authenticated(string $key): \Illuminate\Http\Client\PendingRequest {
+        return Http::withToken($key)->acceptJson()->withHeaders([
+            'HTTP-Referer'=>config('story.openrouter_referer'),
+            'X-OpenRouter-Title'=>config('app.name'),
+        ])->connectTimeout(10)->timeout(240);
+    }
     public function models(): array {
         $models = Cache::remember('openrouter.models', 900, function () {
             $response = Http::acceptJson()->timeout(20)->get(config('story.openrouter_url').'/models');
@@ -70,7 +76,7 @@ class OpenRouter {
         // Image API has a separate schema; do not route through chat completions.
         // Keep data-URL MIME slashes literal for upstream image parsers.
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        return Http::withToken($key)->acceptJson()->connectTimeout(10)->timeout(240)
+        return $this->authenticated($key)
             ->withBody($body, 'application/json')
             ->post(config('story.openrouter_url').'/images');
     }
@@ -83,8 +89,33 @@ class OpenRouter {
     }
     public function complete(string $key, array $payload) {
         // Never retry a billable request automatically.
-        return Http::withToken($key)->acceptJson()->withHeaders([
-            'HTTP-Referer'=>config('app.url'), 'X-Title'=>'Visual Story Game',
-        ])->connectTimeout(10)->timeout(240)->post(config('story.openrouter_url').'/chat/completions',$payload);
+        return $this->authenticated($key)->post(config('story.openrouter_url').'/chat/completions',$payload);
+    }
+    public function completeStream(string $key,array $payload,callable $onText) {
+        $response=$this->authenticated($key)->withOptions(['stream'=>true,'read_timeout'=>240])
+            ->post(config('story.openrouter_url').'/chat/completions',$payload+['stream'=>true,'stream_options'=>['include_usage'=>true]]);
+        if(!$response->successful())return $response;
+        $stream=$response->toPsrResponse()->getBody();$buffer='';$content='';$body=[];$done=false;$started=microtime(true);
+        try {
+            while(!$stream->eof() && !$done){
+                if(microtime(true)-$started>240)throw new \RuntimeException('Stream deadline exceeded.');
+                $buffer.=$stream->read(1024);
+                while(($end=strpos($buffer,"\n"))!==false){
+                    $line=rtrim(substr($buffer,0,$end),"\r");$buffer=substr($buffer,$end+1);
+                    if(!str_starts_with($line,'data:'))continue;
+                    $json=trim(substr($line,5));if($json==='[DONE]'){$done=true;break;}
+                    $chunk=json_decode($json,true,512,JSON_THROW_ON_ERROR);
+                    if(!is_array($chunk))throw new \RuntimeException('Invalid stream event.');
+                    if(isset($chunk['id']))$body['id']=$chunk['id'];
+                    if(isset($chunk['usage']))$body['usage']=$chunk['usage'];
+                    if(isset($chunk['error']) || data_get($chunk,'choices.0.finish_reason')==='error')throw new \RuntimeException('Provider stream failed.');
+                    $text=data_get($chunk,'choices.0.delta.content');
+                    if(is_string($text) && $text!==''){$content.=$text;if(strlen($content)>1000000)throw new \RuntimeException('Response too large.');$onText($text);}
+                }
+            }
+            if(!$done)throw new \RuntimeException('Stream ended before completion.');
+        } finally {$stream->close();}
+        $body['choices']=[['message'=>['role'=>'assistant','content'=>$content]]];
+        return new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200,['Content-Type'=>'application/json'],json_encode($body,JSON_THROW_ON_ERROR)));
     }
 }

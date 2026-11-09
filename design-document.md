@@ -474,3 +474,36 @@ Server administrators can add credits using `php artisan ai:grant-credit EMAIL A
 
 ### Next-page click action
 Clickable areas support Move to next page (next_page), requiring no object or scene target. The test preview follows storyboard order to the next nondeleted page's first scene, preserving inventory and existing crossfade timing. It leaves the authoring selection and document untouched. A next page without a scene displays a setup message instead of skipping ahead. On the last page, the action displays Story complete. The companion can propose this action through the reviewed hotspot changes.
+
+Before Test interactions opens, creators choose optional starting inventory from object visuals across all active pages. Each choice displays its thumbnail, name, description and source page. Start test copies selected objects into preview-only inventory; selecting none starts empty. Cancel does not start the preview, and authored objects remain unchanged.
+
+### Animated descriptions and pickup feedback
+Player descriptions use top or bottom placement, defaulting to top, configured on visuals, examine areas, interaction text and response rules/choices. A translucent dark box expands with word-by-word white text and a briefly brighter newest word; it has a rounded 2px white border, light shadow, and 150px scroll cap. Clicking the box (or Enter/Space while focused) reveals all text. It fades away on an outside click or five seconds after the reveal finishes. Reduced-motion preferences disable the word and pickup animations.
+
+Picking up an object sends its thumbnail toward inventory, increases the count and pulses the inventory button. It does not open inspection automatically. An available object description appears over the scene; players can open the item from inventory to inspect its image and perform actions. Examine and text-only transition outcomes use the same animated scene description system. All preview effects remain local and do not change authored content.
+
+### Document-style page planning
+Page plan displays every page in one scrolling document list without a storyboard sidebar. Each page contains an editable title and adjacent reorder, remove and insert-after controls. Narrative overlay and Interaction plan use Quill editors in matching-height columns with a minimum 300px content area that expands with writing. Basic formatting and highlights are stored as validated Quill deltas alongside plain text for the companion and game; no arbitrary HTML or embedded media is accepted. Focusing either editor accents that page and updates the active page in the URL, companion context and creation/navigation targets. Page changes autosave and structural actions flush pending writes first.
+
+Image and video prompts belong to visual documents and are edited in image studio, not on story pages. Existing page prompts migrate to matching or newly preserved scene visuals before the page prompt columns are removed. Completion condition is removed from the page-plan UI. Retired page prompt proposals require a fresh visual-scoped proposal.
+
+The companion defaults to 432px width and offers a mouse/keyboard splitter with remembered sizing. Chat bubbles omit role labels. Review proposed changes opens a dialog occupying 65% of viewport width and 70% of viewport height (responsive on narrow screens), with expanded before/after details, opt-out checkboxes and an explicit confirmation footer.
+
+### Reviewable page and image creation
+The companion can propose inserting a new page after an existing page. The review item includes its title, narrative, interaction plan, and optional scene/object definitions with clickable areas. Applying it shifts later pages and preserves the previous structure in History. The creator may skip the whole creation independently of other edits.
+
+Image studio uses an independent Images library, including unrendered prompt drafts. The companion can prepare these drafts for review without rendering or reserving credits. Selecting a card loads its name, image/video prompts, model, settings and reference selections. Editing a completed image starts an independent draft; generating a draft queues that card, while generating from completed artwork preserves the original and queues a new card. Create new image clears all inputs and selection. Artwork is assigned to scenes/objects separately in Interactions.
+
+### Companion help
+A Help control beside the credit balance opens the maintained capability guide. It distinguishes reviewable edits and creation operations from manual editor actions. A collapsed technical section documents request context, ten-message conversation history, excluded media history, proposal scopes and examples, validation, and selected-change application. Its edit-field lists come from CompanionChanges validation rules; update the guide whenever capabilities change.
+
+Companion page prose supports semantic HTML for Narrative overlay and Interaction plan only. The server converts supported headings, lists, inline emphasis, quotes and highlights to validated Quill deltas and stores derived plain text for gameplay. Unsafe tags and attributes are discarded; raw model HTML is never injected. Field-level review shows a formatted preview built from the validated delta. Other proposal fields remain plain text.
+
+### Streaming companion replies
+Chat requests use OpenRouter SSE streaming. Prose appears incrementally while fenced JSON is replaced by an animated Preparing changes… label, including when the opening fence is split across chunks. The server accumulates the complete answer, bills final input/output token usage using catalog pricing, validates the proposal and saves the assistant message before enabling review. Incomplete/error streams provide no actionable proposal and are never automatically retried. Pending billing remains subject to the existing reconciliation and expiration policy. Reduced-motion preferences disable the animated dots.
+
+Page navigation interactions now use an explicit destination page ID selected from a named-page dropdown. This stays fixed when pages are reordered, supports returning to earlier pages, and retains inventory in preview. Finish story is a separate action. Existing next-page interactions are migrated to their current destination or to Finish story when on the last page. Toast notifications appear at the top center.
+
+Clickable areas are independent records: drawing or naming an area creates no object or scene. Renaming/deleting an area leaves separately authored visuals intact. Creators explicitly create/link objects, including through image selection, or approve companion object proposals when requested. Chat shows animated Thinking… while waiting, then streams prose and displays Preparing changes… for proposal JSON.
+
+Move to page destinations include both target_page_id and target_scene_id. The combined dropdown lists every scene (not objects) using page number, page title and scene name. Preview opens the selected scene; legacy links without a scene ID fall back to the first scene. The server rejects scenes outside the selected destination page.

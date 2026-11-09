@@ -39,3 +39,23 @@ test('lost response preserves edits and stops automatic retries', async () => {
     assert.equal(state.stopped,true);
     globalThis.FormData=original;
 });
+
+test('returning to page plan scrolls only the editor to the active page after rendering', () => {
+    const state=studioAutosave(1,{pageId:5});
+    const callbacks=[],scrolls=[];
+    const content={scrollTop:200,clientTop:0,getBoundingClientRect:()=>({top:100}),scrollTo:value=>scrolls.push(value),querySelector:selector=>{
+        assert.equal(selector,'[data-page-id="5"]');
+        return {getBoundingClientRect:()=>({top:700})};
+    }};
+    state.$el={querySelector:()=>content};
+    state.$nextTick=callback=>callbacks.push(callback);
+    state.scrollToActivePage();
+    assert.equal(scrolls.length,0);
+    callbacks.shift()();
+    assert.deepEqual(scrolls,[{top:784,behavior:'instant'}]);
+    state.scrollToActivePage();
+    state.tab='visuals';
+    callbacks.shift()();
+    assert.equal(scrolls.length,1);
+    assert.equal(state.pending.size,0);
+});

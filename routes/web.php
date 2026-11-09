@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/stories/{story}/pages/{page}/visuals',[\App\Http\Controllers\SceneController::class,'update'])->name('visuals.update');
     Route::patch('/stories/{story}/pages/{page}/images/{image}',[\App\Http\Controllers\SceneController::class,'moveImage'])->name('images.move');
     Route::post('/stories/{story}/pages/{page}/images/{image}/retry',[\App\Http\Controllers\SceneController::class,'retry'])->middleware('throttle:6,1,image-generation:')->name('images.retry');
+    Route::post('/stories/{story}/pages/{page}/image-drafts',[\App\Http\Controllers\SceneController::class,'draft'])->name('images.draft');
     Route::post('/stories/{story}/pages/{page}/images',[\App\Http\Controllers\SceneController::class,'generate'])->middleware('throttle:6,1,image-generation:')->name('images.generate');
     Route::post('/stories/{story}/messages/{message}/changes',[\App\Http\Controllers\CompanionChangesController::class,'store'])->name('companion.changes');
     Route::get('/companion', [ChatController::class,'history'])->name('companion.history');

@@ -1,3 +1,25 @@
+// Only render our supported Delta formats; never inject HTML supplied by the LLM.
+export function richPreview(delta) {
+ const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let html='',line='',list='';
+ const endLine=attributes=>{
+  const kind=attributes.list==='bullet'?'ul':attributes.list==='ordered'?'ol':'';
+  if(list!==kind){if(list)html+=`</${list}>`;if(kind)html+=`<${kind}>`;list=kind;}
+  const tag=kind?'li':[1,2,3].includes(attributes.header)?'h'+attributes.header:attributes.blockquote?'blockquote':'p';
+  html+=`<${tag}>${line||'<br>'}</${tag}>`;line='';
+ };
+ for(const op of delta?.ops||[]){
+  if(typeof op.insert!=='string')continue;const attrs=op.attributes||{};
+  const parts=op.insert.split('\n');parts.forEach((part,index)=>{
+   if(!part){if(index<parts.length-1)endLine(attrs);return;}
+   let text=escape(part);
+   for(const [key,tag] of [['bold','strong'],['italic','em'],['underline','u'],['strike','s']])if(attrs[key])text=`<${tag}>${text}</${tag}>`;
+   if(/^#[0-9a-f]{6}$/i.test(attrs.background||''))text=`<mark style="background-color:${attrs.background}">${text}</mark>`;
+   line+=text;if(index<parts.length-1)endLine(attrs);
+  });
+ }
+ if(line)endLine({});if(list)html+=`</${list}>`;return html;
+}
 export function reviewItems(proposal) {
  if(proposal?._review)return proposal._review.items;
  const items=[];
@@ -29,7 +51,7 @@ export function selectedLegacyProposal(proposal,selected) {
  return result;
 }
 export function proposalReview(item) {
- return {entries:reviewItems(item.proposal),chosen:[],reviewOpen:false,
+ return {entries:reviewItems(item.proposal),chosen:[],reviewOpen:false,richPreview,
   init(){this.chosen=this.entries.map(entry=>String(entry.id));},
   toggle(){this.chosen=this.chosen.filter(id=>{const entry=this.entries.find(e=>String(e.id)===id);return entry?.depends_on==null||this.chosen.includes(String(entry.depends_on));});},
   unavailable(entry){return entry.depends_on!=null&&!this.chosen.includes(String(entry.depends_on));},

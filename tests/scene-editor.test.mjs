@@ -36,7 +36,7 @@ test('rectangle coordinates stay in image bounds and edits during save are seria
 test('copying a generated prompt does not change the draft or selected references', async () => {
  const editor=sceneEditor({generationMode:true});
  editor.document={visuals:[{id:'porch',kind:'scene',prompt:'Current draft',hotspots:[]}]};
- editor.selected='porch';editor.references=['42'];let copied;
+ editor.selected='porch';editor.generationInput.prompt='Current draft';editor.references=['42'];let copied;
  const descriptor=Object.getOwnPropertyDescriptor(globalThis,'navigator');
  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{clipboard:{writeText:async text=>{copied=text;}}}});
  try {
@@ -129,22 +129,18 @@ test('using another visual generation preserves the fixed generation workspace s
  const editor=sceneEditor({generationMode:true});editor.changed=()=>{};
  editor.document={visuals:[{id:'current',asset_id:null},{id:'other',asset_id:null}]};editor.selected='current';
  editor.useJobImage({visual_id:'other'},12);
- assert.equal(editor.selected,'current');assert.equal(editor.visual.asset_id,null);assert.equal(editor.document.visuals[1].asset_id,12);
+ assert.equal(editor.selected,'current');assert.equal(editor.document.visuals[0].asset_id,null);assert.equal(editor.document.visuals[1].asset_id,12);
 });
 
-test('naming a drawn area creates one linked object and retains scene editing context',()=>{
+test('drawing and renaming areas leave visuals independent until explicitly selecting an object image',()=>{
  const editor=sceneEditor({});editor.changed=()=>{};
  editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[]}]};editor.selected='scene';
- editor.newHotspot();const h=editor.hotspot;
- assert.equal(editor.renamingId,h.id);assert.equal(editor.objects.length,0);
- editor.labelDraft=' Envelope ';editor.finishRename(h);
- const object=editor.objects[0];assert.equal(object.name,'Envelope');assert.equal(h.object_id,object.id);
- assert.equal(editor.selected,'scene');assert.equal(h.action,'examine');assert.equal(object.asset_id,null);
- editor.finishRename(h);assert.equal(editor.objects.length,1);
- editor.beginRename(h);editor.labelDraft='Letter';editor.finishRename(h);
- assert.equal(object.name,'Letter');assert.equal(editor.objects.length,1);
+ editor.newHotspot();const h=editor.hotspot;editor.labelDraft='Envelope';editor.finishRename(h);
+ assert.equal(h.label,'Envelope');assert.equal(h.object_id,null);assert.equal(editor.objects.length,0);
  editor.$refs={interactionImagePicker:{close(){}}};editor.selectObjectImage(9);
- assert.equal(object.asset_id,9);assert.equal(h.object_id,object.id);assert.equal(editor.objects.length,1);
+ const object=editor.objects[0];assert.equal(object.asset_id,9);assert.equal(h.object_id,object.id);
+ const name=object.name;editor.beginRename(h);editor.labelDraft='Read letter';editor.finishRename(h);
+ assert.equal(object.name,name);assert.equal(editor.objects.length,1);assert.equal(editor.selected,'scene');
 });
 
 test('cancelled names and visual limits do not create stray objects',()=>{
@@ -154,7 +150,7 @@ test('cancelled names and visual limits do not create stray objects',()=>{
  editor.document.visuals.push(...Array.from({length:99},(_,i)=>({id:String(i),kind:'object',hotspots:[]})));
  editor.beginRename(editor.hotspot);editor.labelDraft='Stone';editor.finishRename(editor.hotspot);
  assert.equal(editor.document.visuals.length,100);assert.equal(editor.hotspot.label,'Stone');assert.equal(editor.hotspot.object_id,null);
- assert.match(editor.error,/100-visual limit/);
+ assert.equal(editor.error,'');
 });
 
 test('drawing previews a bounded rectangle before release without zooming or saving',()=>{
@@ -192,8 +188,8 @@ test('object interaction generation saves before navigating and keeps scene imag
   editor.hotspot.action='inspect';events.length=0;editor.flush=async()=>false;
   await editor.openGeneration('/image-studio');assert.deepEqual(events,['form']);
   editor.hotspot.object_id=null;editor.flush=async()=>true;events.length=0;
-  await editor.openGeneration('/image-studio');assert.equal(editor.generationVisual.name,'Envelope');
-  assert.equal(events[1],'/image-studio?visual='+editor.hotspot.object_id);
+  await editor.openGeneration('/image-studio');assert.equal(editor.generationVisual,undefined);
+  assert.equal(events.at(-1),'/image-studio');assert.equal(editor.objects.length,1);assert.equal(editor.hotspot.object_id,null);
   assert.equal(editor.selected,'scene');
  }finally{if(oldWindow===undefined)delete globalThis.window;else globalThis.window=oldWindow;}
 });
@@ -228,16 +224,16 @@ test('visual type conversion preserves artwork and confirms removal of incompati
  editor.requestVisualType('object');assert.equal(scene.kind,'object');assert.equal(saved,3);
 });
 
-test('area deletion removes its linked unshared object but preserves shared visuals and image assets',()=>{
+test('area deletion preserves independently authored objects and image assets',()=>{
  const editor=sceneEditor({});let saves=0;editor.changed=()=>saves++;
  editor.$refs={deleteAreaDialog:{showModal(){},close(){}}};
  const area={id:'area',object_id:'object'};
  editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[area]},{id:'object',kind:'object',name:'Envelope',asset_id:8,hotspots:[]},{id:'unrelated',kind:'object',name:'Envelope',hotspots:[]},{id:'second',kind:'scene',hotspots:[{id:'shared-area',object_id:'object'}]}]};
  editor.assets=[{id:8}];editor.selected='scene';editor.requestAreaDelete('area');
- assert.equal(editor.areaObjectToDelete,null);assert.equal(editor.objects.length,2);
+ assert.equal(editor.objects.length,2);
  editor.confirmAreaDelete();assert.equal(editor.objects.length,2);assert.equal(saves,1);
- editor.choose('second');editor.requestAreaDelete('shared-area');assert.equal(editor.areaObjectToDelete.id,'object');
- assert.equal(editor.objects.length,2);editor.confirmAreaDelete();assert.deepEqual(editor.objects.map(v=>v.id),['unrelated']);
+ editor.choose('second');editor.requestAreaDelete('shared-area');
+ assert.equal(editor.objects.length,2);editor.confirmAreaDelete();assert.deepEqual(editor.objects.map(v=>v.id),['object','unrelated']);
  assert.equal(editor.assets.length,1);assert.equal(editor.selected,'second');assert.equal(saves,2);
 });
 
@@ -259,7 +255,7 @@ test('inventory actions replace the same item repeatedly without changing author
  const ball={id:'ball',name:'Paper ball',kind:'object',asset_id:3,hotspots:[],actions:[{id:'uncrumple',label:'Uncrumple',target_id:'closed'}]};
  editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},closed,opened,ball]};editor.assets=[{id:1,url:'/closed'},{id:2,url:'/open'},{id:3,url:'/ball'}];editor.selected='scene';
  const original=JSON.stringify(editor.document);editor.startPreview();editor.activate({id:'pickup',action:'pickup',object_id:'closed'});
- assert.equal(editor.inventoryActions.length,2);editor.performObjectAction('open');assert.equal(editor.inventory[0].id,'opened');assert.equal(editor.modal.url,'/open');
+ assert.equal(editor.modal,null);assert.equal(editor.inventoryPulse,true);editor.openInventory(editor.inventory[0]);assert.equal(editor.inventoryActions.length,2);editor.performObjectAction('open');assert.equal(editor.inventory[0].id,'opened');assert.equal(editor.modal.url,'/open');
  editor.performObjectAction('close');assert.equal(editor.inventory[0].id,'closed');editor.performObjectAction('crumple');assert.equal(editor.inventory[0].id,'ball');
  editor.performObjectAction('uncrumple');editor.performObjectAction('open');assert.equal(editor.inventory.length,1);assert.equal(editor.inventory[0].inventoryId,'pickup');
  assert.equal(JSON.stringify(editor.document),original);editor.startPreview();assert.equal(editor.inventory.length,0);
@@ -268,15 +264,15 @@ test('inventory actions replace the same item repeatedly without changing author
 test('linked object actions preserve area objects and clear targets when visuals are removed',()=>{
  const editor=sceneEditor({});editor.changed=()=>{};editor.$refs={deleteVisualDialog:{showModal(){},close(){}},deleteAreaDialog:{showModal(){},close(){}}};
  editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[{id:'area',object_id:'closed'}]},{id:'closed',kind:'object',hotspots:[]},{id:'open',kind:'object',hotspots:[],actions:[{id:'close',label:'Close',target_id:'closed'}]}]};
- editor.selected='scene';editor.requestAreaDelete('area');assert.equal(editor.areaObjectToDelete,null);editor.confirmAreaDelete();assert.equal(editor.objects.length,2);
+ editor.selected='scene';editor.requestAreaDelete('area');editor.confirmAreaDelete();assert.equal(editor.objects.length,2);
  editor.choose('closed');editor.requestVisualDelete();assert.equal(editor.dependentAreas,1);editor.confirmVisualDelete();assert.equal(editor.objects[0].actions[0].target_id,null);
 });
 
 test('inspection and inventory use visual descriptions while examine uses only area text',()=>{
  const editor=sceneEditor({});editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[],description:'A quiet room.'},{id:'object',kind:'object',name:'Envelope',description:'A sealed letter.',asset_id:1,hotspots:[],actions:[]}]};editor.selected='scene';editor.assets=[{id:1,url:'/letter'}];editor.startPreview();
  editor.activate({id:'inspect',action:'inspect',object_id:'object',label:'Area',description:'Old area text'});assert.equal(editor.modal.label,'Envelope');assert.equal(editor.modal.text,'A sealed letter.');
- editor.activate({id:'pickup',action:'pickup',object_id:'object',description:'Old area text'});assert.equal(editor.modal.text,'A sealed letter.');
- editor.activate({id:'examine',action:'examine',object_id:'object',description:'Look under the rug.'});assert.equal(editor.modal.text,'Look under the rug.');assert.equal(editor.modal.url,null);
+ editor.activate({id:'pickup',action:'pickup',object_id:'object',description:'Old area text'});assert.equal(editor.modal,null);assert.equal(editor.narration.text,'A sealed letter.');
+ editor.activate({id:'examine',action:'examine',object_id:'object',description:'Look under the rug.'});assert.equal(editor.narration.text,'Look under the rug.');assert.equal(editor.modal,null);
  editor.openInventory(editor.inventory[0]);assert.equal(editor.modal.text,'A sealed letter.');
 });
 
@@ -285,7 +281,7 @@ test('scene crossfade waits another 250ms before inspection and closing cancels 
  const editor=sceneEditor({});
  editor.document={visuals:[{id:'before',kind:'scene'},{id:'after',kind:'scene'},{id:'letter',kind:'object',name:'Letter'}]};
  editor.selected='before';editor.startPreview();
- editor.activate({id:'pickup',action:'pickup',object_id:'letter',target_id:'after'});
+ editor.activate({id:'inspect',action:'inspect',object_id:'letter',target_id:'after'});
  assert.equal(editor.previewId,'after');assert.equal(editor.outgoingScene.id,'before');
  assert.equal(editor.sceneTransition,true);assert.equal(editor.modal,null);
  t.mock.timers.tick(200);
@@ -323,7 +319,7 @@ test('inventory areas match carried object states, show fallback, consume keys a
  editor.useInventoryOnArea('slot1');assert.equal(editor.modal.text,'You lack the lock-picking skill.');assert.equal(editor.inventory.length,3);
  editor.useInventoryOnArea('slot3');assert.equal(editor.modal.text,'Nothing happens.');
  editor.useInventoryOnArea('slot2');assert.equal(editor.previewId,'open');assert.equal(editor.inventory.length,2);assert.equal(editor.modal,null);
- t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.modal.text,'The door unlocks.');assert.equal(JSON.stringify(editor.document),original);
+ t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.narration.text,'The door unlocks.');assert.equal(JSON.stringify(editor.document),original);
  editor.closePreview();
 });
 
@@ -332,7 +328,7 @@ test('named area choices transition only after choosing, and dependencies are cl
  const editor=sceneEditor({});editor.changed=()=>{};editor.$refs={deleteVisualDialog:{showModal(){},close(){}}};
  const door={id:'door',label:'Open door',action:'choices',choices:[{label:'Walk into the house',response:'You enter the hall.',target_id:'hall'}],inventory_rules:[{object_id:'key',target_id:'hall'}]};
  editor.document={visuals:[{id:'porch',kind:'scene',hotspots:[door]},{id:'hall',kind:'scene',hotspots:[]},{id:'key',kind:'object',hotspots:[]}]};editor.selected='porch';editor.startPreview();editor.activate(door);
- assert.equal(editor.previewId,'porch');editor.chooseAreaAction(99);assert.equal(editor.previewId,'porch');editor.chooseAreaAction(0);assert.equal(editor.previewId,'hall');t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.modal.text,'You enter the hall.');editor.closePreview();
+ assert.equal(editor.previewId,'porch');editor.chooseAreaAction(99);assert.equal(editor.previewId,'porch');editor.chooseAreaAction(0);assert.equal(editor.previewId,'hall');t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.narration.text,'You enter the hall.');editor.closePreview();
  editor.choose('hall');editor.requestVisualDelete();assert.equal(editor.dependentAreas,2);editor.confirmVisualDelete();assert.equal(door.choices[0].target_id,null);assert.equal(door.inventory_rules[0].target_id,null);
  editor.choose('key');editor.requestVisualDelete();editor.confirmVisualDelete();assert.equal(door.inventory_rules.length,0);
 });
@@ -371,12 +367,12 @@ test('next page preserves inventory and editor document, then completes on last 
  e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,title:'Inside',visuals:[{id:'inside',kind:'scene',hotspots:[]}]}];
  e.startPreview();e.inventory=[{id:'key',inventoryId:'slot'}];const original=JSON.stringify(e.document);
  e.activate({action:'next_page'});assert.equal(e.previewPageId,2);assert.equal(e.displayed.id,'inside');assert.equal(e.outgoingScene.id,'outside');assert.equal(e.inventory.length,1);assert.equal(JSON.stringify(e.document),original);
- e.clearSceneTransition();e.activate({action:'next_page'});assert.equal(e.modal.label,'Story complete');
+ e.clearSceneTransition();e.activate({action:'next_page'});assert.equal(e.narration.label,'Story complete');
  e.startPreview();assert.equal(e.previewId,'outside');assert.equal(e.previewPageId,1);e.closePreview();
 });
 
 test('next page with no scene does not skip ahead', () => {
- const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'outside',kind:'scene',hotspots:[]}]};e.selected='outside';e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,visuals:[]}];e.startPreview();e.activate({action:'next_page'});assert.equal(e.previewPageId,1);assert.match(e.modal.text,/Add a scene/);e.closePreview();
+ const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'outside',kind:'scene',hotspots:[]}]};e.selected='outside';e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,visuals:[]}];e.startPreview();e.activate({action:'next_page'});assert.equal(e.previewPageId,1);assert.match(e.narration.text,/Add a scene/);e.closePreview();
 });
 
 
@@ -394,4 +390,59 @@ test('image pickers reset to current page and filter shared images and unassigne
  e.imagePickerPage='1';assert.deepEqual(e.pickerAssets.map(a=>a.id),[1,3]);
  e.imagePickerPage='uploads';assert.deepEqual(e.pickerAssets.map(a=>a.id),[4]);
  e.openInteractionPicker('object');assert.equal(e.imagePickerPage,'2');
+});
+
+
+test('test setup lists objects with descriptions and source pages and seeds only selected inventory', () => {
+ const e=sceneEditor({});e.editorPageId=2;e.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},{id:'envelope',kind:'object',name:'Envelope',description:'A sealed letter'}]};e.selected='scene';
+ e.previewPages=[{id:1,position:1,title:'Garden',visuals:[{id:'key',kind:'object',name:'Key',description:'A brass key'}]},{id:2,position:2,title:'Hall',visuals:[]}];
+ let opened=false,closed=false;e.$refs={previewInventoryDialog:{showModal(){opened=true;},close(){closed=true;}}};
+ e.preparePreview();assert.equal(opened,true);assert.equal(e.preview,false);assert.equal(e.previewInventoryItems.length,2);assert.match(e.previewInventoryItems[0].sourcePage,/Page 1/);assert.equal(e.previewInventoryItems[1].description,'A sealed letter');
+ e.previewInventorySelection=['key'];e.confirmPreviewInventory();assert.equal(closed,true);assert.deepEqual(e.inventory.map(i=>i.id),['key']);assert.equal(e.inventory[0].description,'A brass key');e.inventory[0].description='Test only';assert.equal(e.previewPages[0].visuals[0].description,'A brass key');
+ e.closePreview();e.preparePreview();assert.deepEqual(e.previewInventorySelection,[]);e.confirmPreviewInventory();assert.deepEqual(e.inventory,[]);e.closePreview();
+});
+
+
+test('visual menu reorder preserves selection and links and only saves changed order',()=>{
+ const e=sceneEditor({});let saves=0;e.changed=()=>saves++;e.document={visuals:[{id:'a',kind:'scene',name:'Porch',hotspots:[{object_id:'b',target_id:'c'}]},{id:'b',kind:'object',name:'Key'},{id:'c',kind:'scene',name:'Hall'}]};e.selected='a';e.hotspotId='area';
+ e.moveVisual('a',-1);assert.equal(saves,0);e.moveVisual('b',1);assert.deepEqual(e.document.visuals.map(v=>v.id),['a','c','b']);
+ e.draggedVisualId='b';e.dropVisual('a',{clientY:1},{getBoundingClientRect:()=>({top:0,height:20})});assert.deepEqual(e.document.visuals.map(v=>v.id),['b','a','c']);
+ e.draggedVisualId='b';e.dropVisual('c',{clientY:19},{getBoundingClientRect:()=>({top:0,height:20})});assert.deepEqual(e.document.visuals.map(v=>v.id),['a','c','b']);
+ assert.equal(e.selected,'a');assert.equal(e.hotspotId,'area');assert.equal(e.document.visuals[0].hotspots[0].object_id,'b');assert.equal(saves,3);assert.equal(e.visualOptionLabel(e.document.visuals[2]),'3. Object · Key');
+});
+
+test('image cards load full independent form details, save new drafts without overwriting completed images, and clear selection',async()=>{
+ const before=globalThis.window;globalThis.window={location:{href:'http://localhost:8010/stories/2/pages/4/image-studio'},history:{replaceState(){}},dispatchEvent(){}};
+ try{
+  const editor=sceneEditor({generationMode:true,draftUrl:'/drafts'});editor.loading=false;editor.$nextTick=fn=>fn();
+  editor.document={visuals:[{id:'scene',prompt:'Scene prompt',asset_id:7}]};
+  editor.models=[{id:'image/model',imageEndpoints:[{pricing:[]}]}];editor.assets=[{id:7,name:'Original image'}];
+  const original={id:3,status:'completed',name:'Original',prompt:'Original prompt',video_prompt:'Slow pan',model:'image/model',references:[7],settings:{quality:'high'},asset_ids:[7]};editor.jobs=[original];
+  await editor.selectImageCard(original);
+  assert.equal(editor.selectedImageId,3);assert.equal(editor.visual.prompt,'Original prompt');assert.equal(editor.visual.video_prompt,'Slow pan');assert.equal(editor.generationName,'Original image');assert.deepEqual(editor.references,['7']);assert.equal(editor.settings.quality,'high');
+  let sent;editor.request=async(url,method,body)=>{sent=body;return {id:4,status:'draft'};};
+  editor.visual.prompt='Revised prompt';await editor.saveGenerationDraft();
+  assert.equal(sent.draft_id,undefined);assert.equal(editor.selectedImageId,4);assert.equal(editor.jobs.length,2);assert.equal(original.prompt,'Original prompt');assert.equal(editor.document.visuals[0].prompt,'Scene prompt');
+  await editor.saveGenerationDraft();assert.equal(sent.draft_id,4);assert.equal(editor.jobs.length,2);
+  await editor.createNewImage();assert.equal(editor.selectedImageId,null);assert.equal(editor.visual.prompt,'');assert.equal(editor.visual.video_prompt,'');assert.equal(editor.model,'');assert.equal(editor.generationName,'');assert.deepEqual(editor.references,[]);assert.deepEqual(editor.settings,{});
+ }finally{globalThis.window=before;}
+});
+
+test('explicit page links select the named destination and return to live editor scenes with inventory intact',()=>{
+ const editor=sceneEditor({});editor.preview=true;editor.editorPageId=1;editor.previewPageId=1;
+ editor.document={visuals:[{id:'live',kind:'scene',hotspots:[]}]};editor.previewPages=[{id:1,visuals:[{id:'old',kind:'scene'}]},{id:2,visuals:[]},{id:3,visuals:[{id:'third',kind:'scene'}]}];
+ editor.inventory=[{id:'key'}];const calls=[];editor.transitionScene=(id,page)=>{calls.push([id,page]);editor.previewPageId=page;};
+ editor.activate({action:'page',target_page_id:3});editor.activate({action:'page',target_page_id:1});
+ assert.deepEqual(calls,[['third',3],['live',1]]);assert.equal(editor.inventory[0].id,'key');
+ editor.showObjectModal=message=>{editor.modal=message;};editor.activate({action:'page',target_page_id:2});assert.match(editor.modal.text,/Choose an available scene/);assert.equal(calls.length,2);
+ editor.activate({action:'page',target_page_id:null});assert.match(editor.modal.text,/Choose an available/);
+});
+
+test('page destination picker includes every scene and preview opens the selected one',()=>{
+ const editor=sceneEditor({});editor.changed=()=>{};editor.editorPageId=1;editor.selected='first';editor.hotspotId='door';
+ editor.document={visuals:[{id:'first',kind:'scene',name:'Start',hotspots:[{id:'door',action:'page',target_page_id:2}]},{id:'new',kind:'scene',name:'New scene',hotspots:[]}]};
+ editor.previewPages=[{id:1,position:1,title:'Start',visuals:[]},{id:2,position:2,title:'House',visuals:[{id:'hall',kind:'scene',name:'Hall'},{id:'stairs',kind:'scene',name:'Stairs'},{id:'key',kind:'object',name:'Key'}]}];
+ assert.deepEqual(editor.pageSceneDestinations.map(d=>d.key),['1:first','1:new','2:hall','2:stairs']);
+ assert.equal(editor.destinationValue(editor.hotspot),'2:hall');editor.selectPageScene('2:stairs');assert.equal(editor.hotspot.target_scene_id,'stairs');
+ editor.preview=true;let destination;editor.transitionScene=(id,page)=>destination=[id,page];editor.activate(editor.document.visuals[0].hotspots[0]);assert.deepEqual(destination,['stairs',2]);
 });
