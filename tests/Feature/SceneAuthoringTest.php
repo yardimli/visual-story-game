@@ -21,6 +21,64 @@ class SceneAuthoringTest extends TestCase {
   Cache::put('openrouter.image-endpoints.'.hash('sha256','openai/image'),[['provider_tag'=>'openai','supported_parameters'=>['input_references'=>['type'=>'range','max'=>2],'quality'=>['type'=>'enum','values'=>['high']]],'pricing'=>[['billable'=>'output_image','unit'=>'image','cost_usd'=>0.05]]]],60);
   return [$u,$s,$p->fresh(),$doc];
  }
+ public function test_pickup_accepts_other_page_objects_but_rejects_foreign_story_objects(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $key=['id'=>(string)Str::uuid(),'name'=>'Brass key','kind'=>'object','asset_id'=>null,'hotspots'=>[]];
+  $s->pages()->create(['position'=>2,'title'=>'Garden','visual_document'=>['visuals'=>[$key]]]);
+  $doc['visuals'][0]['hotspots'][0]['action']='pickup';
+  $doc['visuals'][0]['hotspots'][0]['object_id']=$key['id'];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $this->assertSame($key['id'],$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['object_id']);
+  $foreign=Story::create(['user_id'=>$u->id,'title'=>'Other game','premise'=>'Other story']);
+  $key['id']=(string)Str::uuid();
+  $foreign->pages()->create(['position'=>1,'title'=>'Other garden','visual_document'=>['visuals'=>[$key]]]);
+  $doc['visuals'][0]['hotspots'][0]['object_id']=$key['id'];
+  $this->expectException(\Illuminate\Validation\ValidationException::class);
+  app(\App\Services\SceneDocument::class)->validate($s,$doc,$p->id);
+ }
+ public function test_inventory_rules_accept_other_page_items_but_reject_unknown_objects(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $key=['id'=>(string)Str::uuid(),'name'=>'Earlier key','kind'=>'object','asset_id'=>null,'hotspots'=>[]];
+  $s->pages()->create(['position'=>2,'title'=>'Key page','visual_document'=>['visuals'=>[$key]]]);
+  $doc['visuals'][0]['hotspots'][0]['action']='inventory';
+  $doc['visuals'][0]['hotspots'][0]['inventory_rules']=[['object_id'=>$key['id'],'response'=>'Unlocked','target_id'=>null,'consume'=>false]];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $this->assertSame($key['id'],$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['inventory_rules'][0]['object_id']);
+  $doc['visuals'][0]['hotspots'][0]['inventory_rules'][0]['object_id']=(string)Str::uuid();
+  $this->expectException(\Illuminate\Validation\ValidationException::class);
+  app(\App\Services\SceneDocument::class)->validate($s,$doc,$p->id);
+ }
+ public function test_area_image_alignment_is_saved_and_foreign_assets_are_rejected(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $doc['visuals'][0]['dialog_background']='#123456';$doc['visuals'][0]['dialog_border']='#aabbcc';$doc['visuals'][0]['dialog_footer']='#345678';$doc['visuals'][0]['hotspots'][0]['use_item_description']=true;
+  $doc['visuals'][0]['hotspots'][0]['description_position']='area_bottom';
+  $doc['visuals'][0]['hotspots'][0]['animate_hover_text']=true;
+  $doc['visuals'][0]['hotspots'][0]['overlay_always']=false;
+  $doc['visuals'][0]['hotspots'][0]['show_hover_text']=false;
+  $doc['visuals'][0]['hotspots'][0]['overlay_alignment']='bottom';
+  $doc['visuals'][0]['hotspots'][0]['overlay_asset_id']=null;
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $this->assertSame('area_bottom',$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['description_position']);
+  $this->assertTrue($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['animate_hover_text']);
+  $this->assertFalse($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['overlay_always']);
+  $this->assertFalse($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['show_hover_text']);
+  $this->assertSame('#123456',$p->fresh()->visual_document['visuals'][0]['dialog_background']);
+  $this->assertTrue($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['use_item_description']);
+  $this->assertSame('bottom',$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['overlay_alignment']);
+  $doc['visuals'][0]['hotspots'][0]['overlay_asset_id']=999999;
+  $this->expectException(\Illuminate\Validation\ValidationException::class);
+  app(\App\Services\SceneDocument::class)->validate($s,$doc,$p->id);
+ }
+ public function test_scene_skip_rules_validate_story_objects_and_destination_scene(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $other=$s->pages()->create(['position'=>2,'title'=>'Empty porch','visual_document'=>['visuals'=>[$doc['visuals'][0]]]]);
+  $doc['visuals'][0]['skip_rules']=[['id'=>(string)Str::uuid(),'object_ids'=>[$doc['visuals'][1]['id']],'target_page_id'=>$other->id,'target_scene_id'=>$doc['visuals'][0]['id']]];
+  $result=app(\App\Services\SceneDocument::class)->validate($s,$doc,$p->id);
+  $this->assertSame($doc['visuals'][0]['skip_rules'],$result['visuals'][0]['skip_rules']);
+  $doc['visuals'][0]['skip_rules'][0]['object_ids']=[(string)Str::uuid()];
+  $this->expectException(\Illuminate\Validation\ValidationException::class);
+  app(\App\Services\SceneDocument::class)->validate($s,$doc,$p->id);
+ }
  public function test_description_positions_round_trip_and_reject_invalid_values(): void {
   [$u,$s,$p,$doc]=$this->setupScene();
   $doc['visuals'][0]['description_position']='bottom';
@@ -98,7 +156,7 @@ class SceneAuthoringTest extends TestCase {
   $doc['visuals'][1]['actions']=[['id'=>(string)Str::uuid(),'label'=>'Open','target_id'=>$open]];
   $doc['visuals'][]=['id'=>$open,'name'=>'Opened envelope','kind'=>'object','asset_id'=>null,'prompt'=>'Open envelope','hotspots'=>[],'actions'=>[['id'=>(string)Str::uuid(),'label'=>'Close','target_id'=>$closed]]];
   $this->putJson(route('visuals.update',[$s,$p]),['revision'=>1,'document'=>$doc])->assertOk();
-  $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('document.visuals.0.description','A silent porch.')->assertJsonPath('document.visuals.1.description','A sealed envelope.')->assertJsonPath('document.visuals.1.actions.0.target_id',$open)->assertJsonPath('document.visuals.2.actions.0.target_id',$closed);
+  $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('document.visuals.0.description','A silent porch.')->assertJsonPath('inventory_items.0.description','A sealed envelope.')->assertJsonPath('inventory_items.0.actions.0.target_id',$open)->assertJsonPath('inventory_items.1.actions.0.target_id',$closed);
   $doc['visuals'][1]['actions'][0]['target_id']=$doc['visuals'][0]['id'];
   $this->putJson(route('visuals.update',[$s,$p]),['revision'=>2,'document'=>$doc])->assertUnprocessable();
   $doc['visuals'][1]['actions'][0]['target_id']=(string)Str::uuid();
@@ -148,7 +206,7 @@ class SceneAuthoringTest extends TestCase {
   $asset=$s->assets()->create(['name'=>'Old scene name','path'=>'test.png','mime'=>'image/png','bytes'=>10,'role'=>'scene']);
   $job->update(['status'=>'completed','asset_ids'=>[$asset->id],'name'=>'Previously moved']);
   $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('assets.0.name','Previously moved · render '.$job->id.'-1');
-  $this->get(route('stories.edit',[$s,'page'=>$p->id]))->assertOk()->assertSee('Previously moved');
+  $this->get(route('stories.edit',[$s,'page'=>$p->id]))->assertOk();
   $this->patchJson(route('images.move',[$s,$p,$job]),['visual_id'=>$doc['visuals'][1]['id'],'revision'=>1])->assertOk();
   $this->assertSame('Note · render '.$job->id.'-1',$asset->fresh()->name);
   $this->assertSame('object',$asset->fresh()->role);

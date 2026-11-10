@@ -3,7 +3,7 @@
 @include('studio.story-header')
 <div class="story-editor-grid grid grid-cols-1">
 <div class="story-editor-column min-w-0">
-<div class="editor-tabs min-w-0 px-5 pt-5 lg:px-8">@include('studio.tabs')</div>
+<div id="scene-toolbar" x-show="tab==='visuals'" x-cloak class="editor-tabs scene-toolbar-slot min-w-0 px-5 py-3 lg:px-8"></div>
 <main class="story-editor-content min-w-0 p-5 lg:p-8" :style="tab==='visuals'?'padding-top: .5rem':null">
 @include('studio.page-documents')
 <section x-show="tab==='story'" x-cloak><h2 class="mb-6 font-serif text-2xl">The world behind the story</h2>
@@ -12,13 +12,12 @@
 @foreach(['premise'=>'Premise','style'=>'Visual direction','bible'=>'Complete story bible'] as $field=>$label)<label class="field">{{ $label }}<textarea name="{{ $field }}" rows="{{ $field==='bible'?12:3 }}">{{ $story->$field }}</textarea></label>@endforeach
 <label class="field">Default LLM model ID<input name="llm_model" value="{{ $story->llm_model }}" placeholder="Choose a model in the chat selector"></label>
 <div x-data="modelPicker(@js($story->image_model ?? ''), 'image')"><label class="field">Image model for this story<select name="image_model" x-model="selected" @change="remember()"><option value="">Choose later</option><template x-for="m in models" :key="m.id"><option :value="m.id" x-text="modelLabel(m)"></option></template></select></label><p class="mt-2 text-xs text-stone-400">Dedicated OpenRouter image catalog. Pricing below is per provider and may depend on quality, size, references, and token usage. This saves your preference; image generation is in development.</p><div class="mt-3 space-y-3 text-xs" aria-live="polite"><p x-show="pricingLoading">Loading image pricing…</p><button type="button" x-show="pricingError" @click="loadPricing()" class="underline">Retry pricing</button><template x-for="(endpoint,index) in endpoints" :key="index"><div class="rounded-lg border border-stone-200 dark:border-stone-700 p-3"><p class="font-semibold" x-text="endpoint.provider_name || endpoint.provider_slug"></p><template x-for="(line,i) in (endpoint.pricing || [])" :key="i"><p class="mt-1" x-text="imagePriceLabel(line)"></p></template><p x-show="!endpoint.pricing?.length" class="mt-1">Pricing unavailable for this endpoint.</p></div></template><p x-show="selected && !pricingLoading && !pricingError && !endpoints.length">No endpoint pricing available.</p></div></div>
-<p class="text-xs text-stone-400">Changes save automatically.</p></form></section>
+<p class="text-xs text-stone-400">Changes save automatically.</p></form>
+@include('studio.story-flags')
+</section>
 @include('studio.visuals')
-<section x-show="tab==='assets'" x-cloak x-data="{ library: @js($story->assets->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a),'role'=>$a->role])->values()) }" @vsg-assets-uploaded.window="library=[...$event.detail,...library]"><h2 class="font-serif text-2xl">A shared visual language</h2><p class="mt-2 text-sm text-stone-500 dark:text-stone-400">Upload references for your characters, environments, objects, and style.</p>
-<form action="{{ route('assets.store',$story) }}" method="POST" enctype="multipart/form-data" class="my-6 space-y-4 rounded-xl border border-dashed border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-900 p-5">@csrf
-<label class="field">Reference images<input type="file" name="images[]" multiple required accept="image/png,image/jpeg,image/webp"><span class="text-xs font-normal text-stone-400">Up to 8 PNG, JPEG, or WebP images; 10 MB each.</span></label>
-<label class="field">Reference role<select name="role">@foreach(['reference','character','environment','object','style','start','end','scene'] as $role)<option>{{ $role }}</option>@endforeach</select></label><button class="btn-primary">Upload references</button></form>
-<div class="grid grid-cols-2 gap-4"><template x-for="asset in library" :key="asset.id"><figure class="overflow-hidden rounded-xl border bg-white dark:bg-stone-900"><div class="relative"><img :src="asset.url" :alt="asset.name" loading="lazy" class="aspect-video w-full object-contain"><button type="button" class="image-zoom-button" :aria-label="'Enlarge '+asset.name" @click.stop="$dispatch('vsg-image',asset)" title="Zoom image"><x-zoom-icon /></button></div><figcaption class="p-3"><p class="break-words text-sm" x-text="asset.name"></p><p class="mt-1 text-xs text-stone-400" x-text="asset.role"></p></figcaption></figure></template></div></section>
+@include('studio.inventory')
+
 
 </main></div>
 </div></div></x-studio-layout>

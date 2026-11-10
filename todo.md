@@ -547,3 +547,92 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Decouple areas from automatic object creation/renaming/deletion; drawing only adds an area and opening image studio does not create missing objects. Keep explicit image selection and reviewed companion object creation. Show animated Thinking… immediately on chat submission and until response text starts.
 
 - [x] Move to page now selects a page/scene pair, lists every scene with page title, validates destination ownership/type, and previews the exact scene. Legacy page-only links default to the first scene. Companion instructions and Help updated.
+
+- [x] Scene inventory skip rules: click background, choose story-wide items with thumbnails/page names, select page/scene destination; all items required, three automatic jumps maximum. Companion can propose rules; validation and preview regression coverage added.
+
+- [x] Restore saved page/scene selections after dynamic dropdown options render, for scene skip rules and page actions.
+
+- [x] Clickable area image overlays with independent image selection, fit-to-area sizing, top/middle/bottom alignment, autosave and preview rendering.
+
+- [x] Fix cross-page companion document overwrite (release PHP reference); recover Rose Bushes from saved revision with key description. Test setup defaults to first scene of edited page and offers every page/scene as a starting point. Navigation explicitly carries active page ID.
+
+- [x] Preview area hover descriptions: hold while hovered, hide on exit, finish current typing before executing clicked interaction, and reveal previously shown text instantly during the test. Hover descriptions editable for every action.
+
+- [x] Add branded V/play favicon (SVG and ICO fallback) to all app layouts.
+
+- [x] Per-scene dialog/background/border/footer palette with average-scene Auto colors, static inventory descriptions and separate action footer. Area hover description defaults to linked item; manual/AI custom descriptions opt out.
+
+- [x] Fix checkbox stretching caused by generic field styles; compact hover description header with inline item-description checkbox and position selector, and display inherited item text in the textarea.
+
+- [x] Remove automatic item-description narration after pickup; retain inventory inspection description and pickup animation.
+
+- [x] Add page navigation before Current visual in Interactions; flush pending edits and open the destination page’s first scene.
+
+- [x] Per-area Show hover text checkbox, enabled by default, persists through autosave and can be changed by the companion. Disabling preserves click actions and descriptions.
+
+- [x] Add Show always beneath Show image in area; defaults on, unchecked images appear only on area hover/keyboard focus in editor and preview.
+
+- [x] Area-relative hover text above/below selection, area width with 150px minimum; clamp horizontal and vertical bounds to scene image, overlapping area when necessary.
+
+- [x] Add Animate text to area hover controls, unchecked by default. Full text fades in over 150ms; checked enables first-hover word animation.
+
+- [x] Trigger hover descriptions on mouse movement inside preview areas after scene transitions, without restarting visible text.
+
+- [x] Apply area animation and placement settings to click narration as well as hover, with scene-bound rectangle positioning and 150ms fade.
+
+- [x] Separate scene narration from item hover/click narration; interactions no longer dismiss or restart scene text. Item descriptions replace each other, with same-edge boxes stacked.
+
+- [x] Reserve full description text layout before revealing words, keeping height, wraps and upward anchor stable; scroll follows revealed words rather than hidden trailing content.
+
+- [x] Increase in-game description minimum width to 200px and maximum height to 250px, retaining image-edge clamping and scrolling.
+
+- [x] Hide editor during game testing behind an opaque backdrop matching the active scene’s dialog color.
+
+- [x] Exclude archived images from scene/object/area image selectors and reference-image dialogs, regardless of history archive visibility.
+
+- [x] Use inventory on area accepts objects from every game page, with page labels in the picker and story-wide Add all objects; validation and companion guidance updated.
+
+- [x] Remeasure game text after dialogs open to prevent collapsed initial descriptions; remove area-interaction close icon, retaining outside click and Escape dismissal.
+
+- [x] Keep area-interaction dialog text visible without timeout or outside-pointer dismissal; replace it only on the next interaction response or dialog close.
+
+- [x] Pickup areas with hover disabled and description text use first-click inspection, second-click pickup; armed area shows grab cursor and Click to pick up hint. Reset on scene change/test restart.
+
+- [x] Remove companion selection prerequisite for named/bulk area edits; add copy_areas proposals between scenes on a page with fresh IDs, preserved settings/geometry and per-area review.
+
+- [x] Compact chat review link; automatically open new proposal review; always-expanded checkboxes and recursively formatted structured data instead of raw JSON.
+
+- [x] Place the review proposed changes link inline as the final sentence of its chat message paragraph.
+
+- [x] Allow pickup/inspect areas to reuse objects from any page of the same game; resolve their images/descriptions in preview and retain foreign-story validation.
+
+- [x] Add Inventory after Image generation with shared item cards, images, descriptions, replacement actions, autosave, deletion confirmation and page/scene usage links.
+- [x] Migrate existing page objects to a game-wide inventory document preserving IDs and links; pages store scenes only. Legacy proposals/restore operations extract object definitions into the library.
+- [x] Remove New object and scene-to-object conversion from Interactions; area item selection links existing inventory items without creating copies.
+- [x] Update game preview, inventory rules, skip rules, image usage links and companion context/proposals for shared item IDs. Protect referenced items from deletion and reject stale inventory writes.
+
+- [x] Verify shared Inventory on localhost:8010; full suite passes (145 PHP tests, 85 JavaScript tests), frontend build and Blade compilation successful.
+
+- [x] Rename Interactions tab to Scenes, including preview labels, navigation hints, companion help and UI copy.
+
+- [x] Add Up/Down layer controls to overlapping areas, autosave stacking order, provide front-to-back area selection for covered areas, and use the same z-index in game preview without covering narration/inventory.
+
+- [x] Examine never executes hidden scene transitions or pickup behavior; clear incompatible scene targets on action changes and server saves. Repair the stale target on Take the brass key.
+
+- [x] Add named boolean story flags with initial values, validation, stale-write protection and Story bible management; include flags in companion context/review and revision history.
+- [x] Support flag/item conditions for scene jumps and area hide/disable behavior; set/clear flags on area, pickup, inventory-rule and choice outcomes. Preserve flags between pages, reset for a new playthrough and expose test starting flags.
+- [x] Wire The Silent House stone/door state, populate page one's new open-stone overview, preserve correct returns and optional lid closing, prevent key respawn and remove porch back navigation. Previous authored state retained in History.
+- [x] Show all pages' image history together, remove page-loading links and save author-only up/down sidebar ordering.
+- [x] Verify the live story's open/pickup/back/close/reopen/door/key-consumption sequence without modifying gameplay state; 148 PHP tests and 90 JavaScript tests pass.
+
+- [x] Remove the standalone References tab and library section; retain reference selection/uploads in image generation and fall back to Page plan for old References-tab URLs.
+
+- [x] Combine page/scene navigation into one grouped dropdown; scene ordering controls remain scoped to the active page and cannot move scenes between pages.
+
+- [x] Make area availability conditions opt-in, preserve existing configured rules and retain settings when disabled; collapse optional flag effects. Stabilize scene editor width and scrollbar space when switching areas.
+
+- [x] Move story title/back link/revision beside the brand, put editor tabs in the second header, and pin the Scenes toolbar above scrolling content. Show scene number in the selected navigation label and account for responsive header height.
+
+- [x] Constrain the story editor shell to the viewport using explicit grid row/child minimum heights; prevent document scrolling in every scene/area state while retaining independent editor and chat scrolling.
+
+- [x] Align every scene dropdown row with a drag handle (disabled outside the active page), keep other-page reorder arrows hidden, and scroll to the active page/scene whenever opening the menu.

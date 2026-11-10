@@ -3,7 +3,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 class Story extends Model {
     protected $guarded = ['id'];
-    protected $casts = ['plan_approved_at'=>'datetime'];
+    protected $casts = ['plan_approved_at'=>'datetime','inventory_document'=>'array','inventory_revision'=>'integer','game_flags'=>'array','flags_revision'=>'integer','image_order'=>'array'];
     public function pages() { return $this->hasMany(StoryPage::class)->orderBy('position'); }
     public function messages() { return $this->hasMany(ChatMessage::class); }
     public function assets() { return $this->hasMany(Asset::class); }

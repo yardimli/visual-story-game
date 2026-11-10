@@ -79,11 +79,11 @@ test('area movement and resizing stay within bounds, cancel restores, and deleti
  editor.requestAreaDelete(h.id);assert.equal(opened,1);assert.equal(editor.visual.hotspots.length,1);
  editor.confirmAreaDelete();assert.equal(editor.visual.hotspots.length,0);assert.equal(saves,2);
 });
-test('image selection creates or reuses an object visual without changing selected scene',()=>{
+test('item selection reuses a shared object without creating page visuals',()=>{
  const editor=sceneEditor({});editor.changed=()=>{};editor.$refs={interactionImagePicker:{close:()=>{}}};
  editor.document={visuals:[{id:'scene',kind:'scene',name:'Duplicate',hotspots:[{id:'h'}]},{id:'second',kind:'scene',name:'Duplicate',hotspots:[]}]};
  editor.selected='scene';editor.hotspotId='h';editor.assets=[{id:5,name:'Note',url:'/note.png'}];
- editor.selectObjectImage(5);const id=editor.hotspot.object_id;editor.selectObjectImage(5);
+ editor.inventoryItems=[{id:'note',kind:'object',name:'Note',asset_id:5}];editor.selectObjectImage(5);const id=editor.hotspot.object_id;editor.selectObjectImage(5);
  assert.equal(editor.objects.length,1);assert.equal(editor.hotspot.object_id,id);assert.equal(editor.selected,'scene');
  assert.notEqual(editor.sceneLabel(editor.scenes[0]),editor.sceneLabel(editor.scenes[1]));
  editor.beginRename(editor.hotspot);editor.labelDraft='New label';editor.finishRename(editor.hotspot);assert.equal(editor.hotspot.label,'New label');
@@ -137,7 +137,7 @@ test('drawing and renaming areas leave visuals independent until explicitly sele
  editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[]}]};editor.selected='scene';
  editor.newHotspot();const h=editor.hotspot;editor.labelDraft='Envelope';editor.finishRename(h);
  assert.equal(h.label,'Envelope');assert.equal(h.object_id,null);assert.equal(editor.objects.length,0);
- editor.$refs={interactionImagePicker:{close(){}}};editor.selectObjectImage(9);
+ editor.$refs={interactionImagePicker:{close(){}}};editor.selectObjectImage(9);assert.equal(editor.objects.length,0);editor.inventoryItems=[{id:'letter',name:'Letter',kind:'object',asset_id:9}];editor.selectInventoryItem('letter');assert.equal(editor.document.visuals.length,1);
  const object=editor.objects[0];assert.equal(object.asset_id,9);assert.equal(h.object_id,object.id);
  const name=object.name;editor.beginRename(h);editor.labelDraft='Read letter';editor.finishRename(h);
  assert.equal(object.name,name);assert.equal(editor.objects.length,1);assert.equal(editor.selected,'scene');
@@ -271,7 +271,7 @@ test('linked object actions preserve area objects and clear targets when visuals
 test('inspection and inventory use visual descriptions while examine uses only area text',()=>{
  const editor=sceneEditor({});editor.document={visuals:[{id:'scene',kind:'scene',hotspots:[],description:'A quiet room.'},{id:'object',kind:'object',name:'Envelope',description:'A sealed letter.',asset_id:1,hotspots:[],actions:[]}]};editor.selected='scene';editor.assets=[{id:1,url:'/letter'}];editor.startPreview();
  editor.activate({id:'inspect',action:'inspect',object_id:'object',label:'Area',description:'Old area text'});assert.equal(editor.modal.label,'Envelope');assert.equal(editor.modal.text,'A sealed letter.');
- editor.activate({id:'pickup',action:'pickup',object_id:'object',description:'Old area text'});assert.equal(editor.modal,null);assert.equal(editor.narration.text,'A sealed letter.');
+ editor.modal=null;editor.activate({id:'pickup',action:'pickup',object_id:'object',description:'Old area text'});assert.equal(editor.modal,null);assert.equal(editor.narration,null);assert.equal(editor.pendingModal,null);assert.equal(editor.inventory.length,1);
  editor.activate({id:'examine',action:'examine',object_id:'object',description:'Look under the rug.'});assert.equal(editor.narration.text,'Look under the rug.');assert.equal(editor.modal,null);
  editor.openInventory(editor.inventory[0]);assert.equal(editor.modal.text,'A sealed letter.');
 });
@@ -445,4 +445,163 @@ test('page destination picker includes every scene and preview opens the selecte
  assert.deepEqual(editor.pageSceneDestinations.map(d=>d.key),['1:first','1:new','2:hall','2:stairs']);
  assert.equal(editor.destinationValue(editor.hotspot),'2:hall');editor.selectPageScene('2:stairs');assert.equal(editor.hotspot.target_scene_id,'stairs');
  editor.preview=true;let destination;editor.transitionScene=(id,page)=>destination=[id,page];editor.activate(editor.document.visuals[0].hotspots[0]);assert.deepEqual(destination,['stairs',2]);
+});
+
+
+test('scene skip rules require every selected item, support cross-page jumps, and cap cycles at three',()=>{
+ const e=sceneEditor({});e.editorPageId=1;
+ const rule=(target_page_id,target_scene_id,object_ids=['key'])=>({object_ids,target_page_id,target_scene_id});
+ e.document={visuals:[{id:'full',kind:'scene',skip_rules:[rule(2,'empty',['key','note'])]},{id:'key',kind:'object'},{id:'note',kind:'object'}]};
+ e.previewPages=[{id:1,visuals:[]},{id:2,visuals:[{id:'empty',kind:'scene',skip_rules:[rule(1,'full')]}]}];
+ e.inventory=[{id:'key'}];assert.deepEqual(e.resolveSceneEntry(1,'full'),{pageId:1,sceneId:'full'});
+ e.inventory.push({id:'note'});assert.deepEqual(e.resolveSceneEntry(1,'full'),{pageId:2,sceneId:'empty'});assert.equal(e.skipJumpCount,3);
+ e.document.visuals[0].skip_rules=[rule(2,'missing'),rule(2,'empty',[])];
+ assert.deepEqual(e.resolveSceneEntry(1,'full'),{pageId:1,sceneId:'full'});assert.equal(e.skipJumpCount,0);
+});
+test('seeded preview applies scene rules and pickup evaluates destination after inventory changes',()=>{
+ const e=sceneEditor({});e.editorPageId=1;e.selected='full';
+ const r={object_ids:['key'],target_page_id:1,target_scene_id:'empty'};
+ e.document={visuals:[{id:'full',kind:'scene',hotspots:[],skip_rules:[r]},{id:'empty',kind:'scene',hotspots:[]},{id:'key',kind:'object'}]};
+ e.previewPages=[{id:1,visuals:e.document.visuals}];
+ e.startPreview(['key']);assert.equal(e.previewId,'empty');
+ e.startPreview();assert.equal(e.previewId,'full');
+ e.activate({id:'pickup',action:'pickup',object_id:'key',target_id:'full'});assert.equal(e.previewId,'empty');assert.equal(e.inventory.length,1);
+ e.closePreview();
+});
+
+test('area image is independent of objects, keeps alignment and supports removing selection',()=>{
+ const e=sceneEditor({});e.document={visuals:[{id:'scene',kind:'scene',hotspots:[{id:'area',overlay:true,overlay_asset_id:2,overlay_alignment:'bottom'}]}]};e.selected='scene';e.hotspotId='area';e.assets=[{id:2,url:'/overlay.png'}];e.changed=()=>{};e.$refs={visualImagePicker:{close(){}}};
+ assert.equal(e.areaImage(e.hotspot).url,'/overlay.png');assert.equal(e.areaImagePosition(e.hotspot),'center bottom');
+ e.imagePickerTarget='area';e.selectPickerImage(null);assert.equal(e.areaImage(e.hotspot),undefined);
+ e.selectPickerImage(2);assert.equal(e.document.visuals.length,1);assert.equal(e.hotspot.overlay_asset_id,2);
+ e.hotspot.overlay=false;assert.equal(e.areaImage(e.hotspot),null);
+});
+
+test('test starts at first scene of edited page unless another page and scene is chosen',()=>{
+ const e=sceneEditor({});e.editorPageId=2;e.selected='last';e.document={visuals:[{id:'first',kind:'scene',hotspots:[]},{id:'last',kind:'scene',hotspots:[]}]};e.previewPages=[{id:1,visuals:[{id:'earlier',kind:'scene',hotspots:[]}]},{id:2,visuals:[]}];
+ e.startPreview();assert.equal(e.previewId,'first');assert.equal(e.previewPageId,2);
+ e.startPreview([],'1:earlier');assert.equal(e.previewId,'earlier');assert.equal(e.previewPageId,1);e.closePreview();
+});
+
+test('item description is default and custom hover text opts out',()=>{
+ const e=sceneEditor({});e.document={visuals:[{id:'item',kind:'object',description:'Item text'}]};
+ const h={object_id:'item',description:''};assert.equal(e.hoverDetails(h).description,'Item text');
+ h.description='Custom';assert.equal(e.hoverDetails(h).description,'Custom');h.use_item_description=true;assert.equal(e.hoverDetails(h).description,'Item text');
+ h.use_item_description=false;assert.equal(e.hoverDetails(h).description,'Custom');
+});
+
+test('interaction page navigation saves and chooses first scene rather than first object',async()=>{
+ const previous=globalThis.window;let destination;globalThis.window={location:{href:'http://localhost:8010/stories/2/edit?page=4&tab=visuals&visual=old',assign(url){destination=url;}}};
+ try{const e=sceneEditor({});e.editorPageId=4;e.previewPages=[{id:14,visuals:[{id:'object',kind:'object'},{id:'first',kind:'scene'},{id:'second',kind:'scene'}]}];e.flush=async()=>true;
+ await e.navigateInteractionPage('14');const url=new URL(destination);assert.equal(url.searchParams.get('page'),'14');assert.equal(url.searchParams.get('visual'),'first');assert.equal(url.searchParams.get('tab'),'visuals');
+ await e.selectNavigationScene(14,'second');assert.equal(new URL(destination).searchParams.get('visual'),'second');
+ destination=null;e.flush=async()=>false;await e.navigateInteractionPage(14);assert.equal(destination,null);assert.equal(e.switchingPage,false);
+ }finally{globalThis.window=previous;}
+});
+
+test('hover text defaults on and can be disabled without changing area description or action',()=>{
+ const e=sceneEditor({});const h={description:'Look here',action:'examine',use_item_description:false};
+ assert.equal(e.hoverDetails(h).description,'Look here');h.show_hover_text=false;assert.equal(e.hoverDetails(h).description,'');assert.equal(h.description,'Look here');assert.equal(e.hoverDetails(h).action,'examine');h.show_hover_text=true;assert.equal(e.hoverDetails(h).description,'Look here');
+});
+
+test('examine clicks carry animation and rectangle placement settings into narration',()=>{
+ const e=sceneEditor({});e.preview=true;e.document={visuals:[]};
+ const h={id:'a',action:'examine',description:'Text',description_position:'area_top',x:.2,y:.3,width:.1,height:.2};
+ e.activate(h);assert.equal(e.narration.animate,false);assert.equal(e.narration.position,'area_top');assert.equal(e.narration.area.width,.1);
+ h.animate_hover_text=true;e.activate(h);assert.equal(e.narration.animate,true);
+});
+
+test('image selection dialogs exclude archived assets for all pages and uploads',()=>{
+ const e=sceneEditor({});e.assets=[{id:1,page_ids:[4]},{id:2,page_ids:[4],archived:true},{id:3,page_ids:[],archived:true},{id:4,page_ids:[]}];
+ e.showArchived=true;e.referencePage='all';assert.deepEqual(e.referenceAssets.map(a=>a.id),[1,4]);
+ e.referencePage='4';assert.deepEqual(e.referenceAssets.map(a=>a.id),[1]);
+ e.imagePickerPage='4';assert.deepEqual(e.pickerAssets.map(a=>a.id),[1]);
+ e.imagePickerPage='uploads';assert.deepEqual(e.pickerAssets.map(a=>a.id),[4]);
+ assert.equal(e.asset(2).id,2);
+});
+
+test('inventory rules can add and use an object from an earlier page',()=>{
+ const e=sceneEditor({});e.editorPageId=2;e.previewPageId=2;e.selected='door';e.hotspotId='lock';e.changed=()=>{};
+ const area={id:'lock',action:'inventory',inventory_rules:[]};e.document={visuals:[{id:'door',kind:'scene',hotspots:[area]}]};
+ e.previewPages=[{id:1,position:1,title:'Garden',visuals:[{id:'key',kind:'object',name:'Key'}]},{id:2,position:2,title:'Door',visuals:[]}];
+ e.addAllInventoryRules();assert.equal(area.inventory_rules[0].object_id,'key');e.addAllInventoryRules();assert.equal(area.inventory_rules.length,1);
+ area.inventory_rules[0].response='Unlocked';e.preview=true;e.previewId='door';e.inventory=[{id:'key'}];e.modal={areaId:'lock',sceneId:'door'};e.useInventoryOnArea('key');assert.equal(e.modal.text,'Unlocked');
+});
+
+test('pickup with hover disabled describes on first click and collects on second',()=>{
+ const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},{id:'key',kind:'object',description:'A brass key',hotspots:[]}]};e.selected='scene';e.startPreview();
+ const h={id:'key-area',action:'pickup',object_id:'key',show_hover_text:false};
+ e.activate(h);assert.equal(e.inventory.length,0);assert.equal(e.narration.text,'A brass key');assert.equal(e.pickupReady(h),true);assert.equal(e.collected.length,0);
+ e.activate(h);assert.equal(e.inventory.length,1);assert.equal(e.narration,null);assert.equal(e.pickupReady(h),false);
+ e.startPreview();e.activate({...h,use_item_description:false,description:''});assert.equal(e.inventory.length,1);e.closePreview();
+});
+
+test('pickup and inspection resolve the existing key from an earlier page',()=>{
+ const e=sceneEditor({});e.editorPageId=2;e.selected='porch';
+ e.document={visuals:[{id:'porch',kind:'scene',hotspots:[]}]};
+ e.previewPages=[{id:1,title:'Garden',visuals:[{id:'key',kind:'object',name:'Brass key',description:'A brass key',asset_id:27}]}];
+ e.assets=[{id:27,url:'/key.png'}];e.startPreview();
+ const h={id:'key-area',action:'pickup',object_id:'key'};
+ assert.equal(e.hoverDetails(h).description,'A brass key');e.activate(h);
+ assert.equal(e.inventory[0].id,'key');assert.equal(e.inventory[0].asset_id,27);
+ e.activate({...h,action:'inspect'});assert.equal(e.modal.url,'/key.png');
+ e.closePreview();
+});
+
+test('overlapping area layers persist as scene order and preview uses the same stacking',()=>{
+ const e=sceneEditor({});let saves=0;e.changed=()=>saves++;
+ const door={id:'door',x:0,y:0,width:1,height:1},handle={id:'handle',x:.5,y:.5,width:.1,height:.1};
+ e.document={visuals:[{id:'scene',kind:'scene',hotspots:[door,handle]}]};e.selected='scene';
+ assert.equal(e.areaLayer(handle),2);e.moveAreaLayer('door',1);
+ assert.deepEqual(e.visual.hotspots.map(h=>h.id),['handle','door']);assert.equal(e.areaLayer(door),2);assert.equal(e.hotspotId,'door');
+ e.moveAreaLayer('door',1);assert.equal(saves,1);
+ e.moveAreaLayer('door',-1);assert.equal(e.areaLayer(handle),2);assert.equal(saves,2);
+ e.preview=true;e.previewId='scene';e.previewPageId=e.editorPageId;
+ assert.equal(e.areaLayer(handle),2);e.moveAreaLayer('handle',-1);assert.equal(saves,2);
+ e.collected=['door'];assert.equal(e.currentHotspots.length,1);assert.equal(e.areaLayer(handle),2);
+});
+
+test('examine ignores stale pickup objects and hidden scene transitions',()=>{
+ const e=sceneEditor({});e.document={visuals:[{id:'door',kind:'scene',hotspots:[]},{id:'empty',kind:'scene',hotspots:[]}]};e.inventoryItems=[{id:'key',kind:'object',name:'Key'}];e.selected='door';e.startPreview();
+ const h={id:'key-area',action:'examine',description:'A brass key.',object_id:'key',target_id:'empty'};
+ e.activate(h);assert.equal(e.previewId,'door');assert.equal(e.inventory.length,0);assert.equal(e.collected.length,0);assert.equal(e.narration.text,'A brass key.');
+ e.closePreview();e.document.visuals[0].hotspots=[h];e.hotspotId=h.id;e.changed=()=>{};e.changeAreaAction('examine');assert.equal(h.target_id,null);
+});
+
+test('world flags survive page revisits and consumption, route open/closed states, and reset for new play',()=>{
+ const e=sceneEditor({});e.editorPageId=1;e.selected='wide';
+ e.flagDefinitions=[{key:'stone_opened',initial:false},{key:'key_collected',initial:false}];
+ const condition=(key,value)=>({key,value});
+ const skip=(values,page,scene)=>({object_ids:[],flag_conditions:Object.entries(values).map(([key,value])=>condition(key,value)),target_page_id:page,target_scene_id:scene});
+ e.document={visuals:[{id:'wide',kind:'scene',hotspots:[],skip_rules:[skip({stone_opened:true,key_collected:true},1,'wide-open')]},{id:'wide-open',kind:'scene',hotspots:[],skip_rules:[skip({stone_opened:false},1,'wide')]}]};
+ e.previewPages=[{id:1,visuals:[]},{id:2,visuals:[{id:'closed',kind:'scene',hotspots:[],skip_rules:[skip({stone_opened:true,key_collected:true},2,'empty'),skip({stone_opened:true,key_collected:false},2,'key')]},{id:'key',kind:'scene',hotspots:[],skip_rules:[skip({key_collected:true},2,'empty')]},{id:'empty',kind:'scene',hotspots:[]}]}];
+ e.inventoryItems=[{id:'key-item',kind:'object',name:'Key'}];e.startPreview();e.transitionScene('closed',2);e.clearSceneTransition();
+ e.activate({id:'open',action:'transition',target_id:'key',flag_effects:[condition('stone_opened',true)]});assert.equal(e.previewId,'key');e.clearSceneTransition();
+ e.activate({id:'leave',action:'page',target_page_id:1,target_scene_id:'wide',flag_conditions:[condition('key_collected',true)],unavailable_text:'Take the key first.'});assert.equal(e.previewId,'key');assert.equal(e.narration.text,'Take the key first.');
+ e.activate({id:'pickup',action:'pickup',object_id:'key-item',target_id:'empty',flag_effects:[condition('key_collected',true)]});assert.equal(e.flags.key_collected,true);e.clearSceneTransition();
+ e.inventory=[];e.transitionScene('wide',1);assert.equal(e.previewId,'wide-open');e.clearSceneTransition();
+ e.transitionScene('closed',2);assert.equal(e.previewId,'empty');e.clearSceneTransition();
+ e.activate({id:'close',action:'transition',target_id:'closed',flag_effects:[condition('stone_opened',false)]});e.clearSceneTransition();e.transitionScene('wide',1);assert.equal(e.previewId,'wide');e.clearSceneTransition();
+ e.startPreview();assert.equal(e.flags.key_collected,false);assert.equal(e.flags.stone_opened,false);e.closePreview();
+});
+test('flag-only skips cap loops and hidden areas require all conditions',()=>{
+ const e=sceneEditor({});e.editorPageId=1;e.previewPageId=1;e.flags={open:true};e.preview=true;e.previewId='a';
+ e.document={visuals:[{id:'a',kind:'scene',hotspots:[{id:'hidden',unavailable_behavior:'hide',flag_conditions:[{key:'open',value:false}]}],skip_rules:[{object_ids:[],flag_conditions:[{key:'open',value:true}],target_page_id:1,target_scene_id:'b'}]},{id:'b',kind:'scene',hotspots:[],skip_rules:[{object_ids:[],flag_conditions:[{key:'open',value:true}],target_page_id:1,target_scene_id:'a'}]}]};
+ assert.equal(e.currentHotspots.length,0);e.resolveSceneEntry(1,'a');assert.equal(e.skipJumpCount,3);
+});
+test('image ordering persists through the server and does not change scenes',async()=>{
+ const e=sceneEditor({orderUrl:'/order'});e.jobs=[{id:3,status:'completed'},{id:2,status:'completed',sourcePage:'Page 2'},{id:1,status:'completed'}];e.assets=[];e.document={visuals:[{id:'scene'}]};
+ e.request=async(url,method,body)=>{assert.equal(url,'/order');assert.equal(method,'PUT');return body;};
+ await e.moveImageOrder(2,-1);assert.deepEqual(e.visibleJobs.map(j=>j.id),[2,3,1]);assert.equal(e.document.visuals[0].id,'scene');
+ e.jobs.unshift({id:4,status:'draft'});assert.deepEqual(e.visibleJobs.map(j=>j.id),[4,2,3,1]);
+});
+
+test('availability is opt-in, preserves legacy conditions and can be disabled without deleting them',()=>{
+ const e=sceneEditor({});e.flags={opened:false};e.inventory=[];
+ assert.equal(e.availabilityEnabled({}),false);
+ const area={flag_conditions:[{key:'opened',value:true}],required_items:[]};
+ assert.equal(e.availabilityEnabled(area),true);assert.equal(e.conditionsMet(area),false);
+ area.availability_enabled=false;assert.equal(e.availabilityEnabled(area),false);assert.equal(e.conditionsMet(area),true);
+ assert.equal(area.flag_conditions.length,1);area.availability_enabled=true;assert.equal(e.conditionsMet(area),false);
+ e.flags.opened=true;assert.equal(e.conditionsMet(area),true);
 });

@@ -22,6 +22,29 @@ class CompanionChangesTest extends TestCase {
   $m=$s->messages()->create(['role'=>'assistant','content'=>'Review changes','revision'=>$s->revision,'proposal'=>$proposal]);
   return [$u,$s,$p,$second,$m];
  }
+ public function test_copy_areas_preserves_geometry_and_allows_selective_review_without_selected_area(): void {
+  [$u,$s,$p,$second,$m]=$this->fixture();$doc=$p->visual_document;$source=$doc['visuals'][0];
+  $extra=$source['hotspots'][0];$extra['id']=(string)Str::uuid();$extra['label']='Second area';$doc['visuals'][0]['hotspots'][]=$extra;
+  $destination=['id'=>(string)Str::uuid(),'name'=>'Door open','kind'=>'scene','asset_id'=>null,'hotspots'=>[]];$doc['visuals'][]=$destination;$p->update(['visual_document'=>$doc]);
+  $proposal=['changes'=>[['scope'=>'copy_areas','page_id'=>$p->id,'visual_id'=>$destination['id'],'source_visual_id'=>$source['id']]]];
+  $proposal['_review']=app(CompanionChanges::class)->prepare($s,$proposal);$this->assertCount(2,$proposal['_review']['items']);$m->update(['proposal'=>$proposal]);
+  $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0]])->assertOk();
+  $result=$p->fresh()->visual_document['visuals'];$this->assertCount(2,$result[0]['hotspots']);$this->assertCount(1,$result[1]['hotspots']);
+  $copy=$result[1]['hotspots'][0];$this->assertNotSame($source['hotspots'][0]['id'],$copy['id']);unset($copy['id']);$original=$source['hotspots'][0];unset($original['id']);$this->assertSame($original,$copy);
+ }
+ public function test_visual_changes_across_pages_do_not_overwrite_the_last_document(): void {
+  [$u,$s,$p,$second,$m]=$this->fixture();
+  $v=['id'=>(string)Str::uuid(),'name'=>'Hall scene','kind'=>'scene','asset_id'=>null,'hotspots'=>[]];$second->update(['visual_document'=>['visuals'=>[$v]]]);
+  $proposal=['changes'=>[
+   ['scope'=>'visual','page_id'=>$p->id,'visual_id'=>$p->visual_document['visuals'][0]['id'],'fields'=>['description'=>'Porch text']],
+   ['scope'=>'visual','page_id'=>$second->id,'visual_id'=>$v['id'],'fields'=>['description'=>'Hall text']],
+  ]];
+  $proposal['_review']=app(CompanionChanges::class)->prepare($s,$proposal);$m->update(['proposal'=>$proposal]);
+  $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0,1]])->assertOk();
+  $this->assertSame('Porch text',$p->fresh()->visual_document['visuals'][0]['description']);
+  $this->assertSame($v['id'],$second->fresh()->visual_document['visuals'][0]['id']);
+  $this->assertSame('Hall text',$second->fresh()->visual_document['visuals'][0]['description']);
+ }
  public function test_companion_can_propose_inventory_responses_and_named_choices(): void {
   [$u,$s,$p,$second,$m]=$this->fixture();$doc=$p->visual_document;$v=$doc['visuals'][0];$id=(string)Str::uuid();
   $doc['visuals'][]=['id'=>$id,'name'=>'Envelope','kind'=>'object','asset_id'=>null,'prompt'=>'','hotspots'=>[]];$p->update(['visual_document'=>$doc]);
@@ -36,8 +59,8 @@ class CompanionChangesTest extends TestCase {
   [$u,$s,$p,$second,$m]=$this->fixture();
   $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[1,2,3,4]])->assertOk()->assertJsonPath('revision',2);
   $this->assertSame('Original',$s->fresh()->premise);$this->assertSame('New narrative',$second->fresh()->narrative);
-  $doc=$p->fresh()->visual_document;$this->assertSame('Read the envelope',$doc['visuals'][0]['hotspots'][0]['description']);
-  $this->assertSame($doc['visuals'][1]['id'],$doc['visuals'][0]['hotspots'][0]['object_id']);$this->assertSame('Readable letter',$doc['visuals'][1]['prompt']);
+  $doc=$p->fresh()->visual_document;$this->assertSame('Read the envelope',$doc['visuals'][0]['hotspots'][0]['description']);$this->assertFalse($doc['visuals'][0]['hotspots'][0]['use_item_description']);
+  $item=$s->fresh()->inventory_document['visuals'][0];$this->assertCount(1,$doc['visuals']);$this->assertSame($item['id'],$doc['visuals'][0]['hotspots'][0]['object_id']);$this->assertSame('Readable letter',$item['prompt']);
   $this->assertDatabaseCount('image_generations',0);$this->assertDatabaseCount('story_revisions',1);
   $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0]])->assertUnprocessable();
  }

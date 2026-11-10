@@ -1,6 +1,8 @@
+import {storyFlags} from './story-flags';
+import {inventoryLibrary} from './inventory-library';
 import {readChatStream, streamingMessage} from './chat-stream';
 import {pageDocument,companionResize} from './page-documents';
-import {animatedDescription} from './animated-description';
+import {animatedDescription, hoverDescription} from './animated-description';
 import {aiCallHistory} from './ai-call-history';
 import {proposalReview, selectedLegacyProposal} from './proposal-review';
 import {imageCatalog} from './image-catalog';
@@ -15,6 +17,8 @@ import {proposalTargets, displayMessage} from './companion-proposals';
 import {selectableModels, rememberedModel, rememberModel, modelLabel, imagePriceLabel} from './model-preferences';
 
 window.Alpine = Alpine;
+Alpine.data('storyFlags',storyFlags);
+Alpine.data('inventoryLibrary',inventoryLibrary);
 Alpine.data('aiCallHistory', aiCallHistory);
 Alpine.data('toastCenter', toastCenter);
 Alpine.data('proposalReview', proposalReview);
@@ -23,6 +27,7 @@ Alpine.data('sceneEditor', sceneEditor);
 Alpine.data('pageDocument',pageDocument);
 Alpine.data('companionResize',companionResize);
 Alpine.data('animatedDescription', animatedDescription);
+Alpine.data('hoverDescription', hoverDescription);
 
 Alpine.data('modelPicker', (initial, modality = 'text') => ({
     modelLabel,
@@ -113,10 +118,10 @@ Alpine.data('creativeCompanion', (options) => ({
                 streamingIndex=this.messages.length-1;this.waitingForResponse=false;this.prompt='';this.scroll();
                 await readChatStream(response,(event,data)=>{
                     if(event==='delta'){this.messages[streamingIndex].content+=data.text;this.scroll();}
-                    if(event==='complete'){this.messages.splice(streamingIndex,1,data.message);this.remaining=data.remaining;this.scroll();}
+                    if(event==='complete'){data.message.autoReview=true;this.messages.splice(streamingIndex,1,data.message);this.remaining=data.remaining;this.scroll();}
                 });
             }else{
-                const data=await response.json();this.messages.push({role:'user',content:message},data.message);this.remaining=data.remaining;this.prompt='';
+                const data=await response.json();data.message.autoReview=true;this.messages.push({role:'user',content:message},data.message);this.remaining=data.remaining;this.prompt='';
             }
             this.$nextTick(() => window.dispatchEvent(new Event('textarea-refresh')));
             this.remember();
@@ -143,7 +148,7 @@ Alpine.data('creativeCompanion', (options) => ({
         const editor=window.vsgSceneEditor;
         if(item.proposal?._interaction){
             try {
-                if(window.vsgAutosave?.tab!=='visuals'||!editor)throw new Error('Open Interactions and select the original area to apply this suggestion.');
+                if(window.vsgAutosave?.tab!=='visuals'||!editor)throw new Error('Open Scenes and select the original area to apply this suggestion.');
                 const objectId=editor.applyInteractionProposal(item.proposal,options.pageId);
                 if(!(await editor.flush()))return;
                 if(objectId){const url=new URL(options.imageStudio,window.location.origin);url.searchParams.set('visual',objectId);window.location.assign(url.href);}

@@ -6,19 +6,20 @@ export function studioAutosave(initialRevision, options = {}) {
         init() {
             watchNotices(this,{status:'success',error:'error'});
             window.vsgAutosave = this;
+            this.$watch('revision',revision=>window.dispatchEvent(new CustomEvent('vsg-story-revision',{detail:{revision}})));
             if(options.tabs){
-                const allowed=['page','story','visuals','assets'];
+                const allowed=['page','story','visuals','inventory'];
                 const current=new URL(window.location.href).searchParams.get('tab');
                 this.tab=allowed.includes(current)?current:'page';
                 const sync=tab=>{if(!allowed.includes(tab))return;const url=new URL(window.location.href);url.searchParams.set('tab',tab);window.history.replaceState(null,'',url);};
                 sync(this.tab);this.$watch('tab',tab=>{sync(tab);if(tab==='page')this.scrollToActivePage();});
                 if(this.tab==='page')this.scrollToActivePage();
             }
-            this.unload = event => { if (this.busy || this.pending.size) { event.preventDefault(); event.returnValue = ''; } };
+            this.unload = event => { if (this.busy || this.pending.size || window.vsgFlags?.dirty || window.vsgFlags?.saving) { event.preventDefault(); event.returnValue = ''; } };
             window.addEventListener('beforeunload', this.unload);
             this.navigation = async event => {
                 const link = event.target.closest('a[href]');
-                if (event.defaultPrevented || !link || event.ctrlKey || event.metaKey || event.shiftKey || link.target === '_blank' || !(this.pending.size || this.busy || window.vsgSceneEditor?.dirty || window.vsgSceneEditor?.saving)) return;
+                if (event.defaultPrevented || !link || event.ctrlKey || event.metaKey || event.shiftKey || link.target === '_blank' || !(this.pending.size || this.busy || window.vsgSceneEditor?.dirty || window.vsgSceneEditor?.saving || window.vsgInventory?.dirty || window.vsgInventory?.saving || window.vsgFlags?.dirty || window.vsgFlags?.saving)) return;
                 event.preventDefault();
                 if (await this.flush()) window.location.assign(link.href);
             };
@@ -37,11 +38,14 @@ export function studioAutosave(initialRevision, options = {}) {
             });
         },
         async switchTab(next){
-            if(next==='visuals' && this.activePageId && this.activePageId!==options.pageId){if(await this.flush()){const url=new URL(window.location.href);url.searchParams.set('tab','visuals');window.location.assign(url.href);}return;}
+            if(next==='visuals' && this.activePageId && this.activePageId!==options.pageId){if(await this.flush()){const url=new URL(window.location.href);url.searchParams.set('page',this.activePageId);url.searchParams.delete('visual');url.searchParams.set('tab','visuals');window.location.assign(url.href);}return;}
+            if(typeof window!=='undefined' && window.vsgInventory && !(await window.vsgInventory.flush()))return;
+            if(next==='inventory'){if(!(await this.flush()))return;window.dispatchEvent(new CustomEvent('vsg-inventory-refresh'));}
+            if(window.vsgFlags && !(await window.vsgFlags.flush()))return;
             this.tab=next;
         },
         async openImages(){if(!(await this.flush()))return;window.location.assign(options.imageBase+'/'+this.activePageId+'/image-studio');},
-        async testActivePage(){if(this.activePageId!==options.pageId){if(await this.flush()){const url=new URL(window.location.href);url.searchParams.set('tab','visuals');url.searchParams.set('test','1');window.location.assign(url.href);}}else window.vsgSceneEditor?.preparePreview();},
+        async testActivePage(){if(this.activePageId!==options.pageId){if(await this.flush()){const url=new URL(window.location.href);url.searchParams.set('tab','visuals');url.searchParams.set('test','1');url.searchParams.set('page',this.activePageId);url.searchParams.delete('visual');window.location.assign(url.href);}}else window.vsgSceneEditor?.preparePreview();},
         changed(event) {
             const form = event.target.closest('form[data-autosave]');
             if (!form || !event.target.name || event.target.name === 'revision') return;
@@ -51,6 +55,8 @@ export function studioAutosave(initialRevision, options = {}) {
             this.timer = setTimeout(() => this.flush(), 400);
         },
         async flush() {
+            if(typeof window!=='undefined' && window.vsgInventory && !(await window.vsgInventory.flush()))return false;
+            if(typeof window!=='undefined' && window.vsgFlags && !(await window.vsgFlags.flush()))return false;
             const saved = await this.flushForms();
             return saved && (typeof window !== 'undefined' && window.vsgSceneEditor ? await window.vsgSceneEditor.flush() : true);
         },

@@ -1,0 +1,4 @@
+<div class="space-y-2">
+<div class="flex items-center justify-between gap-2"><h4 class="text-xs font-semibold">{{ $heading }}</h4><button type="button" class="text-xs underline" @click="addFlagRule({{ $target }},'{{ $field }}')">+ Flag</button></div>
+<template x-for="(condition,flagIndex) in {{ $target }}.{{ $field }}||[]" :key="flagIndex"><div class="flex items-center gap-3"><label class="field min-w-0 flex-1"><span class="sr-only">Story flag</span><select x-model="condition.key" @change="changed()"><template x-for="flag in flagDefinitions" :key="flag.key"><option :value="flag.key" x-text="flag.label"></option></template></select></label><label class="area-checkbox"><input type="checkbox" x-model="condition.value" @change="changed()"><span x-text="condition.value?'On':'Off'"></span></label><button type="button" class="text-xs underline" @click="removeFlagRule({{ $target }},'{{ $field }}',flagIndex)">Remove</button></div></template>
+</div>

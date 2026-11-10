@@ -96,9 +96,9 @@ class StudioController extends Controller {
         $this->owner($request,$story);abort_unless($revision->story_id===$story->id,404);
         $request->validate(['revision'=>'required|integer']);
         $draft->change($story,(int)$request->revision,'Restore revision '.$revision->revision,function($s)use($revision) {
-            $s->update($revision->snapshot['story']);
+            $s->update($revision->snapshot['story']);$s->increment('inventory_revision');$s->increment('flags_revision');
             app(\App\Services\PageOrder::class)->arrange($s,array_column($revision->snapshot['pages'],'id'));
-            foreach($revision->snapshot['pages'] as $page) { $id=$page['id'];unset($page['id'],$page['scene_prompt'],$page['video_prompt']);$s->pages()->whereKey($id)->firstOrFail()->update($page); }
+            foreach($revision->snapshot['pages'] as $page) { $id=$page['id'];unset($page['id'],$page['scene_prompt'],$page['video_prompt']);if(isset($page['visual_document']))$page['visual_document']=app(\App\Services\InventoryLibrary::class)->extract($s,$page['visual_document']);$s->pages()->whereKey($id)->firstOrFail()->update($page); }
         });
         return redirect()->route('stories.edit',$story)->with('status','Earlier draft restored, including page order and removed pages.');
     }

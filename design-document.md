@@ -60,7 +60,7 @@ Use a desktop-oriented editor with the following workspace regions. The creator 
 | Right inspector | Selected object properties, action rules, state, prompts, and asset settings |
 | Creator chat | Persistent conversation, LLM selector, attached references, proposed edits, generation actions, and job results |
 
-Project-level navigation contains Story, Pages, Items, Assets, and Publish. Each page has Story, Visuals, Interactions, States, and Preview tabs.
+Project-level navigation contains Story, Pages, Items, Assets, and Publish. The editor tabs are Page plan, Scenes, Image generation, Inventory, and Story bible. Reference images are uploaded and selected in the image-generation dialog; there is no separate References tab.
 
 ## Creator chat and model selection
 
@@ -507,3 +507,62 @@ Page navigation interactions now use an explicit destination page ID selected fr
 Clickable areas are independent records: drawing or naming an area creates no object or scene. Renaming/deleting an area leaves separately authored visuals intact. Creators explicitly create/link objects, including through image selection, or approve companion object proposals when requested. Chat shows animated Thinking… while waiting, then streams prose and displays Preparing changes… for proposal JSON.
 
 Move to page destinations include both target_page_id and target_scene_id. The combined dropdown lists every scene (not objects) using page number, page title and scene name. Preview opens the selected scene; legacy links without a scene ID fall back to the first scene. The server rejects scenes outside the selected destination page.
+
+### Inventory-based scene entry rules
+Scenes may have ordered skip rules. Each rule requires all selected inventory objects and points to a page/scene in the same story. Empty or incomplete rules are inactive. On entry, the first matching rule redirects automatically; a chain stops after three jumps at the reached scene. Pickup adds the item before destination rules run. Rules are edited below the scene after clicking its background; the checkbox dialog lists objects with thumbnails and source pages.
+
+Clickable areas can optionally display an independent story image via overlay_asset_id, enabled by overlay. Images preserve proportions within the area bounds, aligned top/middle/bottom through overlay_alignment (middle by default). This does not create an inventory object. The editor and preview share the rendering behavior.
+
+Game testing opens a starting-inventory dialog with a page/scene selector. It defaults to the first scene of the page being edited, independently of the selected visual, and allows starting at any authored scene. Entry skip rules still apply to the selected scene using the chosen starting inventory.
+
+Area descriptions appear on hover in the preview and remain until exit or click. A click during typing finishes the text before executing the area action; subsequent hovers show that text immediately for the rest of the test. Pointer exit without clicking hides the text immediately. All area action types can have hover text.
+
+Scenes store dialog_background, dialog_border and dialog_footer as hex colors. Auto derives these from alpha-weighted average scene pixels; readable text colors follow luminance. Inventory dialogs use the scene palette across editor themes, show static descriptions, and place actions in an accented footer. Hotspots use linked item descriptions by default; use_item_description can opt out, and manual/AI description edits disable it.
+
+Clickable areas support show_hover_text, default true for new and existing areas. Disabling it suppresses hover text only; click actions and saved description text remain intact.
+
+Area image overlays support overlay_always (default true). When false, the image appears only while the area is hovered or keyboard-focused; the invisible hit area remains clickable.
+
+Hotspot hover text can use area_top or area_bottom in description_position. Boxes match area width with a 150px minimum (capped by image width), and are clamped to all image edges, including vertically as text grows; overlap of the area is allowed.
+
+Hover descriptions now default to showing all text with a 150ms fade-in. The optional animate_hover_text flag (default false) enables word-by-word reveal; previously seen text still appears in full.
+
+Area-triggered scene descriptions share the area’s Animate text and Position settings with hover text, including area-relative bounds. Inventory item inspection descriptions remain static.
+
+Scene descriptions have an independent animation/lifetime from item hover and click descriptions. Clicking items does not dismiss or restart scene text; only the item-description channel is replaced. Scene changes start the next scene description.
+
+In-game text boxes now use a 200px minimum width (limited by available image width) and 250px maximum height. Longer text scrolls, and area-relative descriptions stay within the image.
+
+Inventory interaction rules can reference any object in the same story, including items collected on earlier pages. The picker labels objects with their source page; response scene targets remain local to the area’s page.
+
+When a pickup area disables hover text but has an effective item/custom description, the first click shows that description using its text settings and arms the area. The cursor changes to a grab hand with a pickup hint; the second click collects the item and clears that description. Areas without text or with hover enabled keep direct pickup.
+
+Companion area edits do not require selecting a hotspot. Named and bulk requests resolve targets from the full game structure. copy_areas proposals accept page_id, source_visual_id, destination visual_id and optional hotspot_ids, appending exact copies with fresh IDs to another scene on the same page. Each area is individually reviewable, and application validates the resulting document and stale revisions.
+
+
+## Shared inventory library
+
+Inventory is a game-level library, accessed from the Inventory tab immediately after Image generation. Each item has a stable UUID, name, assigned image, description, description position and replacement actions. Opened/closed or transformed states are separate shared items connected by actions. Items do not belong to individual pages.
+
+The Inventory tab supports creating, editing and deleting items with autosave. Each item lists links to all pages/scenes that reference it in areas, inventory-use rules or scene skip rules. Referenced items cannot be deleted until those links and replacement actions are removed. Archived images are excluded from the image picker.
+
+The Scenes tab contains scene definitions only. Areas select existing library items for inspect/pickup and inventory-use actions; selecting an image no longer creates an object. The same item can be referenced by multiple scenes and retains one inventory identity. Existing page objects are migrated with their original UUIDs, preserving all image, action and scene links.
+
+The companion receives the shared inventory separately from pages. It can propose `create_inventory` with item fields or `inventory` with `item_id` and changed fields. Inventory proposals are reviewed before applying, and library revisions protect against stale writes. Image generation remains separate; generated images are assigned to items from Inventory.
+
+
+## Persistent world state and image organization
+
+Story bible defines named boolean flags with stable keys and initial values. A new test/playthrough starts from those values; flags persist across scene/page transitions within the run, independently of carried inventory. Starting-test controls can override flag values for testing later states. Collection flags remain true after an item is consumed.
+
+Scene skip rules combine required inventory items and expected flag values using AND. At least one condition is required; matching rules redirect to a page and scene, with the existing maximum of three automatic jumps. Clickable areas can require flags/items and either hide or show a disabled explanation when unavailable. Areas set/clear flags only upon executing their action; pickup effects wait until collection actually happens. Inventory-use rules and named choices can set flags on their specific outcomes. Flags, conditions and effects are included in companion context and reviewable proposals.
+
+The Silent House uses stone_opened, key_collected, envelope_collected, door_unlocked and door_key_recovered. Page one's third overview links to the empty open stone; closing/reopening its lid and returning selects the appropriate overview. The key cannot respawn after consumption. The opened stone cannot be left before collecting its key; closing afterward is optional. Porch back-navigation areas are removed, and entry to the porch requires collecting the key.
+
+Image studio shows generation history from all game pages without page-loading toggles. Up/down arrows save a story-wide sidebar display order; new unranked generations appear first. This order changes no scene assignment or gameplay. Archived and failed cards remain optional, and other-page cards retain their reference-selection and read-only behavior.
+
+Scenes navigation uses one dropdown grouped by page. Selecting a scene on another page saves pending changes before navigating directly to it. Reorder arrows and drag handles apply only within the active page; scenes cannot be moved between pages.
+
+Area availability conditions are optional: enable them to edit flag/item requirements and unavailable behavior. Existing requirements remain enabled by default; disabling preserves their values but bypasses the gate. Action flag effects are independent and edited in a collapsed optional section.
+
+The main studio header shows the brand, All stories link, story title, and live draft revision. Editor tabs occupy the second header. The Scenes navigation/edit toolbar stays outside the scrolling editor content beneath the tabs, and its selected label includes both page and scene number. Header height is measured to keep the workspace and companion within the viewport.

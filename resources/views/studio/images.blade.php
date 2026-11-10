@@ -1,11 +1,8 @@
 <x-studio-layout :title="'Image generation · '.$story->title" :story="$story" :page="$page">
 <div x-data="studioAutosave({{ $story->revision }})" class="image-workspace story-editor-workspace">
-@include('studio.story-header')
-<section class="image-workspace-grid" x-data="sceneEditor(@js(['url'=>route('visuals.show',[$story,$page]),'generate'=>route('images.generate',[$story,$page]),'moveBase'=>url('/stories/'.$story->id.'/pages/'.$page->id.'/images'),'upload'=>route('assets.store',$story),'model'=>$story->image_model,'generationMode'=>true,'draftUrl'=>route('images.draft',[$story,$page]),'nameUrl'=>route('images.name',$story),'writingModel'=>$story->llm_model,'assetBase'=>url('/assets')]))">
+@include('studio.story-header',['generation'=>true])
+<section class="image-workspace-grid" x-data="sceneEditor(@js(['url'=>route('visuals.show',[$story,$page,'all_images'=>1]),'orderUrl'=>route('images.order',$story),'generate'=>route('images.generate',[$story,$page]),'moveBase'=>url('/stories/'.$story->id.'/pages/'.$page->id.'/images'),'upload'=>route('assets.store',$story),'model'=>$story->image_model,'generationMode'=>true,'draftUrl'=>route('images.draft',[$story,$page]),'nameUrl'=>route('images.name',$story),'writingModel'=>$story->llm_model,'assetBase'=>url('/assets')]))">
 <div class="image-controls-column min-w-0">
-<div class="editor-tabs min-w-0 px-4 pt-5 lg:px-5">
-@include('studio.tabs',['generation'=>true])
-</div>
 <div class="image-controls min-w-0 p-4 lg:p-5">
 <template x-if="visual"><div x-ref="generationForm" class="space-y-3">
 @include('studio.image-form')
@@ -18,7 +15,7 @@
 <div class="image-results-scroll space-y-3 p-3" x-ref="imageResults">
 <p x-show="!historyJobs.length" class="p-2 text-sm text-stone-500">Your images and prepared prompts will appear here.</p>
 <template x-for="job in visibleJobs" :key="job.id"><details :open="cardOpen(job)" @toggle="rememberCard(job,$el.open)" :class="selectedImageId===job.id?'ring-2 ring-amber-500 bg-amber-50 dark:bg-stone-800':'bg-white dark:bg-stone-900'" @click="if(!$event.target.closest('button,input,label,a'))selectImageCard(job)" class="rounded-xl border border-stone-200 dark:border-stone-700">
-<summary class="cursor-pointer p-3 text-sm"><span class="font-semibold break-words" x-text="jobTitle(job)"></span><span class="ml-1 text-xs" :class="job.status==='failed'?'text-red-600 dark:text-red-400':'text-stone-500'" x-show="!job.sourcePage" x-text="job.status"></span></summary>
+<summary class="cursor-pointer p-3 text-sm"><span class="float-right ml-2 inline-flex gap-2"><button type="button" :disabled="orderingImages || visibleJobs[0]?.id===job.id" :aria-label="'Move image up: '+jobTitle(job)" @click.prevent.stop="moveImageOrder(job.id,-1)">↑</button><button type="button" :disabled="orderingImages || visibleJobs[visibleJobs.length-1]?.id===job.id" :aria-label="'Move image down: '+jobTitle(job)" @click.prevent.stop="moveImageOrder(job.id,1)">↓</button></span><span class="font-semibold break-words" x-text="jobTitle(job)"></span><span class="ml-1 text-xs" :class="job.status==='failed'?'text-red-600 dark:text-red-400':'text-stone-500'" x-show="!job.sourcePage" x-text="job.status"></span></summary>
 <div class="space-y-3 px-3 pb-3">
 <button type="button" x-show="!job.sourcePage && ['draft','completed','failed'].includes(job.status)" class="text-xs underline" :aria-pressed="selectedImageId===job.id" @click="selectImageCard(job)" x-text="selectedImageId===job.id?'Selected image':'Select image'"></button>
 <p x-show="job.status==='draft'" class="grid aspect-video place-items-center rounded-lg bg-stone-100 text-xs text-stone-500 dark:bg-stone-800">Image not generated</p>
@@ -42,7 +39,6 @@
 <div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
 <button type="button" class="text-sm underline" @click="showArchived=!showArchived" x-text="showArchived?'Hide archived images':'Show archived images ('+archivedCount+')'"></button>
 <button type="button" class="text-sm underline" :aria-expanded="showFailed" @click="showFailed=!showFailed" x-text="showFailed?'Hide failed generations':'Show failed generations ('+failedCount+')'"></button>
-<template x-for="page in otherImagePages" :key="page.id"><button type="button" class="text-sm underline disabled:opacity-50" @click="togglePageImages(page)" :disabled="loadingImagePages.includes(page.id)" :aria-expanded="loadedImagePages.includes(page.id)" :title="page.title" x-text="loadingImagePages.includes(page.id)?'Loading page '+page.position+'…':(loadedImagePages.includes(page.id)?'Hide page ':'Show page ')+page.position+' images'"></button></template>
 </div>
 </div></aside>
 <dialog x-ref="referenceDialog" class="reference-dialog rounded-2xl border border-stone-200 bg-white text-stone-900 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100" aria-labelledby="reference-title" @click="if($event.target===$el)$el.close()">

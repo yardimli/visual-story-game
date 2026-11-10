@@ -1,6 +1,7 @@
 {{-- Keep this guide aligned with ChatController, CompanionChanges and ImageDrafts when adding capabilities. --}}
 @php
 $example = ['changes'=>[
+    ['scope'=>'copy_areas','page_id'=>12,'source_visual_id'=>'EXISTING_SOURCE_SCENE_UUID','visual_id'=>'EXISTING_DESTINATION_SCENE_UUID'],
     ['scope'=>'page','page_id'=>12,'fields'=>['narrative'=>'<h2>The empty stone</h2><p>The hollow stone lies open and empty.</p>']],
     ['scope'=>'create_page','after_page_id'=>12,'fields'=>[
         'title'=>'Back at the House','narrative'=>'Beyond the roses, the silent house waits.',
@@ -20,7 +21,7 @@ $example = ['changes'=>[
     <button type="button" class="btn-secondary" @click="$refs.companionHelp.close()" autofocus>Close</button>
 </header>
 <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5 text-sm leading-6">
-    <p>Ask in ordinary language. The companion focuses on your active page, tab, visual and clickable area, and can also work across your game. An animated Thinking… status appears immediately while waiting for a response. Replies stream as they are written. While the companion builds its structured proposal, an animated “Preparing changes…” label replaces the JSON. Review controls appear after the full response is received and validated. Changes appear under <strong>Review proposed changes</strong>: expand the results, uncheck anything you want to skip, then confirm.</p>
+    <p>Ask in ordinary language. The companion focuses on your active page, tab, visual and clickable area, and can also work across your game. An animated Thinking… status appears immediately while waiting for a response. Replies stream as they are written. While the companion builds its structured proposal, an animated “Preparing changes…” label replaces the JSON. Review controls appear after the full response is received and validated. Changes appear under <strong>Review proposed changes</strong>: the dialog opens automatically for new proposals, with all results visible. Uncheck anything you want to skip, then confirm. Use the review link at the end of the message to reopen it.</p>
     <section class="space-y-2">
         <h3 class="font-semibold">Plan and write your game</h3>
         <ul class="list-disc space-y-1 pl-5">
@@ -28,18 +29,20 @@ $example = ['changes'=>[
             <li>Edit the story title, premise, genre, language, visual style and story bible.</li>
             <li>Rewrite, shorten, expand or translate page titles, narrative overlays and interaction plans. Narrative overlays and interaction plans support Quill headings, bullet/numbered lists, emphasis, quotes and highlights. Titles and other fields stay plain text.</li>
             <li>Update the story’s saved writing-model and image-model preferences using a supplied model ID. Choose the model for the current chat in its dropdown.</li>
-        </ul>
+        <li>Set scene skip rules based on carried objects from any page, with a page/scene destination. All checked items are required; automatic chains stop after three jumps. Rules use visual fields.skip_rules with id, object_ids, target_page_id and target_scene_id.</li><li>Show an image inside a clickable area, independently of its action: overlay enables it, overlay_asset_id selects a story image, and overlay_alignment sets top, middle or bottom.</li><li>Writing a custom area description disables “Show item description”; otherwise hover text can use the linked inventory item description.</li><li>Enable or disable hover text per clickable area with show_hover_text (enabled by default), preserving its click action.</li><li>Set overlay_always to false for area images that appear only on hover or keyboard focus; the default is always visible.</li><li>Position hover text above or below its clickable area with description_position area_top or area_bottom; text remains inside the scene image.</li><li>Use animate_hover_text to opt into word-by-word hover text. By default, the full description fades in over 150ms.</li><li>Inventory-use rules can reference items from any page in the game, including keys collected on earlier pages.</li><li>Edit all areas in a named scene without selecting one. Copy drawn areas between scenes on the same page, preserving positions, sizes and interaction settings. Each copied area has its own review checkbox.</li></ul>
     </section>
     <section class="space-y-2">
         <h3 class="font-semibold">Add pages</h3>
         <ul class="list-disc space-y-1 pl-5">
             <li>Insert a page after an existing page, including its title, narrative and interaction plan. Later pages move down automatically.</li>
-            <li>Include new scene/object definitions, existing artwork and clickable areas in that new page. The whole page is one selectable review item.</li>
+            <li>Create and edit shared inventory items, their images, descriptions and replacement actions. Link existing item IDs from any scene without duplicating them.</li>
+            <li>Include new scene definitions, existing artwork and clickable areas in that new page. Objects belong to the shared Inventory library. The whole page is one selectable review item.</li>
             <li>For example: “Add a page after Rose Bushes using the empty-stone image, with one door interaction that goes to the next page.” Review any proposed clickable-area placement on the image.</li>
         </ul>
     </section>
     <section class="space-y-2">
-        <h3 class="font-semibold">Edit scenes, objects and interactions</h3>
+        <h3 class="font-semibold">Edit scenes, objects and clickable areas</h3>
+<p class="mt-2 text-sm">Create and edit persistent story flags in Story bible. Propose flag and inventory conditions for areas, hide or disable unavailable areas with an explanation, set flags on successful actions or inventory responses, and route scene entry by flag state. Flags remember world changes even after an item is consumed.</p>
         <ul class="list-disc space-y-1 pl-5">
             <li>Edit existing scene/object names, descriptions, top/bottom description placement, image/video prompts and assigned image assets.</li>
             <li>Edit an existing clickable area’s label, examine description, rectangle, overlay option, linked object and resulting scene.</li>
@@ -60,7 +63,7 @@ $example = ['changes'=>[
     </section>
     <section class="space-y-2">
         <h3 class="font-semibold">What you still do in the editor</h3>
-        <p>The companion can discuss any design idea, but its apply actions are limited to the capabilities above. Upload references, start paid image/video generation, publish or play the game, delete or reorder existing pages/visuals, change visual type, create new areas on existing scenes, and configure object replacement actions using the editor controls. It cannot change accounts, keys or credits.</p>
+        <p>The companion can discuss any design idea, but its apply actions are limited to the capabilities above. Upload references, start paid image/video generation, publish or play the game, delete or reorder existing pages/visuals, change visual type, create new areas on existing scenes, using the editor controls. Shared object replacement actions can also be proposed through inventory changes. It cannot change accounts, keys or credits.</p>
         <p>Writing a prompt or applying an image draft does not render it. Click <strong>Generate image</strong> when ready. Chat requests themselves use your selected writing model and AI credits or personal key. If the story changed since a proposal was made, request a fresh proposal.</p>
     </section>
     <details class="rounded-lg border border-stone-200 p-4 dark:border-stone-700">
@@ -72,7 +75,7 @@ $example = ['changes'=>[
                     <li>System instructions describing the linear game, allowed edits, response schema and creator-review requirement.</li>
                     <li>The saved story fields and model preferences; all pages with IDs, positions, titles, prose, rich-text deltas, complete visual documents and visual revisions. Visual documents include scenes, objects, descriptions, prompts, areas, rules and actions.</li>
                     <li>Reference metadata (ID, name, role and MIME type), unrendered image drafts (ID, page, name, image/video prompts), and the current image form’s name, prompts, model, settings and reference IDs.</li>
-                    <li>The active tab and selected page; selected visual and clickable area when editing interactions. Pending editor changes are flushed before sending.</li>
+                    <li>The full story flag definitions and shared inventory; the active tab and selected page; selected visual and clickable area when editing scenes. Pending editor changes are flushed before sending.</li>
                     <li>The previous <strong>10 messages</strong> from this story’s conversation, oldest first, followed by the new message. Both user and assistant messages count. Older messages are not summarized. The UI loads up to 40 messages.</li>
                 </ol>
                 <p>Completed/failed image-generation history, image binary data and API keys are not included in the chat prompt. The OpenRouter key authenticates the API request through its Authorization header. Outside an existing story, the companion receives the new-story form and the user’s general companion conversation instead.</p>

@@ -50,9 +50,21 @@ export function selectedLegacyProposal(proposal,selected) {
  for(const key of ['_image','_interaction'])if(proposal[key])result[key]=proposal[key];
  return result;
 }
+export function structuredPreview(value) {
+ const escape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const render=(v,depth=0)=>{
+  if(depth>30)return '<p>Content is too deeply nested to preview.</p>';
+  if(typeof v==='string' && /^[\s]*[\[{]/.test(v)){try{v=JSON.parse(v);}catch(_){}}
+  if(v==null)return '<p class="text-stone-500">Not set</p>';
+  if(Array.isArray(v))return v.length?'<ol class="review-value-list">'+v.map(item=>'<li>'+render(item,depth+1)+'</li>').join('')+'</ol>':'<p class="text-stone-500">None</p>';
+  if(typeof v==='object')return Object.keys(v).length?'<dl class="review-value-fields">'+Object.entries(v).map(([key,item])=>'<div><dt>'+escape(key.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase()))+'</dt><dd>'+render(item,depth+1)+'</dd></div>').join('')+'</dl>':'<p class="text-stone-500">None</p>';
+  return '<p class="whitespace-pre-wrap break-words">'+escape(typeof v==='boolean'?(v?'Yes':'No'):v)+'</p>';
+ };
+ return render(value);
+}
 export function proposalReview(item) {
- return {entries:reviewItems(item.proposal),chosen:[],reviewOpen:false,richPreview,
-  init(){this.chosen=this.entries.map(entry=>String(entry.id));},
+ return {entries:reviewItems(item.proposal),chosen:[],reviewOpen:false,richPreview,structuredPreview,
+  init(){this.chosen=this.entries.map(entry=>String(entry.id));if(item.autoReview && this.entries.length){item.autoReview=false;this.$nextTick?.(()=>this.$refs.reviewDialog.showModal());}},
   toggle(){this.chosen=this.chosen.filter(id=>{const entry=this.entries.find(e=>String(e.id)===id);return entry?.depends_on==null||this.chosen.includes(String(entry.depends_on));});},
   unavailable(entry){return entry.depends_on!=null&&!this.chosen.includes(String(entry.depends_on));},
   result(value){return value==null?'Not set':typeof value==='object'?JSON.stringify(value,null,2):String(value);}

@@ -1,0 +1,6 @@
+<section class="mt-8 space-y-4 rounded-xl border p-4 dark:border-stone-700" x-data="storyFlags(@js(route('flags.show',$story)))">
+<div class="flex items-center justify-between"><h3 class="font-serif text-xl">Story flags</h3><button type="button" class="btn-secondary" @click="add()" :disabled="loading || flags.length>=100">+ Flag</button></div>
+<p class="text-sm text-stone-500">Remember world changes such as an opened stone or unlocked door. Flags persist throughout a playthrough. Use them in scene skip rules and clickable area conditions.</p>
+<template x-for="(flag,index) in flags" :key="index"><div class="flex flex-wrap items-end gap-3"><label class="field min-w-0 flex-1">Name<input x-model="flag.label" maxlength="160" @input="changed()"></label><label class="field min-w-0 flex-1">Key<input x-model="flag.key" maxlength="64" pattern="[a-z][a-z0-9_]*" @change="changed()" placeholder="stone_opened"></label><label class="area-checkbox mb-3"><input type="checkbox" x-model="flag.initial" @change="changed()">On at game start</label><button type="button" class="btn-secondary" @click="flags.splice(index,1);changed()">Remove</button></div></template>
+<p x-show="!loading && !flags.length" class="text-sm text-stone-500">No flags yet. Create one here, then choose it in Scenes.</p>
+</section>

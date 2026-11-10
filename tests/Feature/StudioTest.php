@@ -14,8 +14,8 @@ class StudioTest extends TestCase {
     }
     public function test_editor_tabs_and_dashboard_history_are_scoped_to_owner(): void {
         $u=User::factory()->create();$s=$this->story($u);$p=$s->pages()->first();$this->actingAs($u);
-        $this->get(route('stories.edit',$s))->assertOk()->assertSeeInOrder(['Page plan','Interactions','Image generation ↗','References','Story bible'])->assertSee('Insert blank page after')->assertDontSee('Completion condition')->assertDontSee('storyboard-panel')->assertDontSee('Linear progression');
-        $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSeeInOrder(['Page plan','Interactions','aria-current="page"','Image generation ↗','References','Story bible'],false);
+        $this->get(route('stories.edit',$s))->assertOk()->assertSeeInOrder(['Page plan','Scenes','Image generation ↗','Inventory','Story bible'])->assertSee('Insert blank page after')->assertDontSee('A shared visual language')->assertDontSee("switchTab('assets')", false)->assertDontSee('Completion condition')->assertDontSee('storyboard-panel')->assertDontSee('Linear progression');
+        $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSeeInOrder(['Page plan','Scenes','aria-current="page"','Image generation ↗','Inventory','Story bible'],false);
         $this->get(route('dashboard',['history'=>$s->id]))->assertOk()->assertSee('History · Workshop')->assertSee('Your first save will create a revision.');
         $this->actingAs(User::factory()->create())->get(route('dashboard',['history'=>$s->id]))->assertNotFound();
     }

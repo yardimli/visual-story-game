@@ -1,21 +1,24 @@
+import {scenePalette, contrastText} from './scene-colors.js';
 import {imageCatalog} from './image-catalog.js';
 import {notify, watchNotices} from './toasts.js';
 import {selectableModels, rememberedModel, rememberModel, imagePriceLabel, imageModelLabel} from './model-preferences.js';
 export function sceneEditor(options) {
  return {
-  visualMenuOpen:false, draggedVisualId:'', visualDropId:'', narration:null, narrationVersion:0, inventoryPulse:false, pickupFlight:null, pickupTimer:null, previewInventorySelection:[], imagePickerPage:null, referencePage:'all', otherPageJobs:{}, loadedImagePages:[], loadingImagePages:[], previewPages:[], editorPageId:null, previewPageId:null, generationMode:!!options.generationMode, generationName:'', selectedImageId:null, generationInput:{prompt:'',video_prompt:''}, namingImage:false, retryingJob:null, editingVisual:false, showArchived:false, showFailed:false, cardStates:{}, expandedPrompts:{}, assetNames:{}, assetSaving:{}, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
+  flagDefinitions:[], flags:{}, previewFlags:[], imageOrder:[], orderingImages:false, inventoryItems:[], visualMenuOpen:false, draggedVisualId:'', visualDropId:'', narration:null, narrationVersion:0, inventoryPulse:false, pickupFlight:null, pickupTimer:null, previewInventorySelection:[], imagePickerPage:null, referencePage:'all', otherPageJobs:{}, loadedImagePages:[], loadingImagePages:[], previewPages:[], editorPageId:null, previewPageId:null, generationMode:!!options.generationMode, generationName:'', selectedImageId:null, generationInput:{prompt:'',video_prompt:''}, namingImage:false, retryingJob:null, editingVisual:false, showArchived:false, showFailed:false, cardStates:{}, expandedPrompts:{}, assetNames:{}, assetSaving:{}, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
   loading:true, dirty:false, saving:false, halted:false, status:'Loading scene artwork…', error:'', timer:null, active:null, polling:null, generating:false, uploading:false, uploadStatus:'', requestKey:crypto.randomUUID(),
   typeChange:null, moveJob:null, moveTarget:'', movingImage:false, visualAction:'scene', visualName:'', visualSourceId:'', deleteVisualId:'', areaDrag:null, renamingId:'', labelDraft:'', pickerKind:'object', deleteAreaId:'', suppressImageClick:false, inventoryOpen:false, outgoingScene:null, sceneTransition:false, transitionTimer:null, modalTimer:null, pendingModal:null, preview:false, previewId:'', inventory:[], collected:[], modal:null, drawing:false, drag:null, drawRect:null, imagePriceLabel, imageModelLabel,
   async init() {
    watchNotices(this,{status:'success',error:'error',uploadStatus:'success'});
    window.vsgSceneEditor=this;
+   this.flagsListener=e=>{this.flagDefinitions=e.detail;};window.addEventListener('vsg-flags',this.flagsListener);
+   this.inventoryListener=e=>{this.inventoryItems=JSON.parse(JSON.stringify(e.detail));};window.addEventListener('vsg-inventory',this.inventoryListener);
    this.loadCardStates();
    this.model=rememberedModel('vsg-image-model',options.model || '');
    this.unload=e=>{if(this.dirty || this.saving){e.preventDefault();e.returnValue='';}};
    window.addEventListener('beforeunload',this.unload);
    try {
-    const data=await this.request(options.url);this.document=data.document;this.previewPages=data.preview_pages||[];this.editorPageId=data.page_id;this.revision=data.revision;this.assets=data.assets;this.jobs=data.jobs;this.upgradePageLinks();this.credit(data);this.restoreVisual();
-    if(this.generationMode){const params=new URL(window.location.href).searchParams;const job=this.jobs.find(j=>String(j.id)===params.get('image'));if(job)this.fillImageCard(job);else if(params.get('visual')){const v=this.document.visuals.find(v=>v.id===this.selected);this.generationInput={prompt:v?.prompt||'',video_prompt:v?.video_prompt||''};}}
+    const data=await this.request(options.url);this.document=data.document;this.previewPages=data.preview_pages||[];this.inventoryItems=data.inventory_items||[];this.editorPageId=data.page_id;this.revision=data.revision;this.assets=data.assets;this.jobs=data.jobs;this.flagDefinitions=data.game_flags||[];this.imageOrder=data.image_order||[];this.upgradePageLinks();this.credit(data);this.restoreVisual();
+    if(this.generationMode){const params=new URL(window.location.href).searchParams;const job=this.jobs.find(j=>String(j.id)===params.get('image'));if(job)this.fillImageCard(job);else if(params.get('visual')){const v=[...this.document.visuals,...this.gameObjects].find(v=>v.id===(params.get('visual')||this.selected));this.generationInput={prompt:v?.prompt||'',video_prompt:v?.video_prompt||''};}}
     this.status='';
    } catch(e){this.error=e.message;this.halted=true;}
    this.loading=false;
@@ -23,7 +26,7 @@ export function sceneEditor(options) {
    try { this.models=selectableModels((await imageCatalog()).models,'image'); if(!this.models.some(m=>m.id===this.model)) this.model=''; if(this.model){const settings={...this.settings};await this.loadEndpoints();this.settings=settings;} } catch(e) { this.error='Image catalog unavailable. You can still edit existing visuals; reload to try discovery again.'; }
    this.polling=setInterval(()=>this.refresh(),5000);
   },
-  destroy(){clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
+  destroy(){window.removeEventListener('vsg-flags',this.flagsListener);window.removeEventListener('vsg-inventory',this.inventoryListener);clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
   async request(url,method='GET',body=null) {
    const response=await fetch(url,{method,headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},...(body ? {body:JSON.stringify(body)} : {})});
    const data=await response.json();
@@ -50,7 +53,7 @@ export function sceneEditor(options) {
   selectVisualOption(value){if(value==='new:scene'||value==='new:object'){this.requestVisualName(value.slice(4));}else this.choose(value);},
   get hotspot(){return this.visual?.hotspots.find(h=>h.id===this.hotspotId);},
   get generationVisual(){
-   if(!this.preview && ['inspect','pickup'].includes(this.hotspot?.action))return this.objects.find(v=>v.id===this.hotspot.object_id);
+   if(!this.preview && ['inspect','pickup'].includes(this.hotspot?.action))return this.gameObjects.find(v=>v.id===this.hotspot.object_id);
    return this.visual;
   },
   async openGeneration(base,forInteraction=true){
@@ -69,7 +72,8 @@ export function sceneEditor(options) {
   },
   get playVisuals(){return this.preview && this.previewPageId!==this.editorPageId ? (this.previewPages.find(p=>p.id===this.previewPageId)?.visuals||this.document.visuals) : this.document.visuals;},
   get scenes(){return this.playVisuals.filter(v=>v.kind==='scene');},
-  get objects(){return (this.preview?[...this.document.visuals,...this.previewPages.filter(p=>p.id!==this.editorPageId).flatMap(p=>p.visuals)]:this.document.visuals).filter(v=>v.kind==='object');},
+  get gameObjects(){return [...new Map([...this.document.visuals,...this.previewPages.filter(p=>p.id!==this.editorPageId).flatMap(p=>p.visuals),...this.inventoryItems].filter(v=>v.kind==='object').map(v=>[v.id,v])).values()];},
+  get objects(){return this.gameObjects;},
   get endpoint(){
    if(!this.endpoints.length)return null;
    const supported_parameters={};
@@ -80,7 +84,7 @@ export function sceneEditor(options) {
    return {supported_parameters,pricing:[...new Map(this.endpoints.flatMap(e=>e.pricing||[]).map(l=>[JSON.stringify(l),l])).values()]};
   },
   get displayed(){return this.preview ? this.playVisuals.find(v=>v.id===this.previewId) : this.visual;},
-  get currentHotspots(){return (this.displayed?.hotspots||[]).filter(h=>!this.preview || !this.collected.includes(h.id));},
+  get currentHotspots(){return (this.displayed?.hotspots||[]).filter(h=>!this.preview || (!this.collected.includes(h.id) && (h.unavailable_behavior!=='hide'||this.conditionsMet(h))));},
   asset(id){return this.assets.find(a=>a.id===Number(id));},
   async uploadReferences(input){
    const files=[...input.files];if(!files.length||this.uploading)return;
@@ -96,8 +100,68 @@ export function sceneEditor(options) {
    } catch(e){this.uploadStatus='';this.error=e.message||'Upload failed. Please try again.';}
    finally{this.uploading=false;input.value='';}
   },
-  visualAsset(id){return this.asset(this.document.visuals.find(v=>v.id===id)?.asset_id);},
+  paletteBusy:false,
+  dialogPalette(v){return {background:v?.dialog_background||'#292524',border:v?.dialog_border||'#a8a29e',footer:v?.dialog_footer||'#44403c'};},
+  get gameDialogStyle(){const p=this.dialogPalette(this.displayed);return {'--game-dialog-bg':p.background,'--game-dialog-border':p.border,'--game-dialog-footer':p.footer,'--game-dialog-text':contrastText(p.background),'--game-footer-text':contrastText(p.footer)};},
+  async autoDialogColors(){
+   const visual=this.visual,asset=this.asset(visual?.asset_id);if(!asset||this.paletteBusy)return;
+   this.paletteBusy=true;
+   try{const img=new Image();img.src=asset.url;await img.decode();const canvas=document.createElement('canvas');canvas.width=32;canvas.height=32;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,32,32);const p=scenePalette(ctx.getImageData(0,0,32,32).data);if(this.document.visuals.includes(visual)){visual.dialog_background=p.background;visual.dialog_border=p.border;visual.dialog_footer=p.footer;this.changed();}}
+   catch(_){notify('Unable to read scene colors. Choose colors manually.','error');}finally{this.paletteBusy=false;}
+  },
+  usesItemDescription(h){return h.use_item_description ?? !String(h.description||'').trim();},
+  armedPickup:null,
+  pickupKey(h){return this.previewPageId+':'+this.previewId+':'+h.id;},
+  pickupReady(h){return h.action==='pickup' && this.armedPickup===this.pickupKey(h);},
+  areaDescription(h){return this.usesItemDescription(h)?this.gameObjects.find(v=>v.id===h.object_id)?.description||'':h.description||'';},
+  hoverDetails(h){if(h.show_hover_text===false)return {...h,description:''};return this.usesItemDescription(h)?{...h,description:this.gameObjects.find(v=>v.id===h.object_id)?.description||''}:h;},
+  visualAsset(id){return this.asset([...this.document.visuals,...this.gameObjects].find(v=>v.id===id)?.asset_id);},
+  changeAreaAction(action){if(!this.hotspot)return;this.hotspot.action=action;if(!['pickup','inspect','transition'].includes(action))this.hotspot.target_id=null;this.armedPickup=null;this.changed();},
+  flagLabel(key){return this.flagDefinitions.find(f=>f.key===key)?.label||key;},
+  availabilityEnabled(area){return area?.availability_enabled ?? !!(area?.flag_conditions?.length || area?.required_items?.length);},
+  conditionsMet(rule){if(rule.availability_enabled===false)return true;return (rule.flag_conditions||[]).every(c=>!!this.flags[c.key]===c.value) && (rule.required_items||rule.object_ids||[]).every(id=>this.inventory.some(item=>item.id===id));},
+  applyFlagEffects(rule){for(const effect of rule?.flag_effects||[])if(this.flagDefinitions.some(f=>f.key===effect.key))this.flags[effect.key]=effect.value;},
+  addFlagRule(target,field){target[field]??=[];const flag=this.flagDefinitions.find(f=>!target[field].some(c=>c.key===f.key));if(flag){target[field].push({key:flag.key,value:true});this.changed();}else notify('Add a story flag in Story bible first.','info');},
+  removeFlagRule(target,field,index){target[field].splice(index,1);this.changed();},
+  areaLayer(h){return (this.displayed?.hotspots||[]).findIndex(area=>area.id===h.id)+1;},
+  moveAreaLayer(id,direction){
+   if(this.preview||!this.visual)return;
+   const areas=this.visual.hotspots,index=areas.findIndex(h=>h.id===id),target=index+direction;
+   if(index<0||target<0||target>=areas.length)return;
+   const [area]=areas.splice(index,1);areas.splice(target,0,area);this.hotspotId=id;this.changed();
+  },
   style(h){return `left:${h.x*100}%;top:${h.y*100}%;width:${h.width*100}%;height:${h.height*100}%`;},
+  switchingPage:false,
+  get sceneNavigationPages(){return this.previewPages.map(page=>({...page,scenes:(page.id===this.editorPageId?this.document.visuals:(page.visuals||[])).filter(v=>v.kind==='scene')}));},
+  get currentSceneLabel(){const page=this.previewPages.find(p=>p.id===this.editorPageId);return (page?this.pageImageLabel(page)+' — ':'')+(this.visual?(this.scenes.findIndex(scene=>scene.id===this.selected)+1)+'. '+this.visual.name:'Select a scene');},
+  toggleVisualMenu(){
+   this.visualMenuOpen=!this.visualMenuOpen;
+   if(this.visualMenuOpen)this.$nextTick(()=>{
+    const list=this.$refs.visualMenuList;
+    const group=Array.from(list?.querySelectorAll('[data-page-id]')||[]).find(el=>Number(el.dataset.pageId)===Number(this.editorPageId));
+    if(!group)return;
+    list.scrollTop+=group.getBoundingClientRect().top-list.getBoundingClientRect().top-4;
+    const selected=group.querySelector('.visual-select-current');
+    if(selected && selected.getBoundingClientRect().bottom>list.getBoundingClientRect().bottom)list.scrollTop+=selected.getBoundingClientRect().bottom-list.getBoundingClientRect().bottom+4;
+   });
+  },
+  selectNavigationScene(pageId,sceneId){
+   if(pageId!==this.editorPageId)return this.navigateInteractionPage(pageId,sceneId);
+   this.choose(sceneId);this.visualMenuOpen=false;this.$refs.visualMenuButton.focus();
+  },
+  async navigateInteractionPage(id,sceneId=null){
+   const page=this.previewPages.find(p=>Number(p.id)===Number(id));if(!page||this.switchingPage)return;
+   this.switchingPage=true;
+   try{
+    if(window.vsgAutosave && !(await window.vsgAutosave.flush()))return;
+    if(!(await this.flush()))return;
+    const visuals=page.id===this.editorPageId?this.document.visuals:page.visuals;
+    const firstScene=(visuals||[]).find(v=>v.kind==='scene' && v.id===sceneId)||(visuals||[]).find(v=>v.kind==='scene');
+    const url=new URL(window.location.href);url.searchParams.set('page',page.id);url.searchParams.set('tab','visuals');url.searchParams.delete('test');url.searchParams.delete('visual');
+    if(firstScene)url.searchParams.set('visual',firstScene.id);
+    window.location.assign(url.href);
+   }finally{this.switchingPage=false;}
+  },
   restoreVisual(){
    const requested=new URL(window.location.href).searchParams.get('visual');
    this.selected=this.document.visuals.some(v=>v.id===requested)?requested:(this.generationMode && requested?'':this.document.visuals[0]?.id||'');
@@ -160,7 +224,12 @@ export function sceneEditor(options) {
     if(!this.otherPageJobs[page.id].length)notify('This page has no completed images yet.','info');
    }catch(e){this.error=e.message;}finally{this.loadingImagePages=this.loadingImagePages.filter(id=>id!==page.id);}
   },
-  get visibleJobs(){return this.historyJobs.filter(job=>(this.showFailed || job.status!=='failed') && (!job.asset_ids?.length || this.jobAssets(job).length));},
+  get visibleJobs(){const rank=new Map(this.imageOrder.map((id,i)=>[id,i]));return this.historyJobs.filter(job=>(this.showFailed || job.status!=='failed') && (!job.asset_ids?.length || this.jobAssets(job).length)).sort((a,b)=>(rank.get(a.id)??-1)-(rank.get(b.id)??-1));},
+  async moveImageOrder(id,direction){
+   if(this.orderingImages)return;const visible=this.visibleJobs.map(j=>j.id),index=visible.indexOf(id),target=index+direction;if(index<0||target<0||target>=visible.length)return;
+   const order=[...this.visibleJobs,...this.historyJobs.filter(j=>!visible.includes(j.id))].map(j=>j.id).filter(id=>Number.isInteger(id));const a=order.indexOf(id),b=order.indexOf(visible[target]);if(a<0||b<0)return;[order[a],order[b]]=[order[b],order[a]];
+   this.orderingImages=true;try{const d=await this.request(options.orderUrl,'PUT',{order});this.imageOrder=d.order;}catch(e){this.error=e.message;}finally{this.orderingImages=false;}
+  },
   get failedCount(){return this.jobs.filter(job=>job.status==='failed').length;},
   jobAssets(job){return (job.asset_ids||[]).filter(id=>this.showArchived || !this.asset(id)?.archived);},
   get archivedCount(){return this.assets.filter(a=>a.archived && this.historyJobs.some(j=>j.asset_ids?.includes(a.id))).length;},
@@ -222,23 +291,27 @@ export function sceneEditor(options) {
    for(const v of this.document.visuals)for(const h of v.hotspots||[]){
     if(change.kind==='object'){for(const rule of [...(h.inventory_rules||[]),...(h.choices||[])])if(rule.target_id===visual.id)rule.target_id=null;}else if(h.inventory_rules){h.inventory_rules=h.inventory_rules.filter(rule=>rule.object_id!==visual.id);}
     if(change.kind==='object' && h.target_id===visual.id){h.target_id=null;if(h.action==='transition')h.action='examine';}
-    if(change.kind==='scene' && h.object_id===visual.id){h.object_id=null;h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
+    if(change.kind==='scene' && h.object_id===visual.id){h.object_id=null;if(!h.overlay_asset_id)h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
    }
+   if(change.kind==='object')visual.skip_rules=[];
+   this.clearSkipReferences(visual.id);
    visual.kind=change.kind;this.hotspotId='';this.renamingId='';this.areaDrag=null;this.preview=false;this.cancelDraw();
    this.typeChange=null;this.changed();this.$refs.visualTypeDialog?.close();
   },
   requestVisualDelete(){if(!this.visual)return;this.deleteVisualId=this.visual.id;this.$refs.deleteVisualDialog.showModal();},
   get deletingVisual(){return this.document.visuals.find(v=>v.id===this.deleteVisualId);},
   get dependentAreas(){return this.document.visuals.filter(v=>v.id!==this.deleteVisualId).flatMap(v=>[...(v.hotspots||[]),...(v.actions||[]),...(v.hotspots||[]).flatMap(h=>[...(h.inventory_rules||[]),...(h.choices||[])])]).filter(h=>h.target_id===this.deleteVisualId||h.object_id===this.deleteVisualId).length;},
+  clearSkipReferences(id){for(const v of this.document.visuals)v.skip_rules=(v.skip_rules||[]).filter(r=>r.target_scene_id!==id && !r.object_ids.includes(id));},
   confirmVisualDelete(){
    const id=this.deleteVisualId;if(!this.deletingVisual)return;
+   this.clearSkipReferences(id);
    this.document.visuals=this.document.visuals.filter(v=>v.id!==id);
    for(const v of this.document.visuals)for(const a of v.actions||[])if(a.target_id===id)a.target_id=null;
    for(const v of this.document.visuals)for(const h of v.hotspots){
     if(h.inventory_rules)h.inventory_rules=h.inventory_rules.filter(rule=>rule.object_id!==id);
     for(const rule of [...(h.inventory_rules||[]),...(h.choices||[])])if(rule.target_id===id)rule.target_id=null;
     if(h.target_id===id){h.target_id=null;if(h.action==='transition')h.action='examine';}
-    if(h.object_id===id){h.object_id=null;h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
+    if(h.object_id===id){h.object_id=null;if(!h.overlay_asset_id)h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
    }
    this.choose(this.document.visuals[0]?.id||'');this.drawing=false;this.drag=null;this.areaDrag=null;this.renamingId='';this.modal=null;this.references=[];
    this.deleteVisualId='';this.changed();this.$refs.deleteVisualDialog.close();
@@ -353,18 +426,19 @@ export function sceneEditor(options) {
   endArea(cancel=false){const d=this.areaDrag;if(!d)return;const h=this.visual.hotspots.find(h=>h.id===d.id);if(h){if(cancel)Object.assign(h,d.original);else if(Object.keys(d.original).some(k=>h[k]!==d.original[k]))this.changed();}this.areaDrag=null;},
   areaKey(e,h){if(this.preview||e.target!==e.currentTarget)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();this.requestAreaDelete(h.id);return;}if(e.key==='F2'){e.preventDefault();this.beginRename(h);return;}const delta={ArrowLeft:[-.005,0],ArrowRight:[.005,0],ArrowUp:[0,-.005],ArrowDown:[0,.005]}[e.key];if(!delta)return;e.preventDefault();this.hotspotId=h.id;if(e.shiftKey){h.width+=delta[0];h.height+=delta[1];}else{h.x=Math.max(0,Math.min(1-h.width,h.x+delta[0]));h.y=Math.max(0,Math.min(1-h.height,h.y+delta[1]));}this.clampArea();},
   sceneLabel(v){return 'Scene '+(this.scenes.findIndex(s=>s.id===v.id)+1)+' · '+v.name+' · '+(this.asset(v.asset_id)?.name||'No image');},
-  get referenceAssets(){return this.referencePage==='all'?this.assets:this.assets.filter(a=>(a.page_ids||[]).some(id=>String(id)===String(this.referencePage)));},
+  get referenceAssets(){return this.assets.filter(a=>!a.archived && (this.referencePage==='all' || (a.page_ids||[]).some(id=>String(id)===String(this.referencePage))));},
   openReferences(){this.referencePage='all';this.$refs.referenceDialog.showModal();this.$nextTick(()=>{this.$refs.referenceImagesScroll.scrollTop=0;});},
-  get pickerAssets(){return this.assets.filter(a=>this.imagePickerPage==='uploads'?!a.page_ids?.length:(a.page_ids||[]).some(id=>String(id)===String(this.imagePickerPage)));},
-  openVisualImagePicker(){this.imagePickerPage=String(this.editorPageId);this.$refs.visualImagePicker.showModal();},
+  get pickerAssets(){return this.assets.filter(a=>!a.archived && (this.imagePickerPage==='uploads'?!a.page_ids?.length:(a.page_ids||[]).some(id=>String(id)===String(this.imagePickerPage))));},
+  imagePickerTarget:'visual',
+  areaImage(h){return h?.overlay?this.asset(h.overlay_asset_id !== undefined ? h.overlay_asset_id : this.gameObjects.find(v=>v.id===h.object_id)?.asset_id):null;},
+  areaImagePosition(h){return {top:'center top',middle:'center center',bottom:'center bottom'}[h.overlay_alignment]||'center center';},
+  get pickerSelectedAsset(){return this.imagePickerTarget==='area'?this.areaImage(this.hotspot)?.id:this.visual?.asset_id;},
+  selectPickerImage(id){if(this.imagePickerTarget==='area'){if(this.hotspot){this.hotspot.overlay_asset_id=id;this.changed();}}else if(this.visual){if(id)this.useImage(id);else{this.visual.asset_id=null;this.changed();}}this.$refs.visualImagePicker.close();},
+  openAreaImagePicker(){this.imagePickerTarget='area';this.imagePickerPage=String(this.editorPageId);this.$refs.visualImagePicker.showModal();},
+  openVisualImagePicker(){this.imagePickerTarget='visual';this.imagePickerPage=String(this.editorPageId);this.$refs.visualImagePicker.showModal();},
   openInteractionPicker(kind){this.imagePickerPage=String(this.editorPageId);this.pickerKind=kind;this.$refs.interactionImagePicker.showModal();},
-  selectObjectImage(id){
-   if(!this.hotspot)return;let object=this.objects.find(v=>v.id===this.hotspot.object_id && !v.asset_id);
-   if(object)object.asset_id=Number(id);
-   else object=this.objects.find(v=>v.asset_id===Number(id));
-   if(!object){if(this.document.visuals.length>=100){this.error='This page has reached its 100-visual limit.';return;}object={id:crypto.randomUUID(),kind:'object',name:this.asset(id)?.name||'Object image',asset_id:Number(id),prompt:'',hotspots:[]};this.document.visuals.push(object);}
-   this.hotspot.object_id=object.id;this.changed();this.$refs.interactionImagePicker.close();
-  },
+  selectInventoryItem(id){if(!this.hotspot||!this.gameObjects.some(v=>v.id===id))return;this.hotspot.object_id=id;this.changed();this.$refs.interactionImagePicker.close();},
+  selectObjectImage(id){const object=this.gameObjects.find(v=>v.asset_id===Number(id));if(object)this.selectInventoryItem(object.id);else this.error='Create this item in Inventory first.';},
   clampArea(){const h=this.hotspot;if(!h)return;h.x=Math.max(0,Math.min(.995,Number(h.x)||0));h.y=Math.max(0,Math.min(.995,Number(h.y)||0));h.width=Math.max(.005,Math.min(1-h.x,Number(h.width)||.005));h.height=Math.max(.005,Math.min(1-h.y,Number(h.height)||.005));this.changed();},
   point(e){const r=e.currentTarget.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))};},
   enlarge(asset){if(this.suppressImageClick){this.suppressImageClick=false;return;}if(!this.drawing&&!this.preview&&asset)window.dispatchEvent(new CustomEvent('vsg-image',{detail:asset}));},
@@ -388,31 +462,51 @@ export function sceneEditor(options) {
    setTimeout(()=>{this.suppressImageClick=false;},0);
   },
   addInventoryRule(objectId=null){if(!this.hotspot)return;this.hotspot.inventory_rules??=[];if(this.hotspot.inventory_rules.length>=100)return;this.hotspot.inventory_rules.push({object_id:objectId,response:'',target_id:null,consume:false});this.changed();},
-  addAllInventoryRules(){if(!this.hotspot)return;for(const object of this.objects)if(!(this.hotspot.inventory_rules||[]).some(r=>r.object_id===object.id))this.addInventoryRule(object.id);},
+  addAllInventoryRules(){if(!this.hotspot)return;for(const object of this.previewInventoryItems)if(!(this.hotspot.inventory_rules||[]).some(r=>r.object_id===object.id))this.addInventoryRule(object.id);},
   addAreaChoice(){if(!this.hotspot)return;this.hotspot.choices??=[];if(this.hotspot.choices.length>=20)return;this.hotspot.choices.push({label:'New action',response:'',target_id:null});this.changed();},
   get modalArea(){return this.playVisuals.find(v=>v.id===this.modal?.sceneId)?.hotspots?.find(h=>h.id===this.modal?.areaId);},
-  openAreaInteraction(h){this.inventoryOpen=false;this.showObjectModal({areaId:h.id,sceneId:this.previewId,label:h.label,text:h.interaction_text||'',position:h.description_position||'top',showItems:false});},
+  areaTextOptions(h){return {animate:h.animate_hover_text===true,area:{x:h.x,y:h.y,width:h.width,height:h.height},position:h.description_position||'top'};},
+  openAreaInteraction(h){this.inventoryOpen=false;this.showObjectModal({...this.areaTextOptions(h),areaId:h.id,sceneId:this.previewId,label:h.label,text:h.interaction_text||'',position:h.description_position||'top',showItems:false});},
   useInventoryOnArea(inventoryId){
    const area=this.modalArea;if(!this.preview||area?.action!=='inventory'||this.modal.sceneId!==this.previewId)return;
    const index=this.inventory.findIndex(item=>(item.inventoryId||item.id)===inventoryId);if(index<0)return;
    const rule=(area.inventory_rules||[]).find(r=>r.object_id===this.inventory[index].id);
-   if(rule?.consume)this.inventory.splice(index,1);
+   if(rule?.consume)this.inventory.splice(index,1);this.applyFlagEffects(rule);
    this.areaOutcome(area,rule?.response?.trim() || area.fallback_text?.trim() || 'Nothing happens.',rule?.target_id,rule?.description_position||area.description_position);
   },
-  chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice)this.areaOutcome(area,choice.response||'',choice.target_id,choice.description_position);},
+  chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice){this.applyFlagEffects(choice);this.areaOutcome(area,choice.response||'',choice.target_id,choice.description_position);}},
   areaOutcome(area,text,targetId,position=area.description_position||'top'){
    if(targetId && targetId!==this.previewId && this.scenes.some(v=>v.id===targetId)){
-    this.transitionScene(targetId);if(text)this.showObjectModal({label:area.label,text,position,url:null});
-   }else {this.modal={...this.modal,text,position,version:(this.modal.version||0)+1,showItems:false};}
+    this.transitionScene(targetId);if(text)this.showObjectModal({...this.areaTextOptions(area),label:area.label,text,position,url:null});
+   }else {this.modal={...this.modal,...this.areaTextOptions(area),text,position,version:(this.modal.version||0)+1,showItems:false};}
   },
   addObjectAction(){if(this.visual?.kind!=='object')return;this.visual.actions??=[];if(this.visual.actions.length>=50)return;this.visual.actions.push({id:crypto.randomUUID(),label:'New action',target_id:null});this.changed();},
   removeObjectAction(id){this.visual.actions=(this.visual.actions||[]).filter(a=>a.id!==id);this.changed();},
-  deliverPreviewMessage(value){if(value && !value.url && !value.areaId && !value.inventoryId && !value.inspect){this.modal=null;this.narration={...value,position:value.position||'top'};this.narrationVersion++;}else this.modal=value;},
+  deliverPreviewMessage(value){if(value && !value.url && !value.areaId && !value.inventoryId && !value.inspect){this.modal=null;this.narration={...value,position:value.position||'top'};this.narrationVersion++;}else{this.narration=null;this.modal=value;}},
   showObjectModal(value){if(this.sceneTransition || this.modalTimer!==null){this.pendingModal=value;}else{this.deliverPreviewMessage(value);}},
   clearSceneTransition(){clearTimeout(this.transitionTimer);clearTimeout(this.modalTimer);this.transitionTimer=null;this.modalTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
+  skipRuleId:'', skipItemSelection:[], skipJumpCount:0,
+  selectSceneBackground(){if(!this.drawing && !this.suppressImageClick)this.hotspotId='';},
+  addSkipRule(){this.visual.skip_rules??=[];this.visual.skip_rules.push({id:crypto.randomUUID(),object_ids:[],target_page_id:null,target_scene_id:null});this.changed();},
+  removeSkipRule(id){this.visual.skip_rules=this.visual.skip_rules.filter(r=>r.id!==id);this.changed();},
+  chooseSkipItems(rule){this.skipRuleId=rule.id;this.skipItemSelection=[...rule.object_ids];this.$refs.skipItemsDialog.showModal();},
+  saveSkipItems(){const rule=this.visual?.skip_rules?.find(r=>r.id===this.skipRuleId);if(rule){rule.object_ids=[...this.skipItemSelection];this.changed();}this.$refs.skipItemsDialog.close();},
+  skipItemsLabel(rule){return this.previewInventoryItems.filter(i=>rule.object_ids.includes(i.id)).map(i=>i.name).join(', ')||'Choose inventory items';},
+  setSkipDestination(rule,key){const d=this.pageSceneDestinations.find(d=>d.key===key);rule.target_page_id=d?.pageId||null;rule.target_scene_id=d?.sceneId||null;this.changed();},
+  resolveSceneEntry(pageId,sceneId){
+   const sceneAt=(p,id)=>(p===this.editorPageId?this.document.visuals:(this.previewPages.find(page=>page.id===p)?.visuals||[])).find(v=>v.kind==='scene' && v.id===id);
+   let scene=sceneAt(pageId,sceneId);this.skipJumpCount=0;
+   while(scene && this.skipJumpCount<3){
+    const rule=(scene.skip_rules||[]).find(r=>(r.object_ids?.length || r.flag_conditions?.length) && this.conditionsMet(r) && sceneAt(r.target_page_id,r.target_scene_id));
+    if(!rule)break;
+    pageId=rule.target_page_id;sceneId=rule.target_scene_id;scene=sceneAt(pageId,sceneId);this.skipJumpCount++;
+   }
+   return {pageId,sceneId};
+  },
   transitionScene(id,nextPageId=this.previewPageId){
-   const target=(nextPageId===this.previewPageId?this.scenes:(this.previewPages.find(p=>p.id===nextPageId)?.visuals||[]).filter(v=>v.kind==='scene')).find(v=>v.id===id);if(!target||id===this.previewId)return;
-   this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;
+   const destination=this.resolveSceneEntry(nextPageId,id);id=destination.sceneId;nextPageId=destination.pageId;
+   const target=(nextPageId===this.editorPageId?this.document.visuals:(this.previewPages.find(p=>p.id===nextPageId)?.visuals||[])).find(v=>v.kind==='scene' && v.id===id);if(!target||(id===this.previewId && nextPageId===this.previewPageId))return;
+   this.armedPickup=null;this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;
    this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview && this.pendingModal)this.deliverPreviewMessage(this.pendingModal);this.pendingModal=null;},250);},200);
   },
   openInventory(item){this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',position:item.description_position||'top',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
@@ -426,15 +520,16 @@ export function sceneEditor(options) {
   },
   get previewInventoryItems(){
    const pages=this.previewPages.length?this.previewPages:[{id:this.editorPageId,position:1,title:'',visuals:[]}];
-   return pages.flatMap(page=>(page.id===this.editorPageId?this.document.visuals:page.visuals).filter(v=>v.kind==='object').map(v=>({...v,sourcePage:this.pageImageLabel(page)})));
+   return [...this.inventoryItems.map(v=>({...v,sourcePage:'Shared inventory'})),...pages.flatMap(page=>(page.id===this.editorPageId?this.document.visuals:page.visuals).filter(v=>v.kind==='object').map(v=>({...v,sourcePage:this.pageImageLabel(page)})))].filter((v,index,all)=>all.findIndex(i=>i.id===v.id)===index);
   },
+  previewStartKey:'',
   preparePreview(){
-   if(!this.document.visuals.some(v=>v.kind==='scene')){notify('Add a scene before testing interactions.','error');return;}
-   this.previewInventorySelection=[];this.$refs.previewInventoryDialog.showModal();
+   if(!this.document.visuals.some(v=>v.kind==='scene')){notify('Add a scene before testing scenes.','error');return;}
+   this.previewStartKey=this.pageSceneDestinations.find(d=>d.pageId===this.editorPageId)?.key||'';this.previewInventorySelection=[];this.previewFlags=this.flagDefinitions.filter(f=>f.initial).map(f=>f.key);this.$refs.previewInventoryDialog.showModal();
   },
-  confirmPreviewInventory(){const selected=[...this.previewInventorySelection];this.$refs.previewInventoryDialog.close();this.startPreview(selected);},
-  startPreview(initialItems=[]){clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing interactions.','error');return;}this.previewId=this.visual?.kind==='scene'?this.visual.id:this.scenes[0]?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
-  closePreview(){clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
+  confirmPreviewInventory(){const selected=[...this.previewInventorySelection];this.$refs.previewInventoryDialog.close();this.startPreview(selected,this.previewStartKey,this.previewFlags);},
+  startPreview(initialItems=[],startKey=null,initialFlags=null){this.flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,initialFlags===null?!!f.initial:initialFlags.includes(f.key)]));this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing scenes.','error');return;}const start=this.pageSceneDestinations.find(d=>d.key===startKey);this.previewPageId=start?.pageId??this.editorPageId;this.previewId=start?.sceneId??this.document.visuals.find(v=>v.kind==='scene')?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));const entry=this.resolveSceneEntry(this.previewPageId,this.previewId);this.previewPageId=entry.pageId;this.previewId=entry.sceneId;this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
+  closePreview(){this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
   nextPreviewPage(){
    if(this.sceneTransition)return;
    const index=this.previewPages.findIndex(p=>p.id===this.previewPageId),next=this.previewPages[index+1];
@@ -468,16 +563,28 @@ export function sceneEditor(options) {
   animatePickup(object,area){clearTimeout(this.pickupTimer);this.inventoryPulse=false;this.pickupFlight=null;const start=()=>{this.inventoryPulse=true;this.pickupFlight={url:this.asset(object.asset_id)?.url,x:((area.x||0)+(area.width||0)/2)*100,y:((area.y||0)+(area.height||0)/2)*100};this.pickupTimer=setTimeout(()=>{this.inventoryPulse=false;this.pickupFlight=null;},650);};if(this.$nextTick)this.$nextTick(start);else start();},
   activate(h){
    if(!this.preview){if(!this.drawing)this.hotspotId=h.id;return;}
+   if(!this.conditionsMet(h)){this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.unavailable_text||'You cannot do that yet.',url:null});return;}
+   if(!['pickup','examine','inspect','inventory','choices'].includes(h.action))this.applyFlagEffects(h);
    if(h.action==='page'){this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
    if(h.action==='complete'){this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
    if(h.action==='next_page'){this.nextPreviewPage();return;}
-   if(['inventory','choices'].includes(h.action)){this.openAreaInteraction(h);return;}
-   if(h.target_id)this.transitionScene(h.target_id);
-   const object=this.playVisuals.find(v=>v.id===h.object_id);
-   if(h.action==='pickup' && object){if(!this.inventory.some(v=>v.id===object.id)){this.inventory.push({...object,inventoryId:h.id});this.animatePickup(object,h);}this.collected.push(h.id);}
-   if(h.action==='examine')this.showObjectModal({label:h.label,text:h.description||'',position:h.description_position||'top',url:null});
+   if(['inventory','choices'].includes(h.action)){this.applyFlagEffects(h);this.openAreaInteraction(h);return;}
+   if(h.action==='pickup' && this.collected.includes(h.id))return;
+   const object=this.gameObjects.find(v=>v.id===h.object_id);
+   if(h.action==='pickup' && object && h.show_hover_text===false && this.areaDescription(h).trim() && !this.pickupReady(h)){
+    this.armedPickup=this.pickupKey(h);
+    this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:this.areaDescription(h),url:null,pickupKey:this.armedPickup});return;
+   }
+   if(h.action==='pickup' && object){
+    if(this.narration?.pickupKey===this.pickupKey(h)){this.narration=null;this.narrationVersion++;}
+    if(this.pendingModal?.pickupKey===this.pickupKey(h))this.pendingModal=null;
+    this.armedPickup=null;
+   }
+   if(['examine','inspect'].includes(h.action))this.applyFlagEffects(h);
+   if(h.action==='pickup' && object){this.applyFlagEffects(h);if(!this.inventory.some(v=>v.id===object.id)){this.inventory.push({...object,inventoryId:h.id});this.animatePickup(object,h);}this.collected.push(h.id);}
+   if(['pickup','inspect','transition'].includes(h.action) && h.target_id)this.transitionScene(h.target_id);
+   if(h.action==='examine')this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.description||'',url:null});
    if(h.action==='inspect' && object)this.showObjectModal({inspect:true,label:object.name,text:object.description||'',position:object.description_position||'top',url:this.asset(object.asset_id)?.url});
-   if(h.action==='pickup' && object?.description)this.showObjectModal({label:object.name,text:object.description,position:object.description_position||'top',url:null});
   }
  };
 }
