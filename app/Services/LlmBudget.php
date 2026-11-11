@@ -6,12 +6,20 @@ use Illuminate\Validation\ValidationException;
 class LlmBudget {
     public function expireOverdue(?int $userId=null): int {
         $count=0;
-        LlmRequest::whereIn('status',['reserved','uncertain'])->where('created_at','<=',now()->subMinutes(4))
+        LlmRequest::whereIn('status',['reserved','uncertain'])->where(function($q){
+            $q->whereHas('imageGeneration',fn($images)=>$images->where('status','!=','queued')->where('started_at','<=',now()->subMinutes(4)))
+              ->orWhere(fn($text)=>$text->whereDoesntHave('imageGeneration')->where('created_at','<=',now()->subMinutes(4)));
+        })
             ->when($userId,fn($q)=>$q->where('user_id',$userId))->select(['id','user_id'])->chunkById(100,function($rows) use (&$count) {
                 foreach($rows as $row) $count+=DB::transaction(function() use($row) {
                     $u=User::whereKey($row->user_id)->lockForUpdate()->first();
                     $r=LlmRequest::whereKey($row->id)->lockForUpdate()->first();
-                    if(!$u || !$r || !in_array($r->status,['reserved','uncertain']) || $r->created_at->gt(now()->subMinutes(4)))return 0;
+                    if(!$u || !$r || !in_array($r->status,['reserved','uncertain']))return 0;
+                    $image=$r->imageGeneration()->lockForUpdate()->first();
+                    // Queue time is not provider execution time. Keep queued credit reserved.
+                    if($image && ($image->status==='queued' || !$image->started_at))return 0;
+                    $started=$image?$image->started_at:$r->created_at;
+                    if($started->gt(now()->subMinutes(4)))return 0;
                     if($r->funding==='platform'){$u->llm_reserved-=$r->reserved;$u->save();}
                     $r->update(['status'=>'failed','cost'=>0]);
                     \App\Models\ImageGeneration::where('llm_request_id',$r->id)->whereIn('status',['queued','running','failed'])->update(['status'=>'failed','error'=>'Request exceeded the four-minute limit. Any reserved trial credit was released. Start a new request to try again.']);
@@ -52,14 +60,14 @@ class LlmBudget {
             $r->update(['cost'=>$cost,'status'=>$cost===null?'uncertain':$status,'provider_id'=>$providerId]);
         });
     }
-    public function quotation(array $model, array $messages, ?int $maxOutputTokens=null): array {
-        $input = strlen(json_encode($messages, JSON_UNESCAPED_UNICODE)) + 1024;
+    public function quotation(array $model, array $messages, ?int $maxOutputTokens=null, int $imageInputTokens=0): array {
+        $input = strlen(json_encode($messages, JSON_UNESCAPED_UNICODE)) + 1024 + $imageInputTokens;
         $pricing = $this->pricingForReservation($model['pricing'] ?? [], $input);
         foreach (['prompt','completion'] as $field) {
             if (!isset($pricing[$field]) || !is_numeric($pricing[$field]) || (float)$pricing[$field]<0)
                 throw ValidationException::withMessages(['model'=>'Pricing is unavailable for this model. Choose another model or try again later.']);
         }
-        // Catalogs include prices for capabilities this text-only request does not use.
+        // Image tokens are estimated separately; binary payload bytes are never counted as text.
         // Cache and reasoning prices are accounted for below rather than rejecting the model.
         foreach ($pricing as $field=>$price) {
             if (in_array($field,['image','image_token','image_output','audio','audio_output','input_audio_cache','web_search'])) continue;
@@ -74,7 +82,8 @@ class LlmBudget {
         // UTF-8 bytes + framing is intentionally conservative for text-only input.
         $inputRate = max((float)$pricing['prompt'], (float)($pricing['input_cache_read']??0)) + (float)($pricing['input_cache_write']??0);
         $outputRate = (float)$pricing['completion'] + (float)($pricing['internal_reasoning']??0);
-        $amount = (int) ceil(($input*$inputRate+$output*$outputRate+(float)($pricing['request']??0))*1000000*1.05);
+        $imageCost=$imageInputTokens>0 && is_numeric($pricing['image']??null)?max(0,(float)$pricing['image']):0;
+        $amount = (int) ceil(($input*$inputRate+$output*$outputRate+(float)($pricing['request']??0)+$imageCost)*1000000*1.05);
         return [$amount, ['max_price'=>['prompt'=>(float)$pricing['prompt']*1000000,
             'completion'=>(float)$pricing['completion']*1000000,'request'=>(float)($pricing['request']??0)],
             'require_parameters'=>true,'allow_fallbacks'=>false]];

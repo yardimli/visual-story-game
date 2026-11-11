@@ -24,6 +24,11 @@ Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')-
 Route::middleware('auth')->group(function () {
     Route::get('/stories/{story}/flags',[\App\Http\Controllers\StoryStateController::class,'show'])->name('flags.show');
     Route::put('/stories/{story}/flags',[\App\Http\Controllers\StoryStateController::class,'update'])->name('flags.update');
+    Route::get('/stories/{story}/pages/{page}/extractions',[\App\Http\Controllers\SceneExtractionController::class,'index'])->name('extractions.index');
+    Route::post('/stories/{story}/pages/{page}/extractions',[\App\Http\Controllers\SceneExtractionController::class,'store'])->name('extractions.store');
+    Route::post('/stories/{story}/pages/{page}/extractions/{extraction}/outputs/{output}',[\App\Http\Controllers\SceneExtractionController::class,'output'])->name('extractions.output');
+    Route::post('/stories/{story}/pages/{page}/extractions/{extraction}/activate',[\App\Http\Controllers\SceneExtractionController::class,'activate'])->name('extractions.activate');
+    Route::delete('/stories/{story}/image-drafts/{image}',[\App\Http\Controllers\SceneController::class,'deleteDraft'])->name('images.draft.delete');
     Route::put('/stories/{story}/image-order',[\App\Http\Controllers\StoryStateController::class,'order'])->name('images.order');
     Route::get('/stories/{story}/inventory',[\App\Http\Controllers\InventoryController::class,'show'])->name('inventory.show');
     Route::put('/stories/{story}/inventory',[\App\Http\Controllers\InventoryController::class,'update'])->name('inventory.update');
@@ -35,6 +40,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/stories/{story}/pages/{page}/image-drafts',[\App\Http\Controllers\SceneController::class,'draft'])->name('images.draft');
     Route::post('/stories/{story}/pages/{page}/images',[\App\Http\Controllers\SceneController::class,'generate'])->middleware('throttle:6,1,image-generation:')->name('images.generate');
     Route::post('/stories/{story}/messages/{message}/changes',[\App\Http\Controllers\CompanionChangesController::class,'store'])->name('companion.changes');
+    Route::delete('/stories/{story}/messages/{message}',[ChatController::class,'destroy'])->name('chat.destroy');
+    Route::delete('/companion/messages/{message}',[ChatController::class,'destroyCompanion'])->name('companion.destroy');
     Route::get('/companion', [ChatController::class,'history'])->name('companion.history');
     Route::post('/companion', [ChatController::class,'companion'])->middleware('throttle:10,1,ai-chat:')->name('companion.store');
     Route::post('/stories',[StudioController::class,'store'])->name('stories.store');

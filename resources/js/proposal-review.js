@@ -64,7 +64,7 @@ export function structuredPreview(value) {
 }
 export function proposalReview(item) {
  return {entries:reviewItems(item.proposal),chosen:[],reviewOpen:false,richPreview,structuredPreview,
-  init(){this.chosen=this.entries.map(entry=>String(entry.id));if(item.autoReview && this.entries.length){item.autoReview=false;this.$nextTick?.(()=>this.$refs.reviewDialog.showModal());}},
+  init(){this.chosen=this.entries.map(entry=>String(entry.id));if(item.autoReview && (this.entries.length || item.proposal?._review?.error)){item.autoReview=false;this.$nextTick?.(()=>this.$refs.reviewDialog.showModal());}},
   toggle(){this.chosen=this.chosen.filter(id=>{const entry=this.entries.find(e=>String(e.id)===id);return entry?.depends_on==null||this.chosen.includes(String(entry.depends_on));});},
   unavailable(entry){return entry.depends_on!=null&&!this.chosen.includes(String(entry.depends_on));},
   result(value){return value==null?'Not set':typeof value==='object'?JSON.stringify(value,null,2):String(value);}

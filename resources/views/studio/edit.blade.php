@@ -3,7 +3,7 @@
 @include('studio.story-header')
 <div class="story-editor-grid grid grid-cols-1">
 <div class="story-editor-column min-w-0">
-<div id="scene-toolbar" x-show="tab==='visuals'" x-cloak class="editor-tabs scene-toolbar-slot min-w-0 px-5 py-3 lg:px-8"></div>
+<div id="scene-toolbar" x-show="tab==='visuals'" x-cloak class="editor-tabs scene-toolbar-slot min-w-0 px-5 lg:px-8"></div>
 <main class="story-editor-content min-w-0 p-5 lg:p-8" :style="tab==='visuals'?'padding-top: .5rem':null">
 @include('studio.page-documents')
 <section x-show="tab==='story'" x-cloak><h2 class="mb-6 font-serif text-2xl">The world behind the story</h2>

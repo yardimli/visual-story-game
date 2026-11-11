@@ -8,7 +8,7 @@ use Illuminate\Validation\ValidationException;
 class InventoryController extends Controller {
  public function show(Request $r,Story $story,InventoryLibrary $library){
   abort_unless($story->user_id===$r->user()->id,404);
-  return response()->json(['items'=>$story->inventory_document['visuals']??[],'revision'=>$story->inventory_revision,'uses'=>$library->uses($story),'assets'=>$story->assets()->whereNull('archived_at')->latest()->get()->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a)])]);
+  return response()->json(['items'=>$story->inventory_document['visuals']??[],'revision'=>$story->inventory_revision,'uses'=>$library->uses($story),'assets'=>$story->assets()->whereNull('archived_at')->latest()->get()->reject(fn($a)=>$a->role==='extraction_reference')->values()->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a)])]);
  }
  public function update(Request $r,Story $story,InventoryLibrary $library){
   abort_unless($story->user_id===$r->user()->id,404);

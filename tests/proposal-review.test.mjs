@@ -20,3 +20,5 @@ test('new valid proposals open review once; loaded history does not open automat
  let opened=0;const item={autoReview:true,proposal:{_review:{items:[{id:1}]}}};const r=proposalReview(item);r.$nextTick=fn=>fn();r.$refs={reviewDialog:{showModal(){opened++;}}};r.init();r.init();assert.equal(opened,1);
  const old=proposalReview({proposal:item.proposal});old.$nextTick=fn=>fn();old.$refs=r.$refs;old.init();assert.equal(opened,1);
 });
+
+test('invalid new proposals automatically open their detailed error',()=>{let opened=0;const r=proposalReview({autoReview:true,proposal:{_review:{items:[],error:'Suggestion 6 / Mirror / x: invalid'}}});r.$nextTick=fn=>fn();r.$refs={reviewDialog:{showModal(){opened++;}}};r.init();assert.equal(opened,1);assert.deepEqual(r.chosen,[]);});

@@ -636,3 +636,77 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Constrain the story editor shell to the viewport using explicit grid row/child minimum heights; prevent document scrolling in every scene/area state while retaining independent editor and chat scrolling.
 
 - [x] Align every scene dropdown row with a drag handle (disabled outside the active page), keep other-page reorder arrows hidden, and scroll to the active page/scene whenever opening the menu.
+
+- [x] Automatically open inventory on pickup, fly the item into its visible slot, and reveal it on arrival. Use the same tray for inventory-area actions with persistent response text instead of duplicate dialog item lists.
+
+- [x] Toggle examine narration on repeated clicks of the same area; clear expired messages and suppress immediate hover redisplay until leaving the area.
+
+- [x] Wait for a newly opened inventory tray to have visible item geometry before measuring pickup flight destinations; use a bottom-of-scene fallback rather than zero-sized top-left coordinates.
+
+- [x] Add validated per-area mouse cursors and companion editing support.
+- [x] Keep inventory clicks for inspection; support pointer dragging and layered scene drop targets, returning unused items to their slots. Use standard positioned narration for inventory interactions, keep areas usable with the tray open, and defer consumption/flags/scene changes until response text completes plus a reading pause.
+
+- [x] Remove the drawing-mode hint above the scene image to prevent layout shifts when toggling Draw area.
+
+- [x] Make the selected clickable area name editable and autosaved directly in the form, aligned beside its Up/Down layer buttons.
+
+- [x] Simplify area controls: hide redundant cursor/action labels, clarify the automatic cursor option, keep action flags open with an adjacent + Flag link, and remove the area-selection chip list.
+
+- [x] Add Scenes-only Include scene image chat checkbox; attach the selected scene image privately, validate model vision support/ownership, redact image bytes from history, and budget image input separately from base64 payload size.
+- [x] Persist unsent chat drafts per user/story/editor tab in localStorage, restore across tab navigation/reloads, and clear only an accepted message’s draft while preserving failed sends or newer drafts.
+
+- [x] Reduce studio header to 40px with compact logo, theme selector, profile button, and single-line story/navigation layout.
+
+- [x] Support reviewed creation of clickable areas on existing scenes, identify invalid suggestions by number/page/scene/area/field, open error reviews automatically, and repair the two affected stored proposals without applying them.
+
+- [x] Compact story tabs, Creative companion header and scene toolbar to 40px; remove vertical padding/margins, bring tab underline closer to text, and fit dropdown/action buttons within the bar.
+
+- [x] Treat image studio as a shared story library: remove source-page edit/archive restrictions, page-filtered loading and image pickers; allow drafts to be updated/generated from any page with story ownership checks.
+
+- [x] Give image ordering arrows 36px bordered button targets that do not toggle the card; pulse the moved card after a successful reorder, with a static reduced-motion highlight.
+
+- [x] Add confirmed permanent deletion for ungenerated image drafts; reject active/completed/failed requests, enforce story ownership, remove saved ordering entries, and clear the selected draft form.
+
+- [x] Add Scenes > Extract collectible items: free plans from selected pickup areas, adjustable extraction rectangles and original-image selection, cropped references, clean background/layer/inventory outputs, shared image jobs and credit accounting, batch/per-output cost estimates and generation, independent versions/retries, alpha validation, accepted-composite preview, layer alignment, reviewed activation, persistent collected flags, and chat-history activity.
+- [x] Test extraction ownership, free preparation, reference cropping, per-output job fencing/retries, opaque-layer rejection, stale activation and layer visibility after item consumption/return. Apply extraction migration and verify the localhost planner without paid generation.
+- [ ] Optional follow-up: local empty-background patches for complex reflections/shadows that cannot be represented satisfactorily by transparent layers.
+
+- [x] Show pickup areas with missing Inventory links in the extraction planner as disabled rows with a specific explanation instead of silently hiding them.
+
+- [x] Extraction preparation creates and links missing shared Inventory items for selected pickup areas using their labels/descriptions; existing links are reused, changes are atomic, repeat plans do not duplicate items, and the editor receives updated revisions.
+
+- [x] Replace extraction coordinate controls with cropped, zoomable area previews and selection cards; direct crop adjustments back to the scene areas. Remove numeric layer placement controls from the extraction dialog.
+
+- [x] Scope extraction to the current scene image; remove source/plan settings from the main dialog and offer an initial saved-plan chooser only when that scene already has plans.
+
+- [x] Remove the redundant Back to scene link from extraction; use the dialog Close button.
+
+- [x] Fix extraction preparation for existing Inventory items without a description; fall back to area text or an empty string, with regression coverage.
+
+- [x] Add Pick up object v2 and Change state v2 actions; restrict collectible extraction to pickup_v2 and Create switches to state_v2. Preserve legacy pickup/transition behavior and existing authored actions.
+- [x] Add switch extraction plans with preserved original crops, independently generated/reviewed alternate patches, persistent toggle flags, no inventory creation, and no full-scene replacement. Support alternate-state prompts and reuse per-output estimates/retries.
+- [x] Apply extraction-mode migration and verify v2/legacy behavior with 161 PHP tests and 105 JavaScript tests.
+
+- [x] Keep extraction preparation disabled through save, server preparation and preview loading; show a spinner, live stage messages, completion feedback, and actionable errors. Block duplicate clicks and selection changes while preparing.
+
+- [x] Fix extraction plan display by preserving reactive getters when composing the scene editor; poll only queued/running plan jobs, prevent overlapping refreshes, and remove redundant preparation instructions. Added integrated editor and polling regression tests.
+
+- [x] Collectible extraction background removal uses a numbered annotated copy of the scene. Before preparation, choose original + annotated reference (default) or annotated only. Prompts list numbered items without decimal coordinates and require removal of annotations. Item crops and original assets remain untouched; existing saved plans retain their references.
+
+- [x] Start image request expiry from ImageGeneration.started_at, excluding queue wait. Preserve queued reservations; retain four-minute expiry for running jobs and text requests. Added queue-wait boundary regression coverage (34 related tests passed).
+
+- [x] Move and resize extracted image layers with their click-area frames, including keyboard movement and cancel restoration. Hide internal extraction crops/numbered references from scene, inventory and reference pickers while preserving AI access and uploaded references.
+
+- [x] Delete individual user and companion chat messages with confirmation, owner-scoped endpoints and immediate UI removal; return persisted user-message IDs after replies so new messages can be deleted without reload. Applied game edits and billing records remain intact.
+
+- [x] Hide a click area's on-image label, layer arrows and delete control during dragging/resizing; restore them on pointer release or cancellation.
+
+- [x] Replace side-by-side extraction/switch previews with an Original / Accepted composition toggle and full-dialog-content-width image; keep composition layer visibility controls.
+
+- [x] Extraction and switch workflows post one detailed chat summary only after successful scene activation; preparation/generation steps no longer post messages. Show the summary immediately in the companion.
+
+- [x] Running image cards display local start time and live elapsed minutes/seconds based on worker started_at, including collapsed cards. Timer cleans up when leaving the studio.
+
+- [x] Extraction/switch completed renders auto-accept on plan refresh, including opaque results for creator visual review. Unaccept preserves versions and does not modify the active scene; it remains unaccepted until a new render completes or the creator accepts a previous version. Re-activation applies replacements. Original switch crops remain preserved.
+
+- [x] Click areas use their own Description only; removed the item-description checkbox and implicit inventory fallback. Local switches show their changed-state artwork in the editor, have a separate state_description, and require description then action clicks for each state when hover is disabled and text is present.

@@ -32,6 +32,27 @@ class CompanionTest extends TestCase {
         $payload['hotspot_id']=(string)Str::uuid();$payload['request_key']=(string)Str::uuid();
         $this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();Http::assertSentCount(1);
     }
+    public function test_scene_image_is_opt_in_private_and_encoded_only_in_current_request(): void {
+        $u=$this->userAndProvider('I can see the scene.');
+        $catalog=Cache::get('openrouter.models');$catalog[0]['architecture']['input_modalities']=['text','image'];Cache::put('openrouter.models',$catalog,600);
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $bytes=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ3sAAAAASUVORK5CYII=');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('scene.png',$bytes);
+        $s=Story::create(['user_id'=>$u->id,'title'=>'House','premise'=>'Look']);
+        $a=$s->assets()->create(['name'=>'Scene','path'=>'scene.png','mime'=>'image/png','bytes'=>strlen($bytes),'role'=>'scene']);$id=(string)Str::uuid();
+        $p=$s->pages()->create(['position'=>1,'title'=>'Porch','visual_document'=>['visuals'=>[['id'=>$id,'kind'=>'scene','name'=>'Porch','asset_id'=>$a->id,'hotspots'=>[]]]]]);
+        $payload=array_merge($this->payload(),['page_id'=>$p->id,'active_tab'=>'visuals','visual_id'=>$id,'include_scene_image'=>true]);
+        $this->actingAs($u)->postJson(route('chat.store',$s),$payload)->assertOk();
+        Http::assertSent(function($r)use($bytes){$last=collect($r['messages'])->last();return $last['content'][0]['text']==='Plan a mystery' && $last['content'][1]['image_url']['url']==='data:image/png;base64,'.base64_encode($bytes);});
+        $this->assertSame('Plan a mystery',$s->messages()->where('role','user')->first()->content);
+        $this->assertSame('[redacted]',collect(LlmRequest::first()->request_content['messages'])->last()['content'][1]['image_url']['url']);
+        $payload['include_scene_image']=false;$payload['request_key']=(string)Str::uuid();$this->postJson(route('chat.store',$s),$payload)->assertOk();
+        $this->assertIsString(collect(LlmRequest::latest('id')->first()->request_content['messages'])->last()['content']);
+        $payload['include_scene_image']=true;$payload['active_tab']='page';$payload['request_key']=(string)Str::uuid();$this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();
+        $payload['active_tab']='visuals';$catalog[0]['architecture']['input_modalities']=['text'];Cache::put('openrouter.models',$catalog,600);
+        $this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();Http::assertSentCount(2);
+        $this->actingAs(User::factory()->create())->postJson(route('chat.store',$s),$payload)->assertNotFound();
+    }
     private function userAndProvider(string $content): User {
         config(['story.openrouter_providers'=>['test','openai'], 'story.openrouter_key'=>'test-key']);
         Cache::put('openrouter.models',[['id'=>'test/model','name'=>'Test','context_length'=>100000,'architecture'=>['output_modalities'=>['text']],'pricing'=>['prompt'=>'0.000001','completion'=>'0.000002']]],600);

@@ -314,12 +314,13 @@ test('inventory areas match carried object states, show fallback, consume keys a
  const lock={id:'lock',label:'Door lock',action:'inventory',interaction_text:'A brass keyhole.',fallback_text:'Nothing happens.',inventory_rules:[{object_id:'envelope',response:'You lack the lock-picking skill.',consume:false},{object_id:'key',response:'The door unlocks.',target_id:'open',consume:true}]};
  editor.document={visuals:[{id:'porch',kind:'scene',hotspots:[lock]},{id:'open',kind:'scene',hotspots:[]},{id:'key',kind:'object',name:'Key'},{id:'envelope',kind:'object',name:'Envelope'},{id:'stone',kind:'object',name:'Stone'}]};
  editor.selected='porch';editor.startPreview();editor.inventory=[{id:'envelope',inventoryId:'slot1'},{id:'key',inventoryId:'slot2'},{id:'stone',inventoryId:'slot3'}];const original=JSON.stringify(editor.document);
- editor.activate(lock);assert.equal(editor.modal.text,'A brass keyhole.');assert.equal(editor.previewId,'porch');
- editor.useInventoryOnArea('not-carried');assert.equal(editor.modal.text,'A brass keyhole.');
- editor.useInventoryOnArea('slot1');assert.equal(editor.modal.text,'You lack the lock-picking skill.');assert.equal(editor.inventory.length,3);
- editor.useInventoryOnArea('slot3');assert.equal(editor.modal.text,'Nothing happens.');
- editor.useInventoryOnArea('slot2');assert.equal(editor.previewId,'open');assert.equal(editor.inventory.length,2);assert.equal(editor.modal,null);
- t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.narration.text,'The door unlocks.');assert.equal(JSON.stringify(editor.document),original);
+ editor.activate(lock);assert.equal(editor.narration.text,'A brass keyhole.');assert.equal(editor.modal,null);assert.equal(editor.previewId,'porch');
+ editor.useInventoryOnArea('not-carried',lock);assert.equal(editor.narration.text,'A brass keyhole.');
+ editor.useInventoryOnArea('slot1',lock);assert.equal(editor.narration.text,'You lack the lock-picking skill.');assert.equal(editor.inventory.length,3);editor.completeInventoryUse();
+ editor.useInventoryOnArea('slot3',lock);assert.equal(editor.narration.text,'Nothing happens.');editor.completeInventoryUse();
+ editor.useInventoryOnArea('slot2',lock);assert.equal(editor.previewId,'porch');assert.equal(editor.inventory.length,3);assert.equal(editor.narration.text,'The door unlocks.');
+ editor.finishInventoryText(editor.pendingInventoryUse.key);t.mock.timers.tick(1199);assert.equal(editor.previewId,'porch');t.mock.timers.tick(1);
+ assert.equal(editor.previewId,'open');assert.equal(editor.inventory.length,2);assert.equal(JSON.stringify(editor.document),original);
  editor.closePreview();
 });
 
@@ -376,22 +377,10 @@ test('next page with no scene does not skip ahead', () => {
 });
 
 
-test('other page image links lazily load completed cards without changing generation context', async () => {
- const e=sceneEditor({});e.editorPageId=2;e.previewPages=[{id:1,position:1,title:'Porch',images_url:'/page1'},{id:2,position:2}];e.selected='current';e.references=['10'];e.jobs=[{id:2,status:'completed',asset_ids:[]}];e.document={visuals:[]};
- let calls=0;e.request=async url=>{assert.equal(url,'/page1');calls++;return {jobs:[{id:1,status:'completed',asset_ids:[10]},{id:3,status:'failed',asset_ids:[]}],assets:[{id:10,name:'Porch'}]};};
- assert.equal(e.otherImagePages.length,1);await e.togglePageImages(e.otherImagePages[0]);assert.equal(calls,1);assert.deepEqual(e.visibleJobs.map(j=>j.id),[2,1]);assert.equal(e.selected,'current');assert.deepEqual(e.references,['10']);assert.equal(e.asset(10).name,'Porch');
- e.mergeJobs([{id:2,status:'completed',asset_ids:[]}]);assert.equal(e.visibleJobs.length,2);await e.togglePageImages(e.otherImagePages[0]);assert.equal(e.visibleJobs.length,1);assert.equal(calls,1);
+test('image library and pickers include all pages but exclude archived images',()=>{
+ const e=sceneEditor({});e.jobs=[{id:1,status:'completed',asset_ids:[1]},{id:2,status:'completed',asset_ids:[2]}];e.assets=[{id:1,page_ids:[1]},{id:2,page_ids:[2]},{id:3,archived:true}];
+ assert.deepEqual(e.visibleJobs.map(j=>j.id),[1,2]);assert.deepEqual(e.pickerAssets.map(a=>a.id),[1,2]);assert.deepEqual(e.referenceAssets.map(a=>a.id),[1,2]);
 });
-
-
-test('image pickers reset to current page and filter shared images and unassigned uploads', () => {
- const e=sceneEditor({});e.editorPageId=2;e.assets=[{id:1,page_ids:[1]},{id:2,page_ids:[2]},{id:3,page_ids:[1,2]},{id:4,page_ids:[]}];e.$refs={visualImagePicker:{showModal(){}},interactionImagePicker:{showModal(){}}};
- e.openVisualImagePicker();assert.deepEqual(e.pickerAssets.map(a=>a.id),[2,3]);
- e.imagePickerPage='1';assert.deepEqual(e.pickerAssets.map(a=>a.id),[1,3]);
- e.imagePickerPage='uploads';assert.deepEqual(e.pickerAssets.map(a=>a.id),[4]);
- e.openInteractionPicker('object');assert.equal(e.imagePickerPage,'2');
-});
-
 
 test('test setup lists objects with descriptions and source pages and seeds only selected inventory', () => {
  const e=sceneEditor({});e.editorPageId=2;e.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},{id:'envelope',kind:'object',name:'Envelope',description:'A sealed letter'}]};e.selected='scene';
@@ -483,10 +472,10 @@ test('test starts at first scene of edited page unless another page and scene is
  e.startPreview([],'1:earlier');assert.equal(e.previewId,'earlier');assert.equal(e.previewPageId,1);e.closePreview();
 });
 
-test('item description is default and custom hover text opts out',()=>{
+test('area descriptions never inherit inventory text, including legacy opt-in',()=>{
  const e=sceneEditor({});e.document={visuals:[{id:'item',kind:'object',description:'Item text'}]};
- const h={object_id:'item',description:''};assert.equal(e.hoverDetails(h).description,'Item text');
- h.description='Custom';assert.equal(e.hoverDetails(h).description,'Custom');h.use_item_description=true;assert.equal(e.hoverDetails(h).description,'Item text');
+ const h={object_id:'item',description:''};assert.equal(e.hoverDetails(h).description,'');
+ h.description='Custom';assert.equal(e.hoverDetails(h).description,'Custom');h.use_item_description=true;assert.equal(e.hoverDetails(h).description,'Custom');
  h.use_item_description=false;assert.equal(e.hoverDetails(h).description,'Custom');
 });
 
@@ -508,15 +497,15 @@ test('examine clicks carry animation and rectangle placement settings into narra
  const e=sceneEditor({});e.preview=true;e.document={visuals:[]};
  const h={id:'a',action:'examine',description:'Text',description_position:'area_top',x:.2,y:.3,width:.1,height:.2};
  e.activate(h);assert.equal(e.narration.animate,false);assert.equal(e.narration.position,'area_top');assert.equal(e.narration.area.width,.1);
- h.animate_hover_text=true;e.activate(h);assert.equal(e.narration.animate,true);
+ e.activate(h);assert.equal(e.narration,null);h.animate_hover_text=true;e.activate(h);assert.equal(e.narration.animate,true);
 });
 
 test('image selection dialogs exclude archived assets for all pages and uploads',()=>{
  const e=sceneEditor({});e.assets=[{id:1,page_ids:[4]},{id:2,page_ids:[4],archived:true},{id:3,page_ids:[],archived:true},{id:4,page_ids:[]}];
  e.showArchived=true;e.referencePage='all';assert.deepEqual(e.referenceAssets.map(a=>a.id),[1,4]);
- e.referencePage='4';assert.deepEqual(e.referenceAssets.map(a=>a.id),[1]);
- e.imagePickerPage='4';assert.deepEqual(e.pickerAssets.map(a=>a.id),[1]);
- e.imagePickerPage='uploads';assert.deepEqual(e.pickerAssets.map(a=>a.id),[4]);
+ assert.deepEqual(e.referenceAssets.map(a=>a.id),[1,4]);
+ assert.deepEqual(e.pickerAssets.map(a=>a.id),[1,4]);
+
  assert.equal(e.asset(2).id,2);
 });
 
@@ -525,12 +514,12 @@ test('inventory rules can add and use an object from an earlier page',()=>{
  const area={id:'lock',action:'inventory',inventory_rules:[]};e.document={visuals:[{id:'door',kind:'scene',hotspots:[area]}]};
  e.previewPages=[{id:1,position:1,title:'Garden',visuals:[{id:'key',kind:'object',name:'Key'}]},{id:2,position:2,title:'Door',visuals:[]}];
  e.addAllInventoryRules();assert.equal(area.inventory_rules[0].object_id,'key');e.addAllInventoryRules();assert.equal(area.inventory_rules.length,1);
- area.inventory_rules[0].response='Unlocked';e.preview=true;e.previewId='door';e.inventory=[{id:'key'}];e.modal={areaId:'lock',sceneId:'door'};e.useInventoryOnArea('key');assert.equal(e.modal.text,'Unlocked');
+ area.inventory_rules[0].response='Unlocked';e.preview=true;e.previewId='door';e.inventory=[{id:'key'}];e.modal={areaId:'lock',sceneId:'door'};e.useInventoryOnArea('key',area);assert.equal(e.narration.text,'Unlocked');e.cancelInventoryUse();
 });
 
 test('pickup with hover disabled describes on first click and collects on second',()=>{
  const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},{id:'key',kind:'object',description:'A brass key',hotspots:[]}]};e.selected='scene';e.startPreview();
- const h={id:'key-area',action:'pickup',object_id:'key',show_hover_text:false};
+ const h={id:'key-area',action:'pickup',object_id:'key',show_hover_text:false,description:'A brass key'};
  e.activate(h);assert.equal(e.inventory.length,0);assert.equal(e.narration.text,'A brass key');assert.equal(e.pickupReady(h),true);assert.equal(e.collected.length,0);
  e.activate(h);assert.equal(e.inventory.length,1);assert.equal(e.narration,null);assert.equal(e.pickupReady(h),false);
  e.startPreview();e.activate({...h,use_item_description:false,description:''});assert.equal(e.inventory.length,1);e.closePreview();
@@ -542,7 +531,7 @@ test('pickup and inspection resolve the existing key from an earlier page',()=>{
  e.previewPages=[{id:1,title:'Garden',visuals:[{id:'key',kind:'object',name:'Brass key',description:'A brass key',asset_id:27}]}];
  e.assets=[{id:27,url:'/key.png'}];e.startPreview();
  const h={id:'key-area',action:'pickup',object_id:'key'};
- assert.equal(e.hoverDetails(h).description,'A brass key');e.activate(h);
+ assert.equal(e.hoverDetails(h).description,'');e.activate(h);
  assert.equal(e.inventory[0].id,'key');assert.equal(e.inventory[0].asset_id,27);
  e.activate({...h,action:'inspect'});assert.equal(e.modal.url,'/key.png');
  e.closePreview();
@@ -592,7 +581,7 @@ test('flag-only skips cap loops and hidden areas require all conditions',()=>{
 test('image ordering persists through the server and does not change scenes',async()=>{
  const e=sceneEditor({orderUrl:'/order'});e.jobs=[{id:3,status:'completed'},{id:2,status:'completed',sourcePage:'Page 2'},{id:1,status:'completed'}];e.assets=[];e.document={visuals:[{id:'scene'}]};
  e.request=async(url,method,body)=>{assert.equal(url,'/order');assert.equal(method,'PUT');return body;};
- await e.moveImageOrder(2,-1);assert.deepEqual(e.visibleJobs.map(j=>j.id),[2,3,1]);assert.equal(e.document.visuals[0].id,'scene');
+ await e.moveImageOrder(2,-1);assert.equal(e.movedImageId,2);assert.deepEqual(e.visibleJobs.map(j=>j.id),[2,3,1]);assert.equal(e.document.visuals[0].id,'scene');
  e.jobs.unshift({id:4,status:'draft'});assert.deepEqual(e.visibleJobs.map(j=>j.id),[4,2,3,1]);
 });
 
@@ -604,4 +593,86 @@ test('availability is opt-in, preserves legacy conditions and can be disabled wi
  area.availability_enabled=false;assert.equal(e.availabilityEnabled(area),false);assert.equal(e.conditionsMet(area),true);
  assert.equal(area.flag_conditions.length,1);area.availability_enabled=true;assert.equal(e.conditionsMet(area),false);
  e.flags.opened=true;assert.equal(e.conditionsMet(area),true);
+});
+
+test('pickup opens tray and flies to the new item slot, then reveals the item',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const e=sceneEditor({});e.preview=true;e.assets=[{id:1,url:'/key.png'}];
+ const img={getBoundingClientRect:()=>({left:200,top:400,width:64,height:56})};
+ const slot={dataset:{inventoryItem:'key'},getBoundingClientRect:()=>({right:280}),querySelector:()=>img};
+ const tray={scrollLeft:0,querySelectorAll:()=>[slot],getBoundingClientRect:()=>({right:270}),closest:()=>({getBoundingClientRect:()=>({left:20,top:30,height:500})})};
+ e.$refs={inventoryTray:tray};e.animatePickup({id:'key',asset_id:1},{x:.5,y:.5,width:.1,height:.1});
+ assert.equal(e.inventoryOpen,true);assert.equal(e.pickupFlight.targetX,212);assert.equal(e.pickupFlight.targetY,398);assert.equal(e.pickupFlight.itemId,'key');assert.equal(tray.scrollLeft,18);
+ t.mock.timers.tick(650);assert.equal(e.pickupFlight,null);
+});
+test('inventory clicks still inspect while drops use the area with standard narration',()=>{
+ const e=sceneEditor({});const area={id:'lock',action:'inventory',label:'Lock',interaction_text:'Choose a key',fallback_text:'That does not fit.',inventory_rules:[],description_position:'area_top',x:.2,y:.3,width:.2,height:.2};
+ e.document={visuals:[{id:'porch',kind:'scene',hotspots:[area]}]};e.selected='porch';e.previewId='porch';e.preview=true;e.inventory=[{id:'letter',inventoryId:'letter-slot',description:'A letter'}];
+ e.openAreaInteraction(area);assert.equal(e.inventoryOpen,true);assert.equal(e.modal,null);assert.equal(e.narration.position,'area_top');
+ e.selectInventoryItemForPlay(e.inventory[0]);assert.equal(e.modal.inventoryId,'letter-slot');assert.equal(e.inventoryOpen,false);
+ e.modal=null;e.useInventoryOnArea('letter-slot',area);assert.equal(e.narration.text,'That does not fit.');assert.equal(e.narration.position,'area_top');assert.equal(e.modal,null);e.cancelInventoryUse();
+});
+
+test('repeated examine clicks toggle the same message and a different area replaces it',()=>{
+ const e=sceneEditor({});e.preview=true;e.previewId='scene';e.previewPageId=1;
+ const a={id:'a',action:'examine',description:'A rose'},b={id:'b',action:'examine',description:'A stone'};
+ e.activate(a);assert.equal(e.narration.text,'A rose');e.activate(a);assert.equal(e.narration,null);
+ e.activate(a);assert.equal(e.narration.text,'A rose');e.activate(b);assert.equal(e.narration.text,'A stone');
+ e.narration=null;e.activate(b);assert.equal(e.narration.text,'A stone');
+});
+
+test('first pickup waits for the closed inventory tray to become measurable',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const previous=globalThis.requestAnimationFrame;let frame,shown=false;
+ globalThis.requestAnimationFrame=fn=>{frame=fn;};
+ try{const e=sceneEditor({});e.preview=true;e.assets=[{id:1,url:'/envelope.png'}];
+ const slot={dataset:{inventoryItem:'envelope'},getBoundingClientRect:()=>({right:220}),querySelector:()=>({getBoundingClientRect:()=>shown?{left:140,top:430,width:64,height:56}:{left:0,top:0,width:0,height:0}})};
+ e.$refs={inventoryTray:{scrollLeft:0,querySelectorAll:()=>[slot],getBoundingClientRect:()=>({right:500}),closest:()=>({getBoundingClientRect:()=>({left:20,top:30,height:500})})}};
+ e.animatePickup({id:'envelope',asset_id:1},{x:.5,y:.7,width:.1,height:.1});assert.equal(e.inventoryOpen,true);assert.equal(e.pickupFlight.url,null);
+ shown=true;frame();assert.equal(e.pickupFlight.targetX,152);assert.equal(e.pickupFlight.targetY,428);assert.equal(e.pickupFlight.url,'/envelope.png');
+ e.closePreview();
+ }finally{globalThis.requestAnimationFrame=previous;}
+});
+
+test('pointer drag threshold preserves clicks and drop targets follow area layering',()=>{
+ const e=sceneEditor({});e.preview=true;e.previewId='scene';e.selected='scene';const area={id:'lock',action:'inventory',x:.4,y:.4,width:.2,height:.2};
+ e.document={visuals:[{id:'scene',kind:'scene',hotspots:[{id:'door',x:0,y:0,width:1,height:1},area]}]};e.inventory=[{id:'key'}];
+ e.$refs={previewDialog:{querySelector:()=>({getBoundingClientRect:()=>({left:0,top:0,width:100,height:100})})}};
+ e.startInventoryDrag({button:0,pointerId:1,clientX:10,clientY:90,currentTarget:{}},e.inventory[0]);e.moveInventoryDrag({pointerId:1,clientX:12,clientY:90});assert.equal(e.inventoryDrag.active,false);
+ e.moveInventoryDrag({pointerId:1,clientX:50,clientY:50});assert.equal(e.inventoryDrag.active,true);
+ e.endInventoryDrag({pointerId:1,clientX:50,clientY:50});assert.equal(e.pendingInventoryUse.area.id,'lock');assert.equal(e.suppressInventoryClick,true);e.cancelInventoryUse();
+});
+test('area cursors use validated overrides and useful automatic defaults',()=>{
+ const e=sceneEditor({});assert.equal(e.areaCursor({action:'inventory'}),'alias');assert.equal(e.areaCursor({action:'pickup'}),'grab');assert.equal(e.areaCursor({action:'examine',cursor:'help'}),'help');assert.equal(e.areaCursor({action:'examine',cursor:'invalid'}),'pointer');
+});
+
+test('closing preview cancels pending inventory effects and transition',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const e=sceneEditor({});e.preview=true;e.previewId='a';e.previewPageId=1;e.flags={unlocked:false};e.flagDefinitions=[{key:'unlocked'}];e.inventory=[{id:'key'}];
+ e.useInventoryOnArea('key',{id:'lock',action:'inventory',inventory_rules:[{object_id:'key',consume:true,flag_effects:[{key:'unlocked',value:true}]}]});
+ e.finishInventoryText(e.pendingInventoryUse.key);e.closePreview();t.mock.timers.tick(5000);assert.equal(e.flags.unlocked,false);assert.equal(e.pendingInventoryUse,null);
+});
+
+test('extracted layers stay hidden after inventory consumption and can return through flags',()=>{
+ const e=sceneEditor({});const h={id:'area',action:'pickup',x:.1,y:.1,width:.2,height:.2,overlay_bounds:{x:.05,y:.05,width:.3,height:.3},availability_enabled:true,unavailable_behavior:'hide',flag_conditions:[{key:'collected_key',value:false}],flag_effects:[{key:'collected_key',value:true}]};
+ e.document={visuals:[{id:'scene',kind:'scene',hotspots:[h]}]};e.selected='scene';e.preview=true;e.previewId='scene';e.editorPageId=1;e.previewPageId=1;e.flagDefinitions=[{key:'collected_key',initial:false}];e.flags={collected_key:false};
+ assert.equal(e.currentHotspots.length,1);e.applyFlagEffects(h);e.collected=['area'];e.inventory=[];assert.equal(e.currentHotspots.length,0);
+ e.applyFlagEffects({flag_effects:[{key:'collected_key',value:false}]});assert.equal(e.currentHotspots.length,1);
+ const style=e.areaImageStyle(h);assert.equal(style.left,'-25%');assert.ok(Math.abs(parseFloat(style.width)-150)<.0001);
+});
+
+test('local switches toggle patches and v2 pickups never transition the full scene',()=>{
+ const e=sceneEditor({});e.preview=true;e.previewId='room';e.editorPageId=1;e.previewPageId=1;e.document={visuals:[{id:'room',kind:'scene',hotspots:[]}]};e.assets=[{id:1,url:'/off'},{id:2,url:'/on'}];e.flags={switch_a:false};e.flagDefinitions=[{key:'switch_a'}];
+ const h={id:'switch',action:'state_v2',state_flag:'switch_a',overlay:true,overlay_asset_id:1,state_asset_id:2};e.activate(h);assert.equal(e.areaImage(h).id,2);assert.equal(e.previewId,'room');e.activate(h);assert.equal(e.areaImage(h),null);assert.equal(e.inventory.length,0);
+ e.inventoryItems=[{id:'key',kind:'object',name:'Key'}];e.animatePickup=()=>{};let transitions=0;e.transitionScene=()=>transitions++;
+ e.activate({id:'v2',action:'pickup_v2',object_id:'key',target_id:'other'});assert.equal(e.inventory.length,1);assert.equal(transitions,0);
+ e.activate({id:'legacy',action:'pickup',object_id:'key',target_id:'other'});assert.equal(transitions,1);
+});
+
+test('switch descriptions require two clicks independently for both states',()=>{
+ const e=sceneEditor({});e.preview=true;e.previewId='room';e.previewPageId=1;e.editorPageId=1;e.document={visuals:[{id:'room',kind:'scene',hotspots:[]}]};e.flags={switch_a:false};e.assets=[{id:2,url:'/on'}];
+ const h={id:'switch',action:'state_v2',state_flag:'switch_a',state_asset_id:2,description:'Unpressed button',state_description:'Pressed button',show_hover_text:false};
+ e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration.text,'Unpressed button');assert.equal(e.pickupReady(h),true);
+ e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration,null);assert.equal(e.pickupReady(h),false);
+ e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration.text,'Pressed button');
+ e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration,null);
+ h.show_hover_text=true;assert.equal(e.hoverDetails(h).description,'Unpressed button');e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.hoverDetails(h).description,'Pressed button');
+ e.preview=false;assert.equal(e.areaImage(h).id,2);
 });

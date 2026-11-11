@@ -10,6 +10,7 @@ class StoryFlags {
   $walk=function($node)use(&$walk,$keys){
    if(!is_array($node))return;
    foreach($node as $key=>$value){
+    if($key==='state_flag' && $value && !in_array($value,$keys,true))throw ValidationException::withMessages(['flags'=>'A local switch still uses flag '.$value.'.']);
     if(in_array($key,['flag_conditions','flag_effects'],true)){
      foreach($value??[] as $flag)if(!in_array($flag['key']??null,$keys,true))throw ValidationException::withMessages(['flags'=>'A scene still uses flag '.($flag['key']??'').'. Remove its conditions/effects before deleting or renaming the flag.']);
     }elseif(is_array($value))$walk($value);

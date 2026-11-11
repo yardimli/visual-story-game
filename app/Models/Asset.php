@@ -4,6 +4,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 class Asset extends Model {
  protected $guarded = ['id'];
+ public function getRoleAttribute($value){return $value==='reference' && str_contains($this->attributes['path']??'', '/extraction/')?'extraction_reference':$value;}
  public static function withGenerationNames(Collection $assets, int $storyId): Collection {
   $byId=$assets->keyBy('id');
   foreach(ImageGeneration::where('story_id',$storyId)->where('status','completed')->get(['id','name','kind','asset_ids']) as $job) {

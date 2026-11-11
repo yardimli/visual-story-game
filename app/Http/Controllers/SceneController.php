@@ -23,12 +23,22 @@ class SceneController extends Controller {
   foreach($story->inventory_document['visuals']??[] as $item)if(!empty($item['asset_id']))$uses[$item['asset_id']][]=['id'=>$item['id'],'name'=>$item['name'],'kind'=>'object','url'=>route('stories.edit',[$story,'page'=>$page->id,'tab'=>'inventory'])];
   return response()->json(['remaining'=>$r->user()->availableCredit()/1000000,'page_id'=>$page->id,'game_flags'=>$story->game_flags??[],'image_order'=>$story->image_order??[],'inventory_items'=>$story->inventory_document['visuals']??[],'preview_pages'=>$story->pages()->get(['id','position','title','visual_document'])->map(fn($p)=>['id'=>$p->id,'position'=>$p->position,'images_url'=>route('visuals.show',[$story,$p]),'title'=>$p->title,'visuals'=>$p->visual_document['visuals']??[]]),'document'=>$page->visual_document??['visuals'=>[]],'revision'=>$page->visual_revision,
    'assets'=>Asset::withGenerationNames($story->assets()->latest()->get(),$story->id)->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a),'role'=>$a->role,'page_ids'=>array_values(array_unique($assetPages[$a->id]??[])),'archived'=>!!$a->archived_at,'update_url'=>route('assets.update',$a),'uses'=>$uses[$a->id]??[]]),
-   'jobs'=>ImageGeneration::where('story_id',$story->id)->when(!$r->boolean('all_images'),fn($q)=>$q->where('story_page_id',$page->id))->latest('id')->get(['id','story_page_id','visual_id','name','status','error','asset_ids','created_at','payload','references'])->map(fn($j)=>['id'=>$j->id,'page_id'=>$j->story_page_id,'sourcePage'=>$j->story_page_id!==$page->id?$pageLabels->get($j->story_page_id,'Removed page'):null,'visual_id'=>$j->visual_id,'name'=>$j->name,'status'=>$j->status,'error'=>$j->error,'asset_ids'=>$j->asset_ids,'created_at'=>$j->created_at,'prompt'=>$j->payload['prompt']??'','model'=>$j->payload['model']??'','video_prompt'=>$j->payload['_video_prompt']??'','references'=>array_column($j->references??[],'id'),'settings'=>array_intersect_key($j->payload??[],array_flip(['quality','resolution','aspect_ratio','background'])),'retry_url'=>route('images.retry',[$story,$j->story_page_id,$j])])]);
+   'jobs'=>ImageGeneration::where('story_id',$story->id)->latest('id')->get(['id','story_page_id','visual_id','name','status','error','asset_ids','created_at','started_at','payload','references'])->map(fn($j)=>['id'=>$j->id,'page_id'=>$j->story_page_id,'visual_id'=>$j->visual_id,'name'=>$j->name,'status'=>$j->status,'error'=>$j->error,'asset_ids'=>$j->asset_ids,'created_at'=>$j->created_at,'started_at'=>$j->started_at,'prompt'=>$j->payload['prompt']??'','model'=>$j->payload['model']??'','video_prompt'=>$j->payload['_video_prompt']??'','references'=>array_column($j->references??[],'id'),'settings'=>array_intersect_key($j->payload??[],array_flip(['quality','resolution','aspect_ratio','background'])),'retry_url'=>route('images.retry',[$story,$page,$j])])]);
+ }
+ public function deleteDraft(Request $r,Story $story,ImageGeneration $image) {
+  abort_unless($story->user_id===$r->user()->id && $image->story_id===$story->id && $image->user_id===$r->user()->id,404);
+  DB::transaction(function()use($story,$image){
+   $s=Story::whereKey($story->id)->lockForUpdate()->firstOrFail();
+   $draft=ImageGeneration::whereKey($image->id)->lockForUpdate()->firstOrFail();
+   if($draft->status!=='draft' || !empty($draft->asset_ids) || $draft->llm_request_id)throw ValidationException::withMessages(['image'=>'Only ungenerated image drafts can be deleted. Generated images can be archived.']);
+   $draft->delete();$s->update(['image_order'=>array_values(array_filter($s->image_order??[],fn($id)=>(int)$id!==$draft->id))]);
+  });
+  return response()->json(['deleted'=>$image->id]);
  }
  public function draft(Request $r,Story $story,StoryPage $page,\App\Services\ImageDrafts $drafts) {
   $this->owner($r,$story,$page);$data=$r->validate(['draft_id'=>'nullable|integer']);
   $draft=DB::transaction(function()use($r,$story,$page,$drafts,$data){
-   $draft=isset($data['draft_id'])?ImageGeneration::where('story_id',$story->id)->where('story_page_id',$page->id)->whereKey($data['draft_id'])->lockForUpdate()->firstOrFail():null;
+   $draft=isset($data['draft_id'])?ImageGeneration::where('story_id',$story->id)->whereKey($data['draft_id'])->lockForUpdate()->firstOrFail():null;
    return $drafts->save($story,$page,$r->all(),$draft);
   });
   return response()->json(['id'=>$draft->id,'status'=>'draft']);
@@ -63,7 +73,7 @@ class SceneController extends Controller {
   return response()->json(['message'=>'Generated image moved.']);
  }
  public function retry(Request $r,Story $story,StoryPage $page,ImageGeneration $image,OpenRouter $router) {
-  $this->owner($r,$story,$page);abort_unless($image->story_id===$story->id && $image->story_page_id===$page->id && $image->user_id===$r->user()->id,404);
+  $this->owner($r,$story,$page);abort_unless($image->story_id===$story->id && $image->user_id===$r->user()->id,404);
   if($image->status!=='failed')throw ValidationException::withMessages(['image'=>'Only failed image requests can be retried.']);
   $data=$r->validate(['request_key'=>'required|uuid']);
   $r->merge(['request_key'=>$data['request_key'],'name'=>$image->payload['_asset_name']??$image->name,'revision'=>$page->visual_revision,'visual_id'=>$image->visual_id,'model'=>$image->payload['model']??'',
@@ -92,7 +102,7 @@ class SceneController extends Controller {
   $job=DB::transaction(function() use($r,$story,$page,$d,$refs,$pricing,$retry) {
    $p=StoryPage::whereKey($page->id)->lockForUpdate()->firstOrFail();
    if(!$retry && $p->visual_revision!==(int)$d['revision']) throw ValidationException::withMessages(['revision'=>'Scene changed. Reload before generating.']);
-   $draft=isset($d['draft_id'])?ImageGeneration::where('story_page_id',$p->id)->where('story_id',$story->id)->whereKey($d['draft_id'])->lockForUpdate()->firstOrFail():null;
+   $draft=isset($d['draft_id'])?ImageGeneration::where('story_id',$story->id)->whereKey($d['draft_id'])->lockForUpdate()->firstOrFail():null;
    if($draft && $draft->status!=='draft')throw ValidationException::withMessages(['image'=>'This draft was already submitted. Refresh before generating again.']);
    if(ImageGeneration::where('user_id',$r->user()->id)->where('request_key',$d['request_key'])->exists()) throw ValidationException::withMessages(['request_key'=>'This generation was already submitted. Refresh job status.']);
    $visual=$retry?['id'=>$retry->visual_id,'name'=>$retry->name,'kind'=>$retry->kind,'prompt'=>$retry->payload['prompt']??'']:($draft?['id'=>$draft->visual_id,'name'=>$draft->name,'kind'=>$draft->kind,'prompt'=>$draft->payload['prompt']??'']:collect(array_merge($p->visual_document['visuals']??[],$story->inventory_document['visuals']??[]))->firstWhere('id',$d['visual_id']??null));

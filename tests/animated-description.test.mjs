@@ -79,3 +79,21 @@ test('inventory response remains visible until replaced or dialog closes',t=>{
  d.play('Nothing happens','top','attempt-1',false);t.mock.timers.tick(30000);assert.equal(d.visible,true);assert.equal(d.words.join(''),'Nothing happens');
  d.destroy();
 });
+
+test('dismissed hover text stays hidden on movement until pointer leaves',()=>{
+ const d=hoverDescription(),area={id:'rose',description:'A rose',action:'examine'};
+ d.hoverArea(area,1,'scene');d.clickArea(area,()=>{});assert.equal(d.visible,false);
+ d.hoverArea(area,1,'scene');assert.equal(d.visible,false);
+ d.leaveArea();d.hoverArea(area,1,'scene');assert.equal(d.visible,true);d.destroy();
+});
+test('description dismissal reports its identity so expired click narration can be cleared',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();let hidden;
+ d.$dispatch=(event,detail)=>{if(event==='description-hidden')hidden=detail.key;};
+ d.play('A rose','top','scene:2',false);t.mock.timers.tick(5000);assert.equal(hidden,'scene:2');
+});
+
+test('text completion is emitted only after the final word and once per response',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription({persistent:true});const completed=[];
+ d.$dispatch=(event,detail)=>{if(event==='description-complete')completed.push(detail.key);};
+ d.play('One two three','top','response',true);assert.deepEqual(completed,[]);t.mock.timers.tick(110);assert.deepEqual(completed,[]);t.mock.timers.tick(110);assert.deepEqual(completed,['response']);d.reveal();assert.deepEqual(completed,['response']);d.destroy();
+});

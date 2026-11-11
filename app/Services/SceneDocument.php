@@ -26,18 +26,28 @@ class SceneDocument {
    'visuals.*.skip_rules.*.target_page_id'=>'nullable|integer',
    'visuals.*.skip_rules.*.target_scene_id'=>'nullable|uuid',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
-   'visuals.*.hotspots.*'=>'array:id,label,description,x,y,width,height,action,target_id,object_id,overlay,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,use_item_description,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_behavior,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*'=>'array:id,label,description,x,y,width,height,cursor,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,use_item_description,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_behavior,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*.cursor'=>'sometimes|in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default',
    'visuals.*.hotspots.*.availability_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.required_items'=>'sometimes|array|max:100',
    'visuals.*.hotspots.*.required_items.*'=>'required|uuid',
    'visuals.*.hotspots.*.unavailable_behavior'=>'sometimes|in:hide,disable',
    'visuals.*.hotspots.*.unavailable_text'=>'sometimes|nullable|string|max:3000',
+   'visuals.*.hotspots.*.state_description'=>'sometimes|nullable|string|max:3000',
+   'visuals.*.hotspots.*.state_prompt'=>'sometimes|nullable|string|max:3000',
+   'visuals.*.hotspots.*.state_asset_id'=>'sometimes|nullable|integer',
+   'visuals.*.hotspots.*.state_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],
+   'visuals.*.hotspots.*.overlay_bounds'=>'sometimes|array:x,y,width,height',
+   'visuals.*.hotspots.*.overlay_bounds.x'=>'required_with:visuals.*.hotspots.*.overlay_bounds|numeric|min:0|max:1',
+   'visuals.*.hotspots.*.overlay_bounds.y'=>'required_with:visuals.*.hotspots.*.overlay_bounds|numeric|min:0|max:1',
+   'visuals.*.hotspots.*.overlay_bounds.width'=>'required_with:visuals.*.hotspots.*.overlay_bounds|numeric|min:0.005|max:1',
+   'visuals.*.hotspots.*.overlay_bounds.height'=>'required_with:visuals.*.hotspots.*.overlay_bounds|numeric|min:0.005|max:1',
    'visuals.*.hotspots.*.overlay_asset_id'=>'sometimes|nullable|integer',
    'visuals.*.hotspots.*.overlay_alignment'=>'sometimes|in:top,middle,bottom',
    'visuals.*.hotspots.*.id'=>'required|uuid','visuals.*.hotspots.*.label'=>'required|string|max:160','visuals.*.hotspots.*.description'=>'nullable|string|max:3000',
    'visuals.*.hotspots.*.x'=>'required|numeric|min:0|max:1','visuals.*.hotspots.*.y'=>'required|numeric|min:0|max:1',
    'visuals.*.hotspots.*.width'=>'required|numeric|min:0.005|max:1','visuals.*.hotspots.*.height'=>'required|numeric|min:0.005|max:1',
-   'visuals.*.hotspots.*.action'=>'required|in:examine,inspect,transition,pickup,inventory,choices,next_page,page,complete',
+   'visuals.*.hotspots.*.action'=>'required|in:examine,inspect,transition,pickup,pickup_v2,state_v2,inventory,choices,next_page,page,complete',
    'visuals.*.hotspots.*.interaction_text'=>'sometimes|nullable|string|max:3000','visuals.*.hotspots.*.fallback_text'=>'sometimes|nullable|string|max:3000',
    'visuals.*.hotspots.*.inventory_rules'=>'sometimes|array|max:100',
    'visuals.*.hotspots.*.inventory_rules.*'=>'array:object_id,response,target_id,consume,description_position,flag_effects',
@@ -56,12 +66,12 @@ class SceneDocument {
    'visuals.*.description_position'=>'sometimes|in:top,bottom',
    'visuals.*.hotspots.*.description_position'=>'sometimes|in:top,bottom,area_top,area_bottom',
    'visuals.*.hotspots.*.inventory_rules.*.description_position'=>'sometimes|in:top,bottom',
-   'visuals.*.hotspots.*.choices.*.description_position'=>'sometimes|in:top,bottom',
+   'visuals.*.hotspots.*.choices.*.description_position'=>'sometimes|in:top,bottom,area_top,area_bottom',
   ])->validate();
   foreach($v['visuals'] as &$visual)foreach($visual['hotspots'] as &$area)if(!in_array($area['action'],['pickup','inspect','transition'],true))$area['target_id']=null;
   unset($visual,$area);
   $visuals=collect($v['visuals'])->keyBy('id');
-  $assets=collect($v['visuals'])->pluck('asset_id')->merge(collect($v['visuals'])->flatMap(fn($visual)=>collect($visual['hotspots'])->pluck('overlay_asset_id')))->filter()->unique();
+  $assets=collect($v['visuals'])->pluck('asset_id')->merge(collect($v['visuals'])->flatMap(fn($visual)=>collect($visual['hotspots'])->flatMap(fn($h)=>[$h['overlay_asset_id']??null,$h['state_asset_id']??null])))->filter()->unique();
   if($story->assets()->whereIn('id',$assets)->count()!==$assets->count()) $this->invalid('An image does not belong to this story.');
   $pageVisuals=$story->pages()->get()->mapWithKeys(fn($page)=>[$page->id=>$page->id===$pageId?$v['visuals']:($page->visual_document['visuals']??[])]);
   $objects=$pageVisuals->flatten(1)->merge($story->inventory_document['visuals']??[])->merge($v['visuals'])->where('kind','object')->pluck('id')->all();

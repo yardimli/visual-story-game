@@ -22,6 +22,20 @@ class CompanionChangesTest extends TestCase {
   $m=$s->messages()->create(['role'=>'assistant','content'=>'Review changes','revision'=>$s->revision,'proposal'=>$proposal]);
   return [$u,$s,$p,$second,$m];
  }
+ public function test_new_areas_without_ids_are_reviewed_and_applied_separately(): void {
+  [$u,$s,$p,$second,$m]=$this->fixture();$doc=$p->visual_document;$doc['visuals'][0]['hotspots'][0]['action']='examine';$p->update(['visual_document'=>$doc]);
+  $fields=['label'=>'Mirror','action'=>'examine','description'=>'Clouded glass','x'=>.2,'y'=>.3,'width'=>.1,'height'=>.2];
+  $proposal=['changes'=>[['scope'=>'hotspot','page_id'=>$p->id,'visual_id'=>$doc['visuals'][0]['id'],'fields'=>$fields],['scope'=>'create_hotspot','page_id'=>$p->id,'visual_id'=>$doc['visuals'][0]['id'],'fields'=>array_merge($fields,['label'=>'Chair'])]]];
+  $proposal['_review']=app(CompanionChanges::class)->prepare($s,$proposal);
+  $this->assertCount(2,$proposal['_review']['items']);$this->assertCount(1,$p->fresh()->visual_document['visuals'][0]['hotspots']);
+  $m->update(['proposal'=>$proposal]);$this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0]])->assertOk();
+  $areas=$p->fresh()->visual_document['visuals'][0]['hotspots'];$this->assertCount(2,$areas);$this->assertSame('Mirror',$areas[1]['label']);$this->assertFalse($areas[1]['overlay']);
+ }
+ public function test_invalid_area_reports_suggestion_scene_label_and_field(): void {
+  [$u,$s,$p]=$this->fixture();
+  try {app(CompanionChanges::class)->prepare($s,['changes'=>[['scope'=>'create_hotspot','page_id'=>$p->id,'visual_id'=>$p->visual_document['visuals'][0]['id'],'fields'=>['label'=>'Mirror','action'=>'examine','x'=>2,'y'=>.1,'width'=>.2,'height'=>.2]]]]);$this->fail('Expected validation error');}
+  catch(\Illuminate\Validation\ValidationException $e){$text=implode(' ',\Illuminate\Support\Arr::flatten($e->errors()));$this->assertStringContainsString('Suggestion 1 / Page 1 · Porch / Porch / Mirror',$text);$this->assertStringContainsString('.x',$text);}
+ }
  public function test_copy_areas_preserves_geometry_and_allows_selective_review_without_selected_area(): void {
   [$u,$s,$p,$second,$m]=$this->fixture();$doc=$p->visual_document;$source=$doc['visuals'][0];
   $extra=$source['hotspots'][0];$extra['id']=(string)Str::uuid();$extra['label']='Second area';$doc['visuals'][0]['hotspots'][]=$extra;

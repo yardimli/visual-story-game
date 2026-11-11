@@ -1,3 +1,4 @@
+import {chatDrafts} from './chat-drafts';
 import {storyFlags} from './story-flags';
 import {inventoryLibrary} from './inventory-library';
 import {readChatStream, streamingMessage} from './chat-stream';
@@ -67,10 +68,26 @@ Alpine.data('modelPicker', (initial, modality = 'text') => ({
 }));
 
 Alpine.data('creativeCompanion', (options) => ({
+    ...chatDrafts(options),
     modelLabel, displayMessage, streamingMessage,
     messages: options.messages, models: [], model: options.model, prompt: '', error: '', notice: '',
     sending: false, waitingForResponse:false, applying: false, catalogError: false, remaining: options.remaining,
+    deletingMessage:false, deleteMessageTarget:null,
+    requestDeleteMessage(item){if(this.sending || this.applying || !item.id || item.streaming)return;this.deleteMessageTarget=item;this.$refs.deleteChatMessage.showModal();},
+    async deleteMessage(){
+        const item=this.deleteMessageTarget;if(!item || this.deletingMessage || this.sending || this.applying)return;
+        this.deletingMessage=true;this.error='';
+        try{
+            const base=options.storyId?options.changesBase:'/companion/messages';
+            const response=await fetch(base+'/'+item.id,{method:'DELETE',headers:{Accept:'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content}});
+            if(!response.ok)throw new Error('Could not delete this message. Reload and try again.');
+            this.messages=this.messages.filter(m=>m.id!==item.id);this.$refs.deleteChatMessage.close();this.deleteMessageTarget=null;this.notice='Message deleted.';
+        }catch(e){this.error=e.message;}finally{this.deletingMessage=false;}
+    },
     async init() {
+        this.initDrafts();
+        this.chatMessageListener=event=>{const message=event.detail;if(message?.story_id===options.storyId && !this.messages.some(m=>m.id===message.id)){this.messages.push(message);this.scroll();}};
+        window.addEventListener('vsg-chat-message',this.chatMessageListener);
         watchNotices(this,{notice:'success',error:'error'});
         this.model = rememberedModel('vsg-writing-model', options.model);
         this.loadModels();
@@ -83,6 +100,7 @@ Alpine.data('creativeCompanion', (options) => ({
         }
         this.scroll();
     },
+    destroy(){this.destroyDrafts();window.removeEventListener('vsg-chat-message',this.chatMessageListener);},
     remember() { rememberModel('vsg-writing-model', this.model); },
     scroll() { this.$nextTick(() => { this.$refs.history.scrollTop = this.$refs.history.scrollHeight; }); },
     async loadModels() {
@@ -105,23 +123,24 @@ Alpine.data('creativeCompanion', (options) => ({
     async send() {
         if (this.sending || !this.prompt.trim() || !this.model) return;
         this.sending = true; this.waitingForResponse=true; this.error = ''; this.notice = '';this.scroll();
-        const message = this.prompt;let streamingIndex=null;
+        const message = this.prompt, sentDraftKey=this.draftKey(), attachScene=this.activeTab==='visuals' && this.includeSceneImage;let streamingIndex=null;
+        this.savePrompt();
         try {
             if (window.vsgAutosave && !(await window.vsgAutosave.flush())) throw new Error('Resolve unsaved changes before sending a message.');
             const response = await fetch(options.endpoint, {
                 method:'POST', headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},
-                body:JSON.stringify({stream:true,message,model:this.model,request_key:crypto.randomUUID(),page_id:window.vsgAutosave?.activePageId||options.pageId,image_visual_id:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.visual?.id:undefined,active_tab:window.vsgSceneEditor?.generationMode?'images':window.vsgAutosave?.tab,visual_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.selected:undefined,hotspot_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.hotspotId||undefined:undefined,image_draft:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.generationSnapshot():undefined,image_settings:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.settings:undefined,reference_ids:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.references.map(Number):undefined,form:this.draft()})
+                body:JSON.stringify({stream:true,message,include_scene_image:attachScene,model:this.model,request_key:crypto.randomUUID(),page_id:window.vsgAutosave?.activePageId||options.pageId,image_visual_id:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.visual?.id:undefined,active_tab:window.vsgSceneEditor?.generationMode?'images':window.vsgAutosave?.tab,visual_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.selected:undefined,hotspot_id:window.vsgAutosave?.tab==='visuals'?window.vsgSceneEditor?.hotspotId||undefined:undefined,image_draft:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.generationSnapshot():undefined,image_settings:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.settings:undefined,reference_ids:window.vsgSceneEditor?.generationMode?window.vsgSceneEditor.references.map(Number):undefined,form:this.draft()})
             });
             if(!response.ok){const data=await response.json();throw new Error(Object.values(data.errors??{}).flat().join(' ')||data.message||'Request failed.');}
             if(response.headers.get('Content-Type')?.includes('text/event-stream')){
                 this.messages.push({role:'user',content:message},{id:'stream:'+crypto.randomUUID(),role:'assistant',content:'',streaming:true});
-                streamingIndex=this.messages.length-1;this.waitingForResponse=false;this.prompt='';this.scroll();
+                streamingIndex=this.messages.length-1;this.waitingForResponse=false;this.clearSentDraft(sentDraftKey,message);this.scroll();
                 await readChatStream(response,(event,data)=>{
                     if(event==='delta'){this.messages[streamingIndex].content+=data.text;this.scroll();}
-                    if(event==='complete'){data.message.autoReview=true;this.messages.splice(streamingIndex,1,data.message);this.remaining=data.remaining;this.scroll();}
+                    if(event==='complete'){if(data.user_message)this.messages.splice(streamingIndex-1,1,data.user_message);data.message.autoReview=true;this.messages.splice(streamingIndex,1,data.message);this.remaining=data.remaining;this.scroll();}
                 });
             }else{
-                const data=await response.json();data.message.autoReview=true;this.messages.push({role:'user',content:message},data.message);this.remaining=data.remaining;this.prompt='';
+                const data=await response.json();data.message.autoReview=true;this.messages.push(data.user_message||{role:'user',content:message},data.message);this.remaining=data.remaining;this.clearSentDraft(sentDraftKey,message);
             }
             this.$nextTick(() => window.dispatchEvent(new Event('textarea-refresh')));
             this.remember();

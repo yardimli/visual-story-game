@@ -11,7 +11,7 @@ export function studioAutosave(initialRevision, options = {}) {
                 const allowed=['page','story','visuals','inventory'];
                 const current=new URL(window.location.href).searchParams.get('tab');
                 this.tab=allowed.includes(current)?current:'page';
-                const sync=tab=>{if(!allowed.includes(tab))return;const url=new URL(window.location.href);url.searchParams.set('tab',tab);window.history.replaceState(null,'',url);};
+                const sync=tab=>{if(!allowed.includes(tab))return;const url=new URL(window.location.href);url.searchParams.set('tab',tab);window.history.replaceState(null,'',url);window.dispatchEvent(new CustomEvent('vsg-editor-tab',{detail:{tab}}));};
                 sync(this.tab);this.$watch('tab',tab=>{sync(tab);if(tab==='page')this.scrollToActivePage();});
                 if(this.tab==='page')this.scrollToActivePage();
             }
