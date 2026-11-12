@@ -12,8 +12,6 @@ test('integrated editor resolves selected extraction and output state dynamicall
  assert.equal(editor.extractionBatch.id,7);
  assert.equal(editor.sceneExtractions.length,1);
  assert.equal(editor.extractionMissing.length,1);
- editor.extractionQuotes.background={estimate:0.05};
- assert.equal(editor.extractionTotal,0.05);
  editor.extractionBatch.outputs[0].accepted_asset_id=42;
  assert.equal(editor.extractionBackground,42);
  assert.equal(editor.extractionMissing.length,0);
@@ -88,4 +86,59 @@ test('render timer measures elapsed time from worker start and ignores queue age
  assert.equal(editor.renderElapsed({started_at:'2026-11-11T08:00:00Z',created_at:'2026-11-11T07:00:00Z'}),'2m 05s');
  assert.equal(editor.renderElapsed({started_at:null}),'');
  assert.equal(editor.renderElapsed({started_at:'2026-11-11T08:03:00Z'}),'0m 00s');
+});
+
+test('v2 area reset restores both hitbox and layer geometry from saved defaults', async()=>{
+ const e=sceneEditor({});let saves=0;e.changed=()=>saves++;
+ const h={action:'pickup_v2',x:.7,y:.8,width:.1,height:.1,overlay_bounds:{x:.7,y:.8,width:.1,height:.1},default_bounds:{x:.2,y:.3,width:.2,height:.2},default_overlay_bounds:{x:.18,y:.28,width:.24,height:.24}};
+ await e.resetAreaPosition(h);assert.equal(h.x,.2);assert.equal(h.y,.3);assert.deepEqual(h.overlay_bounds,h.default_overlay_bounds);assert.equal(saves,1);assert.equal(e.resettingArea,false);
+});
+test('older v2 areas recover defaults from the matching extraction output', async()=>{
+ const e=sceneEditor({extractionUrl:'/extractions'});e.selected='scene';e.changed=()=>{};
+ e.request=async()=>({batches:[{visual_id:'scene',outputs:[{area_id:'switch',type:'switch_on',accepted_asset_id:8,bounds:{x:.1,y:.2,width:.3,height:.4}}]}]});
+ const h={id:'switch',action:'state_v2',state_asset_id:8,x:.8,y:.8,width:.1,height:.1};await e.resetAreaPosition(h);
+ assert.equal(h.x,.1);assert.equal(h.width,.3);assert.equal(h.overlay_bounds.height,.4);assert.equal(h.default_bounds.y,.2);
+});
+
+test('drag handle sits below the area and clamps fully inside scene edges',()=>{
+ const e=sceneEditor({});const h={x:.2,y:.2,width:.2,height:.2};
+ let style=e.areaDragButtonStyle(h,1000,500);assert.equal(style.left,'-2px');assert.equal(style.top,'102px');
+ const bottom={x:.99,y:.95,width:.01,height:.05};style=e.areaDragButtonStyle(bottom,1000,500);
+ assert.equal(bottom.x*1000+2+parseFloat(style.left),972);assert.equal(bottom.y*500+2+parseFloat(style.top),472);
+ style=e.areaDragButtonStyle(bottom,400,200,32,32);assert.equal(bottom.x*400+2+parseFloat(style.left),368);assert.equal(bottom.y*200+2+parseFloat(style.top),168);
+});
+
+test('batch generation submits unaccepted outputs without an estimate step',async()=>{
+ const e=sceneEditor({});e.extractionModel='image-model';e.extractionId=1;e.extractionBatches=[{id:1,outputs:[{id:'pending',jobs:[]},{id:'accepted',accepted_asset_id:8,jobs:[]},{id:'running',jobs:[{status:'running'}]}]}];
+ const calls=[];e.extractionAction=async(output,action)=>calls.push([output.id,action]);await e.generateMissingExtraction();assert.deepEqual(calls,[['pending','generate']]);assert.equal(e.extractionRun,false);
+});
+
+test('image area resizing locks aspect ratio at every corner and scene boundary',()=>{
+ const e=sceneEditor({});const original={x:.3,y:.3,width:.2,height:.1};
+ for(const corner of ['nw','ne','sw','se']){
+  const h={...original};e.resizeAreaProportionally(h,original,corner,corner.includes('w')?-.1:.1,0);
+  assert.ok(Math.abs(h.width/h.height-2)<1e-10);
+  assert.ok(Math.abs((corner.includes('w')?h.x+h.width:h.x)-(corner.includes('w')?.5:.3))<1e-10);
+  assert.ok(Math.abs((corner.includes('n')?h.y+h.height:h.y)-(corner.includes('n')?.4:.3))<1e-10);
+  e.resizeAreaProportionally(h,original,corner,corner.includes('w')?-10:10,corner.includes('n')?-10:10);
+  assert.ok(Math.abs(h.width/h.height-2)<1e-10);assert.ok(h.x>=-1e-10 && h.y>=-1e-10 && h.x+h.width<=1+1e-10 && h.y+h.height<=1+1e-10);
+ }
+});
+test('pointer resizing locks only areas with image display enabled',()=>{
+ const e=sceneEditor({});const h={id:'a',x:.2,y:.2,width:.2,height:.1,overlay:true,overlay_bounds:{x:.2,y:.2,width:.2,height:.1}};
+ e.document={visuals:[{id:'scene',hotspots:[h]}]};e.selected='scene';const original=JSON.parse(JSON.stringify(h));e.areaDrag={id:'a',handle:'se',startX:0,startY:0,rect:{width:1000,height:500},original};
+ e.moveArea({clientX:100,clientY:0});assert.ok(Math.abs(h.width/h.height-2)<1e-10);assert.ok(Math.abs(h.overlay_bounds.width/h.overlay_bounds.height-2)<1e-10);
+ Object.assign(h,original,{overlay:false});e.moveArea({clientX:100,clientY:0});assert.ok(Math.abs(h.width-.3)<1e-10);assert.ok(Math.abs(h.height-.1)<1e-10);
+});
+
+
+test('updating a saved plan selects only new areas and uses the accepted background',()=>{
+ const editor=sceneExtraction({});editor.selected='scene';editor.visual={asset_id:1};
+ editor.extractionPlanChoice=7;editor.extractionBatches=[{id:7,visual_id:'scene',outputs:[{type:'background',accepted_asset_id:22},{type:'layer',area_id:'old'}]}];
+ editor.extractionAreas=[{id:'old',selected:true},{id:'bag',selected:true}];
+ editor.$refs={extractionPlanDialog:{close(){}},extractionDialog:{showModal(){}}};
+ editor.updateExtractionPlan();
+ assert.equal(editor.extractionUpdateId,7);assert.equal(editor.extractionSource,22);
+ assert.equal(editor.extractionAreas[0].selected,false);assert.equal(editor.extractionAreas[0].reused,true);
+ assert.equal(editor.extractionAreas[1].selected,true);
 });

@@ -21,6 +21,21 @@ class SceneExtractionTest extends TestCase {
   Cache::put('openrouter.image-endpoints.'.hash('sha256','openai/image'),[['provider_name'=>'OpenAI','provider_tag'=>'openai','supported_parameters'=>['input_references'=>['max'=>4]],'pricing'=>[['billable'=>'output_image','unit'=>'image','cost_usd'=>.05]]]],60);
   return [$u,$s,$p,$data];
  }
+ public function test_incremental_update_preserves_existing_outputs_and_only_prepares_new_area():void {
+  [$u,$s,$p,$data]=$this->fixture();
+  $b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();
+  $batch=SceneExtraction::findOrFail($b['id']);$outputs=$batch->outputs;
+  foreach($outputs as &$o)$o['accepted_asset_id']=$this->asset($s,true)->id;unset($o);
+  $batch->update(['outputs'=>$outputs]);$clean=$outputs[0]['accepted_asset_id'];
+  $doc=$p->fresh()->visual_document;$area=$doc['visuals'][0]['hotspots'][0];$area['id']=(string)Str::uuid();$area['label']='Bag';$area['object_id']=null;$doc['visuals'][0]['hotspots'][]=$area;$p->update(['visual_document'=>$doc]);
+  $data['update_plan_id']=$batch->id;$data['areas'][0]['id']=$area['id'];
+  $updated=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();
+  $this->assertSame($batch->id,$updated['id']);$this->assertSame($clean,$updated['source_asset_id']);$this->assertCount(5,$updated['outputs']);
+  $this->assertNull($updated['outputs'][0]['accepted_asset_id']);$this->assertStringContainsString('1. Bag',$updated['outputs'][0]['prompt']);$this->assertStringNotContainsString('1. Key',$updated['outputs'][0]['prompt']);
+  foreach(array_slice($outputs,1) as $old){$kept=collect($updated['outputs'])->firstWhere('id',$old['id']);$this->assertSame($old['accepted_asset_id'],$kept['accepted_asset_id']);$this->assertSame($old['versions'],$kept['versions']);$this->assertTrue($kept['reused']);}
+  $this->assertDatabaseCount('scene_extractions',1);$this->assertDatabaseCount('image_generations',0);
+  $data['revision']=$updated['revision'];$this->postJson(route('extractions.store',[$s,$p]),$data)->assertUnprocessable();
+ }
  public function test_background_uses_numbered_reference_with_optional_original():void {
   [$u,$s,$p,$data]=$this->fixture();$original=$s->assets()->first();$originalBytes=Storage::disk('local')->get($original->path);
   foreach(['original_and_annotated'=>2,'annotated_only'=>1] as $mode=>$count){
@@ -35,6 +50,33 @@ class SceneExtractionTest extends TestCase {
    $this->assertCount(1,$batch['outputs'][1]['references']);
   }
   $this->assertSame($originalBytes,Storage::disk('local')->get($original->path));$this->assertDatabaseCount('image_generations',0);
+ }
+ public function test_empty_locations_reuse_background_and_inventory_and_generate_only_fitted_layers():void {
+  [$u,$s,$p,$data]=$this->fixture();$inventory=$s->inventory_document;$itemAsset=$this->asset($s,true);$inventory['visuals'][0]['asset_id']=$itemAsset->id;$s->update(['inventory_document'=>$inventory]);
+  $data['areas'][0]['initial_empty']=true;
+  $b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();
+  $this->assertSame($b['source_asset_id'],$b['outputs'][0]['accepted_asset_id']);$this->assertSame($itemAsset->id,$b['outputs'][2]['accepted_asset_id']);
+  $this->assertCount(2,$b['outputs'][1]['references']);$this->assertSame($itemAsset->id,$b['outputs'][1]['references'][1]);$this->assertStringContainsString('empty location crop',$b['outputs'][1]['prompt']);
+  $layer=$this->asset($s,true);$job=ImageGeneration::create(['user_id'=>$u->id,'story_id'=>$s->id,'story_page_id'=>$p->id,'visual_id'=>(string)Str::uuid(),'kind'=>'scene','name'=>'Placed item','request_key'=>(string)Str::uuid(),'status'=>'completed','asset_ids'=>[$layer->id],'payload'=>[],'references'=>[],'pricing'=>[]]);
+  $batch=SceneExtraction::find($b['id']);$outputs=$batch->outputs;$outputs[1]['versions']=[$job->id];$batch->update(['outputs'=>$outputs]);$this->getJson(route('extractions.index',[$s,$p]))->assertOk();
+  $this->postJson(route('extractions.activate',[$s,$p,$batch]),['revision'=>$b['revision'],'inventory_revision'=>$b['inventory_revision']])->assertOk();
+  $h=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];$this->assertTrue($h['initial_empty']);$this->assertTrue($h['inventory_rules'][0]['allowed']);$this->assertSame($layer->id,$h['overlay_asset_id']);
+  $this->assertTrue(collect($s->fresh()->game_flags)->firstWhere('key',$h['collectible_flag'])['initial']);$this->assertSame($itemAsset->id,$s->fresh()->inventory_document['visuals'][0]['asset_id']);
+ }
+ public function test_empty_location_requires_existing_inventory_artwork():void {
+  [$u,$s,$p,$data]=$this->fixture();$data['areas'][0]['initial_empty']=true;
+  $this->postJson(route('extractions.store',[$s,$p]),$data)->assertUnprocessable();$this->assertDatabaseCount('scene_extractions',0);
+ }
+ public function test_saved_plan_reference_mode_can_change_without_generating_or_losing_versions():void {
+  [$u,$s,$p,$data]=$this->fixture();$data['background_references']='annotated_only';
+  $b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();$o=$b['outputs'][0];$url=route('extractions.output',[$s,$p,$b['id'],$o['id']]);
+  $this->postJson($url,['action'=>'unaccept'])->assertOk();
+  $changed=$this->postJson($url,['action'=>'references','reference_mode'=>'original_and_annotated','prompt'=>$o['prompt'].' Keep the wallpaper.'])->assertOk()->json('outputs.0');
+  $this->assertCount(2,$changed['references']);$this->assertSame($b['source_asset_id'],$changed['references'][0]);$this->assertNotSame($o['references'][0],$changed['references'][1]);
+  $this->assertStringStartsWith('Edit image 1',$changed['prompt']);$this->assertStringContainsString('Keep the wallpaper.',$changed['prompt']);$this->assertStringNotContainsString('Edit the supplied annotated',$changed['prompt']);$this->assertSame($o['versions'],$changed['versions']);$this->assertNull($changed['accepted_asset_id']);
+  $single=$this->postJson($url,['action'=>'references','reference_mode'=>'annotated_only'])->assertOk()->json('outputs.0');$this->assertCount(1,$single['references']);$this->assertStringStartsWith('Edit the supplied annotated',$single['prompt']);
+  $this->postJson(route('extractions.output',[$s,$p,$b['id'],$b['outputs'][1]['id']]),['action'=>'references','reference_mode'=>'annotated_only'])->assertUnprocessable();
+  $this->assertDatabaseCount('image_generations',0);$this->assertDatabaseCount('llm_requests',0);
  }
  public function test_missing_items_are_created_linked_and_reused_on_later_plans():void {
   [$u,$s,$p,$data]=$this->fixture();$doc=$p->visual_document;$missing=$doc['visuals'][0]['hotspots'][0];$missing['id']=(string)Str::uuid();$missing['label']='Fedora';$missing['description']='A felt hat';$missing['object_id']=null;$doc['visuals'][0]['hotspots'][]=$missing;$p->update(['visual_document'=>$doc]);
@@ -81,13 +123,13 @@ class SceneExtractionTest extends TestCase {
   $this->assertSame(0,$s->messages()->count());
   $this->postJson(route('extractions.activate',[$s,$p,$batch['id']]),['revision'=>$p->visual_revision,'inventory_revision'=>$s->inventory_revision])->assertOk();
   $this->assertSame(1,$s->messages()->count());$this->assertStringContainsString('Key: removable scene layer',$s->messages()->first()->content);
-  $h=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];$this->assertTrue($h['overlay']);$this->assertSame(.08,$h['overlay_bounds']['x']);$this->assertSame(.1,$h['x']);$this->assertNull($h['target_id']);$this->assertFalse($h['flag_conditions'][0]['value']);$this->assertTrue($h['flag_effects'][0]['value']);$this->assertNotNull($s->fresh()->inventory_document['visuals'][0]['asset_id']);
+  $h=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];$this->assertTrue($h['overlay']);$this->assertSame(.08,$h['overlay_bounds']['x']);$this->assertSame(.1,$h['default_bounds']['x']);$this->assertSame(.08,$h['default_overlay_bounds']['x']);$this->assertSame(.1,$h['x']);$this->assertNull($h['target_id']);$this->assertSame([],$h['flag_conditions']);$this->assertTrue($h['placement_enabled']);$this->assertNotEmpty($h['collectible_flag']);$this->assertTrue($h['flag_effects'][0]['value']);$this->assertNotNull($s->fresh()->inventory_document['visuals'][0]['asset_id']);
   $this->assertSame($original['visuals'][0]['asset_id'],SceneExtraction::find($batch['id'])->source_asset_id);
   $this->postJson(route('extractions.activate',[$s,$p,$batch['id']]),['revision'=>$p->visual_revision,'inventory_revision'=>$s->inventory_revision])->assertUnprocessable();
  }
  public function test_versions_are_independent_and_active_output_is_not_submitted_twice():void {
   [$u,$s,$p,$data]=$this->fixture();$b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();$o=$b['outputs'][0];$url=route('extractions.output',[$s,$p,$b['id'],$o['id']]);
-  $this->postJson($url,['action'=>'quote','model'=>'openai/image'])->assertOk()->assertJsonStructure(['estimate']);$this->assertDatabaseCount('image_generations',0);
+  $this->postJson($url,['action'=>'quote','model'=>'openai/image'])->assertUnprocessable();$this->assertDatabaseCount('image_generations',0);
   $this->postJson($url,['action'=>'generate','model'=>'openai/image'])->assertOk();$this->assertDatabaseCount('image_generations',1);
   $this->postJson($url,['action'=>'generate','model'=>'openai/image'])->assertUnprocessable();
   $job=ImageGeneration::first();$job->update(['status'=>'failed']);

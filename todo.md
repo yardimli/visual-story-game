@@ -710,3 +710,27 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Extraction/switch completed renders auto-accept on plan refresh, including opaque results for creator visual review. Unaccept preserves versions and does not modify the active scene; it remains unaccepted until a new render completes or the creator accepts a previous version. Re-activation applies replacements. Original switch crops remain preserved.
 
 - [x] Click areas use their own Description only; removed the item-description checkbox and implicit inventory fallback. Local switches show their changed-state artwork in the editor, have a separate state_description, and require description then action clicks for each state when hover is disabled and text is present.
+
+- [x] Reverse collectible preparation: each area can be marked initially empty (suggested when linked Inventory artwork exists without an area overlay). Reuse empty backgrounds and existing Inventory assets; generate a fitted transparent scene layer from empty crop + item references. Pickup v2 locations support returning the linked item by default, additional allowed/rejected item rules, required true/false flag states, response text and flag effects. Placement requires emptiness, transfers the item from inventory, preserves occupancy across scene visits, and permits picking the placed item up again. Incorrect drops show the response and return the item.
+
+- [x] Click an area to select it; move it only with its selected drag handle. Added Reset to default position for pickup v2/state v2, restoring hitbox and image bounds from extraction defaults (with fallback to older saved plans).
+
+- [x] Keep click-area border thickness unchanged on selection; remove extra focus ring and use a 10% selected tint over otherwise transparent areas.
+
+- [x] Remove on-image layer/delete buttons; keep drag and resize controls on the area, and place confirmed Delete beside Up/Down in the area form.
+
+- [x] Position the selected area drag handle just below its bottom-left corner; clamp it within the scene at bottom/right edges and recalculate on canvas resize.
+
+- [x] Use 50% opacity on click-area borders in selected, unselected and drawing states.
+
+- [x] Show on-image labels only for the selected click area; keep them hidden while dragging.
+
+- [x] Reorganize click-area form: action/cursor dropdown row, spaced placement checkboxes beneath, Reset beside Delete, combined image controls, and local layer/switch labels without v2. Preserve all checkbox settings.
+
+- [x] Allow changing one/two-image reference mode on saved extraction background outputs after unaccepting. Refresh annotations with smaller bounded number labels, preserve custom prompt text and versions, and invalidate cost estimates after reference changes.
+
+- [x] Remove extraction/switch estimate UI and quote endpoint; generate individually or all unaccepted outputs directly. Preserve internal credit reservations and update companion balance from generation refreshes.
+
+- [x] Lock area/image aspect ratio when Show image in area is enabled, including corner and keyboard resizing, while keeping opposite corners anchored and respecting scene bounds.
+
+- [x] Add Update with new areas to saved extraction plans: reuse existing outputs, select only new areas, update the accepted clean background, preserve item rules on activation, and reject mismatched or busy plans.
