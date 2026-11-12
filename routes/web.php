@@ -22,6 +22,12 @@ Route::get('/', function () {
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/stories/{story}/audio',[\App\Http\Controllers\AudioController::class,'index'])->name('audio.index');
+    Route::get('/stories/{story}/audio/search',[\App\Http\Controllers\AudioController::class,'search'])->middleware('throttle:60,1,audio-search:')->name('audio.search');
+    Route::post('/stories/{story}/audio/import',[\App\Http\Controllers\AudioController::class,'add'])->name('audio.add');
+    Route::post('/stories/{story}/audio/generate',[\App\Http\Controllers\AudioController::class,'generate'])->middleware('throttle:6,1,audio-generate:')->name('audio.generate');
+    Route::get('/audio/{sound}',[\App\Http\Controllers\AudioController::class,'file'])->name('audio.file');
+
     Route::get('/stories/{story}/flags',[\App\Http\Controllers\StoryStateController::class,'show'])->name('flags.show');
     Route::put('/stories/{story}/flags',[\App\Http\Controllers\StoryStateController::class,'update'])->name('flags.update');
     Route::get('/stories/{story}/pages/{page}/extractions',[\App\Http\Controllers\SceneExtractionController::class,'index'])->name('extractions.index');

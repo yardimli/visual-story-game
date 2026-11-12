@@ -17,6 +17,7 @@
 </section>
 @include('studio.visuals')
 @include('studio.inventory')
+@include('studio.audio')
 
 
 </main></div>

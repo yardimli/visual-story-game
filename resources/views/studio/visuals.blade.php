@@ -1,4 +1,4 @@
-<section class="scene-editor-panel" x-show="tab==='visuals'" x-cloak x-data="sceneEditor(@js(['url'=>route('visuals.show',[$story,$page]),'extractionUrl'=>route('extractions.index',[$story,$page]),'generate'=>route('images.generate',[$story,$page]),'upload'=>route('assets.store',$story),'model'=>$story->image_model]))">
+<section class="scene-editor-panel" x-show="tab==='visuals'" x-cloak x-data="sceneEditor(@js(['audioUrl'=>route('audio.index',$story),'url'=>route('visuals.show',[$story,$page]),'extractionUrl'=>route('extractions.index',[$story,$page]),'generate'=>route('images.generate',[$story,$page]),'upload'=>route('assets.store',$story),'model'=>$story->image_model]))">
 <p x-show="halted" class="text-sm">Copy unsaved changes and reload to load the latest version.</p>
 <div x-show="!loading" class="space-y-3">
 
@@ -19,6 +19,7 @@
 <template x-if="visual"><div class="space-y-3">
 <div x-show="visualDetailsVisible" class="space-y-3">
 <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"><label class="field min-w-0">Visual name<input x-model="visual.name" @input="changed()" maxlength="160"></label><div class="field"><span>Selected image</span><button type="button" class="btn-secondary min-w-0 justify-start gap-3" @click="openVisualImagePicker()" aria-haspopup="dialog"><img x-show="asset(visual.asset_id)" :src="asset(visual.asset_id)?.url" alt="" class="h-9 w-12 shrink-0 rounded object-contain"><span class="truncate" x-text="asset(visual.asset_id)?.name || 'Choose image'"></span></button></div></div>
+<div class="grid grid-cols-2 gap-3"><label class="field">Scene entry sound<select :value="visual.sound_id || ''" @change="visual.sound_id=$event.target.value?Number($event.target.value):null;changed()"><option value="">None</option><template x-for="s in audioSounds" :key="s.id"><option :value="s.id" x-text="s.name"></option></template></select></label><label class="field">Volume<input type="range" min="0" max="1" step="0.05" :value="visual.sound_volume??1" @input="visual.sound_volume=Number($event.target.value);changed()"></label></div><label class="area-checkbox"><input type="checkbox" :checked="!!visual.sound_loop" @change="visual.sound_loop=$event.target.checked;changed()"><span>Loop scene sound</span></label>
 <label class="field">Description<textarea x-model="visual.description" @input="changed()" maxlength="3000" placeholder="Describe this scene or object for the player."></textarea></label><label class="field" >Description position<select :value="visual.description_position || 'top'" @change="visual.description_position=$event.target.value;changed()"><option value="top">Top</option><option value="bottom">Bottom</option></select></label>
 </div>
 <div class="rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 p-4 space-y-4">
@@ -73,6 +74,7 @@
 </div>
 <div class="space-y-3">
 <div class="area-description-header">
+<div class="grid grid-cols-2 gap-3"><label class="field">Click sound<select :value="hotspot.sound_id || ''" @change="hotspot.sound_id=$event.target.value?Number($event.target.value):null;soundPlayer?.audition(hotspot,audioSounds);changed()"><option value="">None</option><template x-for="s in audioSounds" :key="s.id"><option :value="s.id" x-text="s.name"></option></template></select></label><label class="field">Volume<input type="range" min="0" max="1" step="0.05" :value="hotspot.sound_volume??1" @input="hotspot.sound_volume=Number($event.target.value);changed()"></label></div>
 <label :for="'hover-description-'+hotspot.id" class="text-xs font-semibold" >Description</label>
 <div class="area-description-options">
 <label class="area-checkbox"><input type="checkbox" :checked="hotspot.show_hover_text!==false" @change="hotspot.show_hover_text=$event.target.checked;changed()"><span>Show hover text</span></label>

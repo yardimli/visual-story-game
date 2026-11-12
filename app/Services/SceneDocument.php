@@ -6,13 +6,15 @@ use Illuminate\Validation\ValidationException;
 class SceneDocument {
  public function validate(Story $story, array $document, ?int $pageId=null): array {
   $stateRules=[];
+  foreach(['visuals.*','visuals.*.hotspots.*'] as $path){$stateRules[$path.'.sound_id']=['sometimes','nullable','integer',\Illuminate\Validation\Rule::exists('story_sounds','id')->where('story_id',$story->id)];$stateRules[$path.'.sound_volume']='sometimes|numeric|min:0|max:1';}
+  $stateRules['visuals.*.sound_loop']='sometimes|boolean';
   foreach(['visuals.*.skip_rules.*.flag_conditions','visuals.*.hotspots.*.flag_conditions','visuals.*.hotspots.*.flag_effects','visuals.*.hotspots.*.inventory_rules.*.flag_conditions','visuals.*.hotspots.*.inventory_rules.*.flag_effects','visuals.*.hotspots.*.choices.*.flag_effects'] as $path){$stateRules[$path]='sometimes|array|max:100';$stateRules[$path.'.*']='array:key,value';$stateRules[$path.'.*.key']=['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))];$stateRules[$path.'.*.value']='required|boolean';}
   foreach(['default_bounds','default_overlay_bounds'] as $field){
    $path='visuals.*.hotspots.*.'.$field;$stateRules[$path]='sometimes|array:x,y,width,height';
    foreach(['x','y','width','height'] as $axis)$stateRules[$path.'.'.$axis]='required_with:'.$path.'|numeric|min:'.(in_array($axis,['width','height'])?'0.005':'0').'|max:1';
   }
   $v=Validator::make($document,$stateRules+[
-   'visuals'=>'present|array|max:100', 'visuals.*'=>'array:id,name,kind,asset_id,prompt,video_prompt,hotspots,actions,description,description_position,skip_rules,dialog_background,dialog_border,dialog_footer',
+   'visuals'=>'present|array|max:100', 'visuals.*'=>'array:id,name,kind,sound_id,sound_volume,sound_loop,asset_id,prompt,video_prompt,hotspots,actions,description,description_position,skip_rules,dialog_background,dialog_border,dialog_footer',
    'visuals.*.id'=>'required|uuid|distinct','visuals.*.name'=>'required|string|max:160','visuals.*.kind'=>'required|in:scene,object',
    'visuals.*.description'=>'sometimes|nullable|string|max:3000','visuals.*.asset_id'=>'nullable|integer','visuals.*.video_prompt'=>'sometimes|nullable|string|max:5000','visuals.*.prompt'=>'nullable|string|max:10000','visuals.*.hotspots'=>'present|array|max:100',
    'visuals.*.dialog_background'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
@@ -30,7 +32,7 @@ class SceneDocument {
    'visuals.*.skip_rules.*.target_page_id'=>'nullable|integer',
    'visuals.*.skip_rules.*.target_scene_id'=>'nullable|uuid',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
-   'visuals.*.hotspots.*'=>'array:id,label,description,x,y,width,height,cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,use_item_description,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_behavior,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*'=>'array:id,label,sound_id,sound_volume,description,x,y,width,height,cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,use_item_description,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_behavior,unavailable_text,flag_effects',
    'visuals.*.hotspots.*.initial_empty'=>'sometimes|boolean',
    'visuals.*.hotspots.*.placement_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.collectible_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],

@@ -609,3 +609,10 @@ Reverse collectible preparation: each area can be marked initially empty (sugges
 
 ### Incremental extraction updates
 Existing extraction plans offer Update with new areas. Existing areas are marked for reuse and only new areas are selected. Preparation updates the saved plan using its accepted clean background, removing only newly selected collectibles. Existing layer/inventory outputs retain their accepted images and versions; generation submits only unaccepted outputs. Activation preserves already applied item settings. Changed area bounds, item links, missing areas, or active renders require review before updating. Previous background metadata is retained.
+
+### Project audio library
+The Audio tab follows Story bible. Freesound search uses server-side Token authentication and persistent file-cache entries keyed by normalized query and page. Successful searches retain all requested metadata; recently used queries are stored per story. Creators preview results and import high-quality MP3 previews into private local storage. Original-file downloads require OAuth and are not part of this token integration. Imported sounds retain creator, source link and license for attribution.
+
+Stable Audio uses FAL_KEY on the server. Generate creates a durable audio_generations record and an `audio` queue job. Submission is claimed before the paid POST; ambiguous submissions are never automatically repeated. Subsequent jobs poll the same provider request, expose queue position/logs, and store completed audio in the project library. Queue waiting time is separate from render time, with a ten-minute running limit. Audio generation uses the configured fal account; it does not currently debit OpenRouter token credits.
+
+Scenes may select an entry sound, volume and looping. Click areas select a click sound and volume. Assignments only accept sounds from the same story. Scene transitions replace the scene sound, while click effects can finish; closing the preview stops all game audio. Run the worker manually with `php artisan queue:work database --queue=images,audio --timeout=240 --tries=1`. No worker is automatically launched by the editor.

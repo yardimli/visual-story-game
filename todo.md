@@ -734,3 +734,20 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Lock area/image aspect ratio when Show image in area is enabled, including corner and keyboard resizing, while keeping opposite corners anchored and respecting scene bounds.
 
 - [x] Add Update with new areas to saved extraction plans: reuse existing outputs, select only new areas, update the accepted clean background, preserve item rules on activation, and reject mismatched or busy plans.
+
+### Story audio
+- [x] Add server-side Freesound token credentials and cached, paginated search with previews and recent project searches.
+- [x] Import preview audio into a shared project library with creator/source/license metadata.
+- [x] Queue Stable Audio generation through fal.ai, persist request IDs, poll status/logs, download completed audio, and prevent duplicate paid submission.
+- [x] Add Audio tab after Story bible and scene-entry/click sound assignments with volume and scene looping.
+- [x] Stop scene audio on scene changes and all playback when leaving the test dialog.
+- [x] Verify live Freesound search on localhost:8010; cover fal submission/polling/download with mocked-provider tests.
+- [ ] User-triggered live fal render (no paid calls made during implementation).
+
+- [x] Add Freesound maximum duration (default 3 seconds, blank for any length), API-side duration filtering and duration-aware cached results.
+
+- [x] Explicitly dispatch audio on the database connection, like images, so sync defaults cannot discard polling releases. Recover the previously submitted audio request without resubmitting generation.
+
+- [x] Split Audio into Search/Generate tabs on the left and a persistent project library on the right; compact sound metadata and place Add beside the player.
+
+- [x] Preview Click sound immediately on selection using the configured volume; stop prior previews on selection changes, None, tab navigation, and entering/exiting game testing.

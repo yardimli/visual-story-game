@@ -1,3 +1,4 @@
+import {storyAudio} from './story-audio.js';
 import {chatDrafts} from './chat-drafts';
 import {storyFlags} from './story-flags';
 import {inventoryLibrary} from './inventory-library';
@@ -216,4 +217,5 @@ Alpine.data('modelCatalogReload', () => ({
   finally{this.busy=false;}
  }
 }));
+Alpine.data('storyAudio',storyAudio);
 Alpine.start();

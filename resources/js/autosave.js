@@ -8,7 +8,7 @@ export function studioAutosave(initialRevision, options = {}) {
             window.vsgAutosave = this;
             this.$watch('revision',revision=>window.dispatchEvent(new CustomEvent('vsg-story-revision',{detail:{revision}})));
             if(options.tabs){
-                const allowed=['page','story','visuals','inventory'];
+                const allowed=['page','story','visuals','inventory','audio'];
                 const current=new URL(window.location.href).searchParams.get('tab');
                 this.tab=allowed.includes(current)?current:'page';
                 const sync=tab=>{if(!allowed.includes(tab))return;const url=new URL(window.location.href);url.searchParams.set('tab',tab);window.history.replaceState(null,'',url);window.dispatchEvent(new CustomEvent('vsg-editor-tab',{detail:{tab}}));};
