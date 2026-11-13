@@ -8,7 +8,8 @@ class LlmBudget {
         $count=0;
         LlmRequest::whereIn('status',['reserved','uncertain'])->where(function($q){
             $q->whereHas('imageGeneration',fn($images)=>$images->where('status','!=','queued')->where('started_at','<=',now()->subMinutes(4)))
-              ->orWhere(fn($text)=>$text->whereDoesntHave('imageGeneration')->where('created_at','<=',now()->subMinutes(4)));
+              ->orWhereHas('audioGeneration',fn($audio)=>$audio->whereIn('status',['running','submitting'])->where('started_at','<=',now()->subMinutes(10)))
+              ->orWhere(fn($text)=>$text->whereDoesntHave('imageGeneration')->whereDoesntHave('audioGeneration')->where('created_at','<=',now()->subMinutes(4)));
         })
             ->when($userId,fn($q)=>$q->where('user_id',$userId))->select(['id','user_id'])->chunkById(100,function($rows) use (&$count) {
                 foreach($rows as $row) $count+=DB::transaction(function() use($row) {
@@ -16,9 +17,11 @@ class LlmBudget {
                     $r=LlmRequest::whereKey($row->id)->lockForUpdate()->first();
                     if(!$u || !$r || !in_array($r->status,['reserved','uncertain']))return 0;
                     $image=$r->imageGeneration()->lockForUpdate()->first();
+                    $audio=$r->audioGeneration()->lockForUpdate()->first();
+                    if($audio){if(!in_array($audio->status,['running','submitting'])||!$audio->started_at||$audio->started_at->gt(now()->subMinutes(10)))return 0;$audio->update(['status'=>'failed','error'=>'Audio rendering timed out. Reserved credit released; check provider activity before submitting again.']);}
                     // Queue time is not provider execution time. Keep queued credit reserved.
                     if($image && ($image->status==='queued' || !$image->started_at))return 0;
-                    $started=$image?$image->started_at:$r->created_at;
+                    $started=$audio?$audio->started_at:($image?$image->started_at:$r->created_at);
                     if($started->gt(now()->subMinutes(4)))return 0;
                     if($r->funding==='platform'){$u->llm_reserved-=$r->reserved;$u->save();}
                     $r->update(['status'=>'failed','cost'=>0]);
@@ -28,16 +31,17 @@ class LlmBudget {
             });
         return $count;
     }
-    public function reserve(User $user, ?Story $story, string $requestKey, string $model, int $amount): LlmRequest {
+    public function reserve(User $user, ?Story $story, string $requestKey, string $model, int $amount, bool $forcePlatform=false): LlmRequest {
         $this->expireOverdue($user->id);
-        return DB::transaction(function () use ($user,$story,$requestKey,$model,$amount) {
+        return DB::transaction(function () use ($user,$story,$requestKey,$model,$amount,$forcePlatform) {
             $u = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             if ($u->openrouter_key !== $user->openrouter_key)
                 throw ValidationException::withMessages(['message'=>'Your API key changed. Reload before submitting.']);
             if (LlmRequest::where('user_id',$u->id)->where('request_key',$requestKey)->exists())
                 throw ValidationException::withMessages(['message'=>'This request was already submitted. Reload to see its result.']);
-            $personal = filled($u->openrouter_key);
+            $personal = !$forcePlatform && filled($u->openrouter_key);
             $credits=$u->creditTotal();
+            if($forcePlatform && $u->llm_spent+$u->llm_reserved+$amount>$credits)throw ValidationException::withMessages(['message'=>'Not enough AI credit for this sound. fal audio uses project credits; a personal OpenRouter key cannot fund fal requests.']);
             if (!$personal && $u->llm_spent >= $credits)
                 throw ValidationException::withMessages(['message'=>'Your AI credits have been used. Add your own OpenRouter key in AI settings to continue.']);
             if (!$personal && ($u->llm_spent + $u->llm_reserved + $amount > $credits))

@@ -13,13 +13,14 @@ class GenerateStoryAudio implements ShouldQueue {
  public function __construct(public int $id){}
  public function middleware():array {return [(new \Illuminate\Queue\Middleware\WithoutOverlapping('audio.'.$this->id))->releaseAfter(5)->expireAfter(110)];}
  public function handle(StoryAudio $audio):void {
-  $g=AudioGeneration::find($this->id);if(!$g||in_array($g->status,['completed','failed']))return;
-  $base='https://queue.fal.run/fal-ai/stable-audio';$client=Http::withHeaders(['Authorization'=>'Key '.config('services.fal.key')])->timeout(25);
+  $g=AudioGeneration::find($this->id);if(!$g||in_array($g->status,['completed','failed','draft']))return;
+  $base='https://queue.fal.run/'.($g->model?:'fal-ai/stable-audio');$client=Http::withHeaders(['Authorization'=>'Key '.config('services.fal.key')])->timeout(25);
   try{
    if(!$g->provider_request_id){
     // Claim before POST. An uncertain submission must never create a second paid request.
-    if(!AudioGeneration::whereKey($g->id)->where('status','queued')->whereNull('submitted_at')->update(['status'=>'submitting','submitted_at'=>now()])){throw new \RuntimeException('Submission status is uncertain. Check fal activity before creating another request.');}
-    $r=$client->post($base,['prompt'=>$g->prompt,'seconds_total'=>$g->seconds]);
+    if(!AudioGeneration::whereKey($g->id)->where('status','queued')->whereNull('submitted_at')->update(['status'=>'submitting','submitted_at'=>now()])){return;}
+    $g->refresh();$base='https://queue.fal.run/'.$g->model;
+    $r=$client->post($base,['prompt'=>$g->prompt,($g->model==='cassetteai/sound-effects-generator'?'duration':'seconds_total')=>$g->seconds]);
     if(!$r->successful()||!$r->json('request_id'))throw new \RuntimeException('fal submission failed or was not confirmed. Check fal activity before trying again.');
     $g->refresh();$g->update(['provider_request_id'=>$r->json('request_id'),'status'=>'queued']);$this->release(5);return;
    }
@@ -37,7 +38,8 @@ class GenerateStoryAudio implements ShouldQueue {
    $result=$client->get($request);if(!$result->successful()||!$result->json('audio_file.url'))throw new \RuntimeException('fal did not return a completed audio file.');
    $sound=$audio->save(Story::findOrFail($g->story_id),$result->json('audio_file.url'),['name'=>$g->name,'provider'=>'fal','external_id'=>$g->provider_request_id,'prompt'=>$g->prompt,'duration'=>$g->seconds]);
    $g->update(['status'=>'completed','sound_id'=>$sound->id,'error'=>null]);
-  }catch(\Throwable $e){$g->update(['status'=>'failed','error'=>$e instanceof \RuntimeException && !$e instanceof \Illuminate\Http\Client\RequestException?$e->getMessage():'Audio request failed. Check provider activity before creating another request.']);}
+   if($account=$g->accounting){$account->update(['response_content'=>['status'=>'completed','sound_id'=>$sound->id,'duration'=>$sound->duration]]);app(\App\Services\LlmBudget::class)->settle($account,(int)round((float)$sound->duration*20000),'completed',$g->provider_request_id);}
+  }catch(\Throwable $e){if($account=$g->accounting)app(\App\Services\LlmBudget::class)->settle($account,0,'failed',$g->provider_request_id);$g->update(['status'=>'failed','error'=>$e instanceof \RuntimeException && !$e instanceof \Illuminate\Http\Client\RequestException?$e->getMessage():'Audio request failed. Check provider activity before creating another request.']);}
  }
- public function failed(?\Throwable $e):void {AudioGeneration::whereKey($this->id)->whereNotIn('status',['completed','failed'])->update(['status'=>'failed','error'=>'Audio worker stopped before completion. Check fal activity before creating another request.']);}
+ public function failed(?\Throwable $e):void {if($g=AudioGeneration::find($this->id)){if($g->accounting)app(\App\Services\LlmBudget::class)->settle($g->accounting,0,'failed',$g->provider_request_id);}AudioGeneration::whereKey($this->id)->whereNotIn('status',['completed','failed'])->update(['status'=>'failed','error'=>'Audio worker stopped before completion. Check fal activity before creating another request.']);}
 }

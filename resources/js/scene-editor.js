@@ -6,7 +6,7 @@ import {notify, watchNotices} from './toasts.js';
 import {selectableModels, rememberedModel, rememberModel, imagePriceLabel, imageModelLabel} from './model-preferences.js';
 export function sceneEditor(options) {
  return Object.defineProperties({
-  audioSounds:[], soundPlayer:null,
+  audioSettings:{}, audioMuted:false,audioSounds:[], soundPlayer:null,
   flagDefinitions:[], flags:{}, previewFlags:[], imageOrder:[], orderingImages:false, movedImageId:null, deleteImageId:null, deletingImage:false, inventoryItems:[], visualMenuOpen:false, draggedVisualId:'', visualDropId:'', narration:null, narrationVersion:0, inventoryPulse:false, pickupFlight:null, pickupTimer:null, previewInventorySelection:[], previewPages:[], editorPageId:null, previewPageId:null, generationMode:!!options.generationMode, generationName:'', selectedImageId:null, generationInput:{prompt:'',video_prompt:''}, namingImage:false, retryingJob:null, editingVisual:false, showArchived:false, showFailed:false, cardStates:{}, expandedPrompts:{}, assetNames:{}, assetSaving:{}, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
   renderClock:Date.now(), renderClockTimer:null,
   loading:true, dirty:false, saving:false, halted:false, status:'Loading scene artwork…', error:'', timer:null, active:null, polling:null, generating:false, uploading:false, uploadStatus:'', requestKey:crypto.randomUUID(),
@@ -17,10 +17,10 @@ export function sceneEditor(options) {
    if(this.generationMode)this.renderClockTimer=setInterval(()=>{this.renderClock=Date.now();},1000);
    watchNotices(this,{status:'success',error:'error',uploadStatus:'success'});
    window.vsgSceneEditor=this;
-   this.soundPlayer=new GameAudio();
+   this.soundPlayer=new GameAudio();this.audioSettingsListener=e=>{this.audioSettings=e.detail||{};};window.addEventListener('vsg-audio-settings',this.audioSettingsListener);
    this.audioTabListener=e=>{if(e.detail.tab!=='visuals')this.soundPlayer?.stopAudition();};window.addEventListener('vsg-editor-tab',this.audioTabListener);
    this.audioListener=e=>{this.audioSounds=e.detail;};window.addEventListener('vsg-audio',this.audioListener);
-   if(options.audioUrl)this.request(options.audioUrl).then(d=>{this.audioSounds=d.sounds;}).catch(()=>{});
+   if(options.audioUrl)this.request(options.audioUrl).then(d=>{this.audioSounds=d.sounds;this.audioSettings=d.settings||{};}).catch(()=>{});
    this.flagsListener=e=>{this.flagDefinitions=e.detail;};window.addEventListener('vsg-flags',this.flagsListener);
    this.inventoryListener=e=>{this.inventoryItems=JSON.parse(JSON.stringify(e.detail));};window.addEventListener('vsg-inventory',this.inventoryListener);
    this.loadCardStates();
@@ -37,7 +37,7 @@ export function sceneEditor(options) {
    try { this.models=selectableModels((await imageCatalog()).models,'image'); if(!this.models.some(m=>m.id===this.model)) this.model=''; if(this.model){const settings={...this.settings};await this.loadEndpoints();this.settings=settings;} } catch(e) { this.error='Image catalog unavailable. You can still edit existing visuals; reload to try discovery again.'; }
    this.polling=setInterval(()=>this.refresh(),5000);
   },
-  destroy(){window.removeEventListener('vsg-editor-tab',this.audioTabListener);this.soundPlayer?.stop();window.removeEventListener('vsg-audio',this.audioListener);clearInterval(this.renderClockTimer);clearInterval(this.extractionTimer);this.cancelInventoryUse();window.removeEventListener('vsg-flags',this.flagsListener);window.removeEventListener('vsg-inventory',this.inventoryListener);clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
+  destroy(){window.removeEventListener('vsg-audio-settings',this.audioSettingsListener);window.removeEventListener('vsg-editor-tab',this.audioTabListener);this.soundPlayer?.stop();window.removeEventListener('vsg-audio',this.audioListener);clearInterval(this.renderClockTimer);clearInterval(this.extractionTimer);this.cancelInventoryUse();window.removeEventListener('vsg-flags',this.flagsListener);window.removeEventListener('vsg-inventory',this.inventoryListener);clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
   async request(url,method='GET',body=null) {
    const response=await fetch(url,{method,headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},...(body ? {body:JSON.stringify(body)} : {})});
    const data=await response.json();
@@ -548,13 +548,14 @@ export function sceneEditor(options) {
   finishInventoryText(key){
    const pending=this.pendingInventoryUse;if(!pending || pending.key!==key || this.inventoryUseTimer)return;
    const words=(this.narration?.text||'').split(/\s+/).length;
-   this.inventoryUseTimer=setTimeout(()=>this.completeInventoryUse(),this.narration?.animate?1000:Math.min(4000,Math.max(1200,words*70)));
+   this.inventoryUseTimer=setTimeout(()=>this.waitForInventoryVoice(),this.narration?.animate?1000:Math.min(4000,Math.max(1200,words*70)));
   },
+  waitForInventoryVoice(){const voice=this.soundPlayer?.channels?.voice;if(voice && !voice.ended && !voice.paused){this.inventoryUseTimer=setTimeout(()=>this.waitForInventoryVoice(),150);return;}this.completeInventoryUse();},
   completeInventoryUse(){
    const pending=this.pendingInventoryUse;clearTimeout(this.inventoryUseTimer);this.inventoryUseTimer=null;this.pendingInventoryUse=null;
    if(!pending || !this.preview || pending.sceneId!==this.previewId || pending.pageId!==this.previewPageId)return;
    const index=this.inventory.findIndex(i=>(i.inventoryId||i.id)===pending.inventoryId);if(index<0)return;
-   const item=this.inventory[index];
+   const item=this.inventory[index];this.soundPlayer?.action(pending.area,item,this.audioSounds);
    if(pending.placement){
     if(pending.allowed && this.collectibleEmpty(pending.area) && this.conditionsMet(pending.rule)){
      this.inventory.splice(index,1);this.placedObjects[pending.area.id]=item.id;this.collected=this.collected.filter(id=>id!==pending.area.id);this.armedPickup=null;
@@ -588,7 +589,7 @@ export function sceneEditor(options) {
    this.narration={...this.areaTextOptions(area),text:rule?.response?.trim()||area.fallback_text?.trim()||'Nothing happens.',inventoryAreaId:area.id};this.narrationVersion++;
    this.pendingInventoryUse={inventoryId,rule:rule?JSON.parse(JSON.stringify(rule)):null,area:JSON.parse(JSON.stringify(area)),point:point||{x:area.x+area.width/2,y:area.y+area.height/2,width:0,height:0},sceneId:this.previewId,pageId:this.previewPageId,key:this.previewId+':'+this.narrationVersion};
   },
-  chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice){this.applyFlagEffects(choice);this.areaOutcome(area,choice.response||'',choice.target_id,choice.description_position);}},
+  chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice){this.soundPlayer?.action(area,null,this.audioSounds);this.applyFlagEffects(choice);this.areaOutcome(area,choice.response||'',choice.target_id,choice.description_position);}},
   areaOutcome(area,text,targetId,position=area.description_position||'top'){
    if(targetId && targetId!==this.previewId && this.scenes.some(v=>v.id===targetId)){
     this.transitionScene(targetId);if(text)this.showObjectModal({...this.areaTextOptions(area),label:area.label,text,position,url:null});
@@ -596,7 +597,7 @@ export function sceneEditor(options) {
   },
   addObjectAction(){if(this.visual?.kind!=='object')return;this.visual.actions??=[];if(this.visual.actions.length>=50)return;this.visual.actions.push({id:crypto.randomUUID(),label:'New action',target_id:null});this.changed();},
   removeObjectAction(id){this.visual.actions=(this.visual.actions||[]).filter(a=>a.id!==id);this.changed();},
-  deliverPreviewMessage(value){if(value && !value.url && !value.areaId && !value.inventoryId && !value.inspect){this.modal=null;this.narration={...value,position:value.position||'top'};this.narrationVersion++;}else{this.narration=null;this.modal=value;}},
+  deliverPreviewMessage(value){if(value?.text && (value.url || value.inventoryId || value.inspect))this.soundPlayer?.speak(value.text,this.audioSounds);if(value && !value.url && !value.areaId && !value.inventoryId && !value.inspect){this.modal=null;this.narration={...value,position:value.position||'top'};this.narrationVersion++;}else{this.narration=null;this.modal=value;}},
   showObjectModal(value){if(this.sceneTransition || this.modalTimer!==null){this.pendingModal=value;}else{this.deliverPreviewMessage(value);}},
   clearSceneTransition(){clearTimeout(this.transitionTimer);clearTimeout(this.modalTimer);this.transitionTimer=null;this.modalTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
   skipRuleId:'', skipItemSelection:[], skipJumpCount:0,
@@ -624,14 +625,14 @@ export function sceneEditor(options) {
    this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview && this.pendingModal)this.deliverPreviewMessage(this.pendingModal);this.pendingModal=null;},250);},200);
   },
   selectInventoryItemForPlay(item){if(!this.suppressInventoryClick && !this.inventoryDrag?.active && !this.pendingInventoryUse)this.openInventory(item);},
-  openInventory(item){this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',position:item.description_position||'top',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
+  openInventory(item,click=true){if(click)this.soundPlayer?.click({...item,action:'inspect'},this.audioSounds);this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',position:item.description_position||'top',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
   get inventoryActions(){const item=this.inventory.find(v=>(v.inventoryId||v.id)===this.modal?.inventoryId);return item?(this.objects.find(v=>v.id===item.id)?.actions||[]):[];},
   performObjectAction(id){
    if(!this.preview||!this.modal?.inventoryId)return;
    const index=this.inventory.findIndex(v=>(v.inventoryId||v.id)===this.modal.inventoryId);if(index<0)return;
    const item=this.inventory[index],action=(this.objects.find(v=>v.id===item.id)?.actions||[]).find(a=>a.id===id);
    const target=this.objects.find(v=>v.id===action?.target_id);if(!target)return;
-   const next={...target,inventoryId:item.inventoryId||item.id};this.inventory.splice(index,1,next);this.openInventory(next);
+   this.soundPlayer?.action({action:'inventory'},item,this.audioSounds);const next={...target,inventoryId:item.inventoryId||item.id};this.inventory.splice(index,1,next);this.openInventory(next,false);
   },
   get previewInventoryItems(){
    const pages=this.previewPages.length?this.previewPages:[{id:this.editorPageId,position:1,title:'',visuals:[]}];
@@ -643,7 +644,7 @@ export function sceneEditor(options) {
    this.previewStartKey=this.pageSceneDestinations.find(d=>d.pageId===this.editorPageId)?.key||'';this.previewInventorySelection=[];this.previewFlags=this.flagDefinitions.filter(f=>f.initial).map(f=>f.key);this.$refs.previewInventoryDialog.showModal();
   },
   confirmPreviewInventory(){const selected=[...this.previewInventorySelection];this.$refs.previewInventoryDialog.close();this.startPreview(selected,this.previewStartKey,this.previewFlags);},
-  startPreview(initialItems=[],startKey=null,initialFlags=null){this.cancelInventoryUse();this.placedObjects={};this.flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,initialFlags===null?!!f.initial:initialFlags.includes(f.key)]));if(initialFlags===null){for(const scene of [...this.document.visuals,...this.previewPages.flatMap(p=>p.visuals||[])])for(const h of scene.hotspots||[])if(h.collectible_flag && h.initial_empty!==undefined)this.flags[h.collectible_flag]=!!h.initial_empty;}this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing scenes.','error');return;}const start=this.pageSceneDestinations.find(d=>d.key===startKey);this.previewPageId=start?.pageId??this.editorPageId;this.previewId=start?.sceneId??this.document.visuals.find(v=>v.kind==='scene')?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));const entry=this.resolveSceneEntry(this.previewPageId,this.previewId);this.previewPageId=entry.pageId;this.previewId=entry.sceneId;this.soundPlayer?.enter(this.displayed,this.audioSounds);this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
+  startPreview(initialItems=[],startKey=null,initialFlags=null){this.cancelInventoryUse();this.placedObjects={};this.flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,initialFlags===null?!!f.initial:initialFlags.includes(f.key)]));if(initialFlags===null){for(const scene of [...this.document.visuals,...this.previewPages.flatMap(p=>p.visuals||[])])for(const h of scene.hotspots||[])if(h.collectible_flag && h.initial_empty!==undefined)this.flags[h.collectible_flag]=!!h.initial_empty;}this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing scenes.','error');return;}const start=this.pageSceneDestinations.find(d=>d.key===startKey);this.previewPageId=start?.pageId??this.editorPageId;this.previewId=start?.sceneId??this.document.visuals.find(v=>v.kind==='scene')?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));const entry=this.resolveSceneEntry(this.previewPageId,this.previewId);this.previewPageId=entry.pageId;this.previewId=entry.sceneId;this.soundPlayer?.start(this.audioSettings,this.audioSounds);this.soundPlayer?.enter(this.displayed,this.audioSounds);this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
   closePreview(){this.soundPlayer?.stop();this.cancelInventoryUse();this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
   nextPreviewPage(){
    if(this.sceneTransition)return;
@@ -707,10 +708,10 @@ export function sceneEditor(options) {
      this.armedPickup=this.pickupKey(h);this.showObjectModal({...this.areaTextOptions(h),label:h.label,text,url:null,pickupKey:this.armedPickup});return;
     }
     this.armedPickup=null;this.narration=null;this.narrationVersion++;this.pendingModal=null;
-    this.flags[h.state_flag]=!this.flags[h.state_flag];return;
+    this.soundPlayer?.action(h,null,this.audioSounds);this.flags[h.state_flag]=!this.flags[h.state_flag];return;
    }
-   if(h.action==='page'){this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
-   if(h.action==='complete'){this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
+   if(h.action==='page'){this.soundPlayer?.action(h,null,this.audioSounds);this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
+   if(h.action==='complete'){this.soundPlayer?.action(h,null,this.audioSounds);this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
    if(h.action==='next_page'){this.nextPreviewPage();return;}
    if(['inventory','choices'].includes(h.action)){this.applyFlagEffects(h);this.openAreaInteraction(h);return;}
    if(h.action==='pickup' && !h.overlay_bounds && this.collected.includes(h.id))return;
@@ -728,8 +729,8 @@ export function sceneEditor(options) {
     this.armedPickup=null;
    }
    if(['examine','inspect'].includes(h.action))this.applyFlagEffects(h);
-   if(['pickup','pickup_v2'].includes(h.action) && object){this.applyFlagEffects(h);if(!this.inventory.some(v=>v.id===object.id)){this.inventory.push({...object,inventoryId:h.id});this.animatePickup(object,h);}this.collected.push(h.id);if(h.action==='pickup_v2'){const key=this.collectibleFlag(h);if(key)this.flags[key]=true;delete this.placedObjects[h.id];}}
-   if(['pickup','inspect','transition'].includes(h.action) && h.target_id)this.transitionScene(h.target_id);
+   if(['pickup','pickup_v2'].includes(h.action) && object){this.soundPlayer?.action(h,object,this.audioSounds);this.applyFlagEffects(h);if(!this.inventory.some(v=>v.id===object.id)){this.inventory.push({...object,inventoryId:h.id});this.animatePickup(object,h);}this.collected.push(h.id);if(h.action==='pickup_v2'){const key=this.collectibleFlag(h);if(key)this.flags[key]=true;delete this.placedObjects[h.id];}}
+   if(h.action==='transition')this.soundPlayer?.action(h,null,this.audioSounds);if(['pickup','inspect','transition'].includes(h.action) && h.target_id)this.transitionScene(h.target_id);
    if(h.action==='examine'){const examineKey=this.previewPageId+':'+this.previewId+':'+h.id;if(this.narration?.examineKey===examineKey){this.narration=null;this.narrationVersion++;}else this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.description||'',url:null,examineKey});}
    if(h.action==='inspect' && object)this.showObjectModal({inspect:true,label:object.name,text:object.description||'',position:object.description_position||'top',url:this.asset(object.asset_id)?.url});
   }

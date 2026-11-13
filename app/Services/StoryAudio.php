@@ -29,7 +29,14 @@ class StoryAudio {
   return [$bytes,$mime];
  }
  public function save(Story $story,string $url,array $attributes):StorySound {
-  [$bytes,$mime]=$this->download($url,$attributes['provider']);$path='stories/'.$story->id.'/audio/'.Str::uuid();
+  [$bytes,$mime]=$this->download($url,$attributes['provider']);return $this->saveBytes($story,$bytes,$mime,$attributes);
+ }
+ public function saveBytes(Story $story,string $bytes,string $mime,array $attributes):StorySound {
+  if(str_starts_with($bytes,'RIFF') && substr($bytes,8,4)==='WAVE'){
+   $rate=null;$size=null;for($i=12;$i+8<=strlen($bytes);){$chunk=substr($bytes,$i,4);$length=unpack('V',substr($bytes,$i+4,4))[1];if($i+8+$length>strlen($bytes))break;if($chunk==='fmt '&&$length>=16)$rate=unpack('V',substr($bytes,$i+16,4))[1];if($chunk==='data')$size=$length;$i+=8+$length+($length%2);}
+   if($rate>0 && $size!==null)$attributes['duration']=$size/$rate;
+  }
+  $path='stories/'.$story->id.'/audio/'.Str::uuid();
   if(!Storage::disk('local')->put($path,$bytes))throw new \RuntimeException('Could not save audio.');
   try{return StorySound::create($attributes+['story_id'=>$story->id,'path'=>$path,'mime'=>$mime]);}catch(\Throwable $e){Storage::disk('local')->delete($path);throw $e;}
  }

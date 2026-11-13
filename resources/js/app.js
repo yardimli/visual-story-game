@@ -1,3 +1,4 @@
+import {audioSettings,storySpeech,audioPreview} from './audio-settings';
 import {storyAudio} from './story-audio.js';
 import {chatDrafts} from './chat-drafts';
 import {storyFlags} from './story-flags';
@@ -218,4 +219,7 @@ Alpine.data('modelCatalogReload', () => ({
  }
 }));
 Alpine.data('storyAudio',storyAudio);
+Alpine.data('audioSettings',audioSettings);
+Alpine.data('storySpeech',storySpeech);
+Alpine.data('audioPreview',audioPreview);
 Alpine.start();

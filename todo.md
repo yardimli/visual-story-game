@@ -751,3 +751,39 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Split Audio into Search/Generate tabs on the left and a persistent project library on the right; compact sound metadata and place Add beside the player.
 
 - [x] Preview Click sound immediately on selection using the configured volume; stop prior previews on selection changes, None, tab navigation, and entering/exiting game testing.
+
+### Expanded audio, music and speech
+- [x] Add CassetteAI sound effects and bill fal audio at $0.02 per generated second.
+- [x] Add story music with looping and scene keep/replace/stop overrides.
+- [x] Add story action defaults and inventory/area click/action sound inheritance with explicit silence.
+- [x] Replace playback with music, voice and effects channels at full volume; add mute-all in test mode.
+- [x] Add description speech controls and a model-specific OpenRouter voice/settings dialog.
+- [x] Queue speech generation, save results and record/reserve/settle costs in AI history.
+- [x] Verify editor and playback, update design documentation, and run relevant checks.
+
+- Verification: 184 PHP tests (1,085 assertions), 124 JavaScript tests, production build and Blade cache passed. Localhost UI checked for scene music, speech voices/settings, sound models and mute. New paid audio requests were mocked; no worker was started.
+
+- [x] Add separate Story bible voice presets for scene, click-area and inventory descriptions, with test readings and per-request overrides. Improve speech dialog spacing and show historical model/voice.
+
+- [x] Show scene fields below the canvas only when no click area is selected; remove Edit and the canvas heading; move extraction, switches and drawing tools beside dialog colors.
+
+- [x] Disable description Listen buttons until matching generated speech exists; react to text edits, selected descriptions and completed generation.
+
+- [x] Make the scene canvas fill its container without padding or rounded corners; remove Scenes content top padding.
+
+- [x] Fix speech button icon encoding using explicit Unicode escapes.
+
+- [x] Add play/stop previews beside scene and Story bible sound/music selectors, including inherited defaults; stop on selection changes or another preview.
+
+- [x] Toggle description speech previews between play and stop, resetting the controls when playback ends or the speech dialog closes.
+
+- [x] Keep audio and description play/stop button widths fixed to avoid layout shifts.
+
+- [x] Add editable audio categories, Project sounds filtering and reassignment, automatic effect/TTS categories, and category selectors beside scene, bible and inventory sound dropdowns.
+
+- [x] Companion can prepare individual audio drafts or all missing description recordings using Story bible voice presets; generation starts manually from Audio.
+- [x] Audio supports Generate all pending, editing/deleting unsubmitted requests with reservation release, and project sound deletion with usage warnings and silent replacements.
+
+- [x] Unify compact audio selectors with narrower categories and flexible sound widths; fix scene row placement, Story bible overflow, and project category selection/empty filter state.
+
+- [x] Place scene dialog colors and extraction/drawing tools immediately below the image, before Visual name and scene settings.

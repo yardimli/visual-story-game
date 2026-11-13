@@ -12,7 +12,7 @@ export function animatedDescription(options={}) {
    const signature=JSON.stringify([text,position,key,animate,area]);if(signature===this.signature)return;
    this.signature=signature;this.identity=key;this.completed=false;this.stop();this.placement=['bottom','area_top','area_bottom'].includes(position)?position:'top';this.anchor=area;this.updateBounds();
    this.words=String(text||'').match(/\S+\s*/g)||[];this.count=0;this.height=0;this.measured=false;this.visible=!!this.words.length;
-   this.syncSceneSpace();if(!this.visible)return;
+   this.syncSceneSpace();if(!this.visible)return;globalThis.window?.vsgSceneEditor?.soundPlayer?.speak(text,globalThis.window?.vsgSceneEditor?.audioSounds||[]);
    if(!animate){this.reveal();return;}
    if(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches){this.reveal();return;}
    this.step();

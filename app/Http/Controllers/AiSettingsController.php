@@ -7,7 +7,7 @@ class AiSettingsController extends Controller {
     public function edit(Request $request) {
         $calls=LlmRequest::where('user_id',$request->user()->id)
             ->select(['id','user_id','story_id','model','funding','status','cost','reserved','created_at'])
-            ->with(['imageGeneration'=>fn($q)=>$q->select(['id','llm_request_id','name','kind','status'])])
+            ->with(['audioGeneration','imageGeneration'=>fn($q)=>$q->select(['id','llm_request_id','name','kind','status'])])
             ->latest('id')->paginate(50)->withQueryString()->fragment('ai-call-history');
         return view('studio.settings',['user'=>$request->user(),'calls'=>$calls,'credits'=>$request->user()->tokenCredits()->latest('id')->paginate(25,['*'],'credits_page')->withQueryString()]);
     }
@@ -21,6 +21,7 @@ class AiSettingsController extends Controller {
             $inputs=['parameters'=>$job->payload,'references'=>array_map(fn($ref)=>array_intersect_key($ref,array_flip(['id','mime','bytes','width','height'])),$job->references??[])];
             $output=['status'=>$job->status,'usage'=>$job->usage,'error'=>$job->error,'asset_ids'=>$job->asset_ids];
         }
+        if($audio=$entry->audioGeneration)$output=array_merge($output??[],['status'=>$audio->status,'error'=>$audio->error,'sound_id'=>$audio->sound_id]);
         return response()->json(AiCallContents::clean([
             'request'=>$inputs,'response'=>$output,
             'note'=>!$job && !$inputs?'Detailed request and response contents were not recorded for this older call.':null,

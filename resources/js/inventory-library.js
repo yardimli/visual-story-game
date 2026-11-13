@@ -1,6 +1,6 @@
 import {notify} from './toasts';
 export function inventoryLibrary(url){return {
- items:[],assets:[],uses:{},revision:1,loading:true,dirty:false,saving:false,active:null,timer:null,pickerId:null,deleteId:null,
+ sounds:[],items:[],assets:[],uses:{},revision:1,loading:true,dirty:false,saving:false,active:null,timer:null,pickerId:null,deleteId:null,
  async init(){window.vsgInventory=this;this.unload=e=>{if(this.dirty||this.saving){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',this.unload);try{await this.load();}catch(e){notify(e.message,'error');}finally{this.loading=false;}},
  destroy(){clearTimeout(this.timer);window.removeEventListener('beforeunload',this.unload);delete window.vsgInventory;},
  async request(method='GET',body){const r=await fetch(url,{method,headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(Object.values(d.errors||{}).flat().join(' ')||d.message);return d;},

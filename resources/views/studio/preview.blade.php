@@ -18,6 +18,7 @@
 </template>
 <template x-teleport="body">
 <dialog x-ref="previewDialog" class="preview-dialog" :style="gameDialogStyle" aria-label="Test scenes" @pointermove.window="moveInventoryDrag($event)" @pointerup.window="endInventoryDrag($event)" @pointercancel.window="endInventoryDrag($event,true)" @click="if($event.target===$el)$el.close()" @close="closePreview()" @cancel="if(modal){$event.preventDefault();modal=null;}">
+<button type="button" class="fixed right-4 top-3 z-50 rounded-lg border border-white/50 bg-black/70 px-3 py-2 text-sm text-white" @click.stop="audioMuted=soundPlayer.toggleMute()" :aria-pressed="audioMuted" x-text="audioMuted?'Unmute':'Mute all'"></button>
 <div class="contents" x-data="hoverDescription()" @area-hover-start="if(!pendingInventoryUse)narration=null" @pointerdown="outsideClick($event)" x-effect="if(!preview)resetHover();if(inventoryDrag?.active || pendingInventoryUse)dismiss()">
 <template x-if="preview && asset(displayed?.asset_id)"><div class="preview-stage" @click="if(modalArea?.action==='inventory' && !$event.target.closest('.inventory-interaction-overlay,.game-inventory,.preview-hotspot'))modal=null">
 <img :src="asset(displayed.asset_id).url" :alt="displayed.name" class="preview-scene-image" :class="sceneTransition ? 'scene-fade-in' : ''" draggable="false">

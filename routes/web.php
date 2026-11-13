@@ -22,7 +22,17 @@ Route::get('/', function () {
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::put('/stories/{story}/audio/categories',[\App\Http\Controllers\AudioController::class,'saveCategories']);
+    Route::put('/stories/{story}/audio/sounds/{sound}',[\App\Http\Controllers\AudioController::class,'categorize']);
+    Route::post('/stories/{story}/audio/jobs/{job}/start',[\App\Http\Controllers\AudioManageController::class,'start']);
+    Route::put('/stories/{story}/audio/jobs/{job}',[\App\Http\Controllers\AudioManageController::class,'update']);
+    Route::delete('/stories/{story}/audio/jobs/{job}',[\App\Http\Controllers\AudioManageController::class,'destroyJob']);
+    Route::get('/stories/{story}/audio/sounds/{sound}/usage',[\App\Http\Controllers\AudioManageController::class,'usage']);
+    Route::delete('/stories/{story}/audio/sounds/{sound}',[\App\Http\Controllers\AudioManageController::class,'destroySound']);
     Route::get('/stories/{story}/audio',[\App\Http\Controllers\AudioController::class,'index'])->name('audio.index');
+    Route::put('/stories/{story}/audio/settings',[\App\Http\Controllers\AudioController::class,'settings'])->name('audio.settings');
+    Route::get('/stories/{story}/audio/voices',[\App\Http\Controllers\AudioController::class,'voices']);
+    Route::post('/stories/{story}/audio/speech',[\App\Http\Controllers\AudioController::class,'speech'])->middleware('throttle:6,1,audio-speech:');
     Route::get('/stories/{story}/audio/search',[\App\Http\Controllers\AudioController::class,'search'])->middleware('throttle:60,1,audio-search:')->name('audio.search');
     Route::post('/stories/{story}/audio/import',[\App\Http\Controllers\AudioController::class,'add'])->name('audio.add');
     Route::post('/stories/{story}/audio/generate',[\App\Http\Controllers\AudioController::class,'generate'])->middleware('throttle:6,1,audio-generate:')->name('audio.generate');

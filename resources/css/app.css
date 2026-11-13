@@ -393,3 +393,23 @@ html.editor-document, .editor-document body { height:100%; overflow:hidden; }
 
 .extraction-dialog { width:min(1200px,95vw); max-width:95vw; height:90dvh; max-height:90dvh; overflow:hidden; padding:0; }
 .extraction-checker { background-color:#eee; background-image:conic-gradient(#bbb 25%,transparent 0 50%,#bbb 0 75%,transparent 0); background-size:20px 20px; }
+
+.speech-field{display:flex;align-items:flex-start;gap:.5rem;width:100%;min-width:0}.speech-field>textarea{flex:1;min-width:0}.speech-field-buttons{display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
+
+.speech-quill-controls{justify-content:flex-end}.speech-quill-controls>.speech-field-buttons{flex-direction:row}
+
+.audio-preview-button { width: 2.75rem; min-width: 2.75rem; flex-shrink: 0; padding-inline: 0; }
+.speech-field-buttons > button { width: 2.25rem; min-width: 2.25rem; }
+.speech-preview-button { width: 6rem; min-width: 6rem; flex-shrink: 0; }
+
+/* Shared, bounded audio selectors in every editor panel. */
+.audio-select-row { display:grid; grid-template-columns:minmax(0,6.5rem) minmax(0,1fr) 2.75rem; align-items:center; gap:.5rem; width:100%; min-width:0; }
+.audio-select-row > *, .audio-select-row > div > select { min-width:0; max-width:100%; }
+.audio-select-row select, .audio-library-select { @apply rounded-lg border-stone-200 bg-white text-sm font-normal text-stone-800 focus:border-amber-500 focus:ring-amber-500; width:100%; height:38px; padding-top:.375rem; padding-bottom:.375rem; }
+.audio-select-row .audio-preview-button { height:38px; }
+.audio-library-select { width:10rem; max-width:100%; font-size:.75rem; }
+.dark .audio-select-row select, .dark .audio-library-select { @apply border-stone-700 bg-stone-900 text-stone-100; }
+.paper .audio-select-row select, .paper .audio-library-select { background-color:#e1d6c1; border-color:#ab9b80; color:#40372b; }
+.audio-defaults-row, .audio-defaults-heading { display:grid; grid-template-columns:minmax(7rem,.45fr) minmax(0,1fr) minmax(0,1fr); align-items:center; gap:1rem; }
+.audio-defaults-row > * { min-width:0; }
+@media(max-width:1000px) { .audio-defaults-row { grid-template-columns:minmax(0,1fr); } .audio-defaults-heading { display:none; } }

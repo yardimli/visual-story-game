@@ -616,3 +616,23 @@ The Audio tab follows Story bible. Freesound search uses server-side Token authe
 Stable Audio uses FAL_KEY on the server. Generate creates a durable audio_generations record and an `audio` queue job. Submission is claimed before the paid POST; ambiguous submissions are never automatically repeated. Subsequent jobs poll the same provider request, expose queue position/logs, and store completed audio in the project library. Queue waiting time is separate from render time, with a ten-minute running limit. Audio generation uses the configured fal account; it does not currently debit OpenRouter token credits.
 
 Scenes may select an entry sound, volume and looping. Click areas select a click sound and volume. Assignments only accept sounds from the same story. Scene transitions replace the scene sound, while click effects can finish; closing the preview stops all game audio. Run the worker manually with `php artisan queue:work database --queue=images,audio --timeout=240 --tries=1`. No worker is automatically launched by the editor.
+
+
+### Music, effects and description speech (implemented November 2026)
+
+Story bible stores a game music track, loop checkbox and click/action defaults per action type. Each scene keeps current music by default, or replaces it with a selected track and loop choice, or stops it. Scene-entry effects are independent of music. Inventory items expose click and inventory/action sounds; area click sounds inherit story defaults, area action sounds inherit the item then the action default. Explicit silent suppresses inheritance. Local state switches default to silent action sounds.
+
+The test player has music, voice and effects channels at full volume. A new sound replaces only its own channel; all three can run concurrently. Mute applies to active and future sounds on all channels. Closing testing stops playback. Inventory-use feedback can finish its voice track before the resulting scene transition.
+
+Description controls open a speech dialog with editable spoken text, live OpenRouter voice choices, HeyGen language, Gemini delivery instructions/temperature, and ElevenLabs inline expressive tags. Speech is associated with the original normalized description text. The latest matching render is used; changing a description requires generating new speech. Matching text can reuse speech across the story. PCM output is stored as browser-playable WAV (HeyGen 44.1 kHz; Gemini 24 kHz). The Audio library also contains generated voice tracks.
+
+Sound effects use fal Stable Audio (up to 47 seconds) or CassetteAI (up to 30 seconds). Audio jobs run on the explicit database/audio queue. Workers submit once, persist provider request IDs and poll fal without resubmitting. Speech uses OpenRouter's dedicated audio/speech endpoint; raw audio is stored privately, never in AI-history payloads. AI history holds parameters, status, sound IDs, pricing and costs. Queue waiting does not expire reservations. Failed submissions are not automatically retried.
+
+fal generation reserves $0.02 per requested second and settles at $0.02 per generated second, measured from WAV where available (requested duration is the fallback). fal uses platform credits even if the user has a personal OpenRouter key. OpenRouter speech uses the personal key when configured, otherwise shared credits. Character-priced models charge catalog rate times input characters. Gemini charges catalog input/output rates using native token usage retrieved by generation ID, avoiding zero BYOK cost values. Missing usage remains visibly pending and is polled separately without regenerating audio. The credit display updates after queueing and completion.
+
+API references: [OpenRouter speech](https://openrouter.ai/docs/guides/overview/multimodal/tts), [CassetteAI](https://fal.ai/models/cassetteai/sound-effects-generator/api).
+
+Worker operation remains manual: `php artisan queue:work database --queue=images,audio --timeout=240 --tries=1`. Restart the existing worker in its terminal after deploying code changes. No worker is started by the editor or implementation tooling.
+
+### Pending audio authoring
+The companion may propose individual audio drafts or discover missing scene, click-area and inventory description recordings. Review creates pending drafts only, using the corresponding Story bible voice preset. The Audio tab starts drafts individually or in a batch. Unsubmitted queue entries can be edited back into drafts or deleted with credit reservations released; submitted provider requests cannot be edited. Deleting project audio lists current uses for confirmation and clears direct sound assignments to silence, stopping scene music overrides where appropriate. Audio accounting history is retained.
