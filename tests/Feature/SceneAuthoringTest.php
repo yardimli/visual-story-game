@@ -21,6 +21,12 @@ class SceneAuthoringTest extends TestCase {
   Cache::put('openrouter.image-endpoints.'.hash('sha256','openai/image'),[['provider_tag'=>'openai','supported_parameters'=>['input_references'=>['type'=>'range','max'=>2],'quality'=>['type'=>'enum','values'=>['high']]],'pricing'=>[['billable'=>'output_image','unit'=>'image','cost_usd'=>0.05]]]],60);
   return [$u,$s,$p->fresh(),$doc];
  }
+ public function test_area_image_size_and_independent_bounds_are_saved_and_validated():void {
+  [$u,$s,$p,$doc]=$this->setupScene();$h=&$doc['visuals'][0]['hotspots'][0];$h['action']='pickup_v2';$h['image_size']=175;$h['image_bounds']=['x'=>.1,'y'=>.2,'width'=>.3,'height'=>.4];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $saved=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];$this->assertEquals(175,$saved['image_size']);$this->assertEquals($h['image_bounds'],$saved['image_bounds']);
+  $h['image_size']=0;$this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+ }
  public function test_inventory_outcomes_allow_other_pages_and_clear_deleted_destinations():void {
   [$u,$s,$p,$doc]=$this->setupScene();$target=$doc['visuals'][0];$target['id']=(string)Str::uuid();$target['hotspots']=[];
   $other=$s->pages()->create(['position'=>2,'title'=>'Hall','visual_document'=>['visuals'=>[$target]]]);

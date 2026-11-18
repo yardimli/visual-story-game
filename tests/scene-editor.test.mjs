@@ -734,3 +734,16 @@ test('scene preloading waits for image decode, including local layer references'
  assert.equal(images.length,2);for(const image of images)image.onload();await Promise.resolve();assert.equal(done,false);for(const image of images)image.decoded();await loading;assert.equal(done,true);
  }finally{globalThis.Image=Original;}
 });
+
+
+test('pickup resize keeps image geometry while movement translates it and scaling exceeds the area',()=>{
+ const e=sceneEditor({});e.changed=()=>{};const h={id:'item',action:'pickup_v2',overlay:true,x:.2,y:.3,width:.2,height:.1};e.ensureAreaImageBounds(h);const original=structuredClone(h);
+ Object.assign(h,{x:.25,y:.32,width:.1,height:.05});e.transformAreaImage(h,original);assert.deepEqual(h.image_bounds,original.image_bounds);
+ const moved=structuredClone(h);h.x+=.1;h.y+=.1;e.transformAreaImage(h,moved);assert.ok(Math.abs(h.image_bounds.x-.3)<1e-10);assert.ok(Math.abs(h.image_bounds.y-.4)<1e-10);
+ const clickBounds={x:h.x,y:h.y,width:h.width,height:h.height};e.setAreaImageSize(h,200);const bounds=e.renderedAreaImageBounds(h);assert.equal(bounds.width,.4);assert.equal(bounds.height,.2);assert.deepEqual({x:h.x,y:h.y,width:h.width,height:h.height},clickBounds);assert.equal(e.areaImageStyle(h).pointerEvents,'none');assert.equal(e.areaImageStyle(h).maxWidth,'none');
+});
+test('resizing extracted pickups including container children preserves their image patch',()=>{
+ const e=sceneEditor({});e.document={visuals:[{id:'scene',kind:'scene',hotspots:[]}]};e.selected='scene';
+ const parent={id:'box',is_container:true,x:0,y:0,width:1,height:1};const h={id:'key',action:'pickup_v2',container_parent_id:'box',x:.2,y:.2,width:.2,height:.2,overlay_bounds:{x:.1,y:.1,width:.4,height:.4}};e.visual.hotspots=[parent,h];
+ const original=structuredClone(h);h.width=.1;h.height=.15;e.transformAreaImage(h,original);e.syncContainerAreas(h);assert.deepEqual(h.overlay_bounds,original.overlay_bounds);
+});

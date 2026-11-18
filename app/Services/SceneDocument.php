@@ -15,7 +15,7 @@ class SceneDocument {
   $stateRules['visuals.*.music_id']=['sometimes','nullable','integer',\Illuminate\Validation\Rule::exists('story_sounds','id')->where('story_id',$story->id)];
   $stateRules['visuals.*.music_loop']='sometimes|boolean';$stateRules['visuals.*.sound_loop']='sometimes|boolean';
   foreach(['visuals.*.skip_rules.*.flag_conditions','visuals.*.hotspots.*.visible_when','visuals.*.hotspots.*.disabled_when','visuals.*.hotspots.*.flag_conditions','visuals.*.hotspots.*.flag_effects','visuals.*.hotspots.*.inventory_rules.*.flag_conditions','visuals.*.hotspots.*.inventory_rules.*.flag_effects','visuals.*.hotspots.*.choices.*.flag_effects'] as $path){$stateRules[$path]='sometimes|array|max:100';$stateRules[$path.'.*']='array:key,value';$stateRules[$path.'.*.key']=['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))];$stateRules[$path.'.*.value']='required|boolean';}
-  foreach(['default_bounds','default_overlay_bounds','container_bounds'] as $field){
+  foreach(['default_bounds','default_overlay_bounds','container_bounds','image_bounds'] as $field){
    $path='visuals.*.hotspots.*.'.$field;$stateRules[$path]='sometimes|array:x,y,width,height';
    foreach(['x','y','width','height'] as $axis)$stateRules[$path.'.'.$axis]='required_with:'.$path.'|numeric|min:'.(in_array($axis,['width','height'])?'0.005':'0').'|max:1';
   }
@@ -39,7 +39,7 @@ class SceneDocument {
    'visuals.*.skip_rules.*.target_scene_id'=>'nullable|uuid',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
    'visuals.*.hotspots.*.is_container'=>'sometimes|boolean','visuals.*.hotspots.*.container_parent_id'=>'sometimes|uuid','visuals.*.hotspots.*.container_plan_id'=>'sometimes|integer',
-   'visuals.*.hotspots.*'=>'array:visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*'=>'array:visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
    'visuals.*.hotspots.*.initial_empty'=>'sometimes|boolean',
    'visuals.*.hotspots.*.placement_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.collectible_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],
@@ -59,6 +59,7 @@ class SceneDocument {
    'visuals.*.hotspots.*.overlay_bounds.width'=>'required_with:visuals.*.hotspots.*.overlay_bounds|numeric|min:0.005|max:1',
    'visuals.*.hotspots.*.overlay_bounds.height'=>'required_with:visuals.*.hotspots.*.overlay_bounds|numeric|min:0.005|max:1',
    'visuals.*.hotspots.*.overlay_asset_id'=>'sometimes|nullable|integer',
+   'visuals.*.hotspots.*.image_size'=>'sometimes|numeric|min:1|max:500',
    'visuals.*.hotspots.*.overlay_alignment'=>'sometimes|in:top,middle,bottom',
    'visuals.*.hotspots.*.id'=>'required|uuid','visuals.*.hotspots.*.label'=>'required|string|max:160','visuals.*.hotspots.*.description'=>'nullable|string|max:3000',
    'visuals.*.hotspots.*.x'=>'required|numeric|min:0|max:1','visuals.*.hotspots.*.y'=>'required|numeric|min:0|max:1',

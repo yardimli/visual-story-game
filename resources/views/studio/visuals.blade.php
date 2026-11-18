@@ -69,9 +69,10 @@
 <label class="flex w-fit items-center gap-2 text-sm"><input type="checkbox" x-model="hotspot.overlay" @change="changed()">Show image in area</label>
 <label x-show="hotspot.overlay" class="area-checkbox"><input type="checkbox" :checked="hotspot.overlay_always!==false" @change="hotspot.overlay_always=$event.target.checked;changed()"><span x-text="hotspot.action==='state_v2'?'Show changed state':'Show always'"></span></label>
 </div>
-<div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+<div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
 <div x-show="hotspot.overlay" class="field min-w-0"><span x-text="hotspot.action==='state_v2'?'Changed-state image':'Area image'"></span><button type="button" class="btn-secondary justify-start gap-2" @click="openAreaImagePicker()" aria-haspopup="dialog"><img x-show="areaImage(hotspot)" :src="areaImage(hotspot)?.url" alt="" class="h-10 w-14 object-contain"><span x-text="areaImage(hotspot)?.name || 'Choose area image'"></span></button></div>
 <label x-show="hotspot.overlay" class="field min-w-0">Image alignment<select :value="hotspot.overlay_alignment || 'middle'" @change="hotspot.overlay_alignment=$event.target.value;changed()"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
+<label x-show="hotspot.overlay" class="field min-w-0">Size (%)<input type="number" min="1" max="500" step="1" :value="hotspot.image_size ?? 100" @change="setAreaImageSize(hotspot,$event.target.value)"></label>
 </div>
 <div class="space-y-3">
 <div class="area-description-header">

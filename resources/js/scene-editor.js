@@ -476,7 +476,7 @@ export function sceneEditor(options) {
      if(output){bounds=output.area_bounds||output.bounds;overlay=output.bounds;}
     }
     if(!bounds){notify('No saved default position is available for this area yet.','error');return;}
-    Object.assign(h,JSON.parse(JSON.stringify(bounds)));if(overlay)h.overlay_bounds={...overlay};
+    Object.assign(h,JSON.parse(JSON.stringify(bounds)));if(overlay)h.overlay_bounds={...overlay};else if(h.action==='pickup_v2')h.image_bounds={...bounds};
     this.syncContainerAreas(h);h.default_bounds={...bounds};if(overlay)h.default_overlay_bounds={...overlay};this.changed();
    }catch(e){notify(e.message,'error');}finally{this.resettingArea=false;}
   },
@@ -484,8 +484,9 @@ export function sceneEditor(options) {
    if(this.preview||this.drawing||this.renamingId===h.id||e.button!==0)return;
    e.preventDefault();this.hotspotId=h.id;
    if(['pickup_v2','state_v2'].includes(h.action) && !h.default_bounds && !h.overlay_bounds)h.default_bounds={x:h.x,y:h.y,width:h.width,height:h.height};
+   this.ensureAreaImageBounds(h);
    const rect=e.currentTarget.closest('[data-scene-canvas]').getBoundingClientRect();
-   this.areaDrag={id:h.id,handle,startX:e.clientX,startY:e.clientY,rect,original:{x:h.x,y:h.y,width:h.width,height:h.height,...(h.overlay_bounds?{overlay_bounds:{...h.overlay_bounds}}:{})}};
+   this.areaDrag={id:h.id,handle,startX:e.clientX,startY:e.clientY,rect,original:{x:h.x,y:h.y,width:h.width,height:h.height,...(h.overlay_bounds?{overlay_bounds:{...h.overlay_bounds}}:{}),...(h.image_bounds?{image_bounds:{...h.image_bounds}}:{})}};
    e.currentTarget.setPointerCapture(e.pointerId);
   },
   moveArea(e){
@@ -493,7 +494,7 @@ export function sceneEditor(options) {
    const dx=(e.clientX-d.startX)/d.rect.width,dy=(e.clientY-d.startY)/d.rect.height,o=d.original;
    const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
    if(d.handle==='move'){h.x=clamp(o.x+dx,0,1-o.width);h.y=clamp(o.y+dy,0,1-o.height);}
-   else if(h.overlay){this.resizeAreaProportionally(h,o,d.handle,dx,dy);}
+   else if(h.overlay && h.action!=='pickup_v2'){this.resizeAreaProportionally(h,o,d.handle,dx,dy);}
    else {
     let left=o.x,right=o.x+o.width,top=o.y,bottom=o.y+o.height;
     if(d.handle.includes('w'))left=clamp(o.x+dx,0,right-.005);
@@ -504,7 +505,7 @@ export function sceneEditor(options) {
    }
    this.transformAreaImage(h,o);this.syncContainerAreas(h);
   },
-  syncContainerAreas(h){if(h.is_container){for(const child of this.visual.hotspots.filter(a=>a.container_parent_id===h.id&&a.container_bounds)){const b=containerGeometry(h,child.container_bounds);Object.assign(child,b);child.overlay_bounds={...b};}}else if(h.container_parent_id){let p=this.visual.hotspots.find(a=>a.id===h.container_parent_id);if(p){const base=p.overlay_bounds||p;p=base;h.width=Math.min(h.width,p.width);h.height=Math.min(h.height,p.height);h.x=Math.max(p.x,Math.min(h.x,p.x+p.width-h.width));h.y=Math.max(p.y,Math.min(h.y,p.y+p.height-h.height));h.container_bounds={x:(h.x-p.x)/p.width,y:(h.y-p.y)/p.height,width:h.width/p.width,height:h.height/p.height};h.overlay_bounds={x:h.x,y:h.y,width:h.width,height:h.height};}}},
+  syncContainerAreas(h){if(h.is_container){for(const child of this.visual.hotspots.filter(a=>a.container_parent_id===h.id&&a.container_bounds)){const b=containerGeometry(h,child.container_bounds);Object.assign(child,b);child.overlay_bounds={...b};}}else if(h.container_parent_id){let p=this.visual.hotspots.find(a=>a.id===h.container_parent_id);if(p){const base=p.overlay_bounds||p;p=base;h.width=Math.min(h.width,p.width);h.height=Math.min(h.height,p.height);h.x=Math.max(p.x,Math.min(h.x,p.x+p.width-h.width));h.y=Math.max(p.y,Math.min(h.y,p.y+p.height-h.height));h.container_bounds={x:(h.x-p.x)/p.width,y:(h.y-p.y)/p.height,width:h.width/p.width,height:h.height/p.height};if(h.action!=='pickup_v2')h.overlay_bounds={x:h.x,y:h.y,width:h.width,height:h.height};}}},
   resizeAreaProportionally(h,o,handle,dx,dy){
    const west=handle.includes('w'),north=handle.includes('n');
    const sx=(west?-dx:dx)/o.width,sy=(north?-dy:dy)/o.height;
@@ -515,9 +516,12 @@ export function sceneEditor(options) {
    h.width=o.width*scale;h.height=o.height*scale;
    h.x=west?o.x+o.width-h.width:o.x;h.y=north?o.y+o.height-h.height:o.y;
   },
-  transformAreaImage(h,o){if(!o.overlay_bounds)return;const b=o.overlay_bounds,sx=h.width/o.width,sy=h.height/o.height;h.overlay_bounds={x:h.x+(b.x-o.x)*sx,y:h.y+(b.y-o.y)*sy,width:b.width*sx,height:b.height*sy};},
+  ensureAreaImageBounds(h){if(h.action==='pickup_v2' && !h.overlay_bounds && !h.image_bounds)h.image_bounds={x:h.x,y:h.y,width:h.width,height:h.height};},
+  setAreaImageSize(h,value){this.ensureAreaImageBounds(h);h.image_size=Math.max(1,Math.min(500,Number(value)||100));this.changed();},
+  renderedAreaImageBounds(h){const b=h.overlay_bounds||h.image_bounds||h,scale=(h.image_size??100)/100,anchor={top:0,middle:.5,bottom:1}[h.overlay_alignment||'middle']??.5;return {x:b.x+b.width*(1-scale)/2,y:b.y+b.height*(1-scale)*anchor,width:b.width*scale,height:b.height*scale};},
+  transformAreaImage(h,o){if(h.action==='pickup_v2'){const field=o.overlay_bounds?'overlay_bounds':'image_bounds',b=o[field];if(!b)return;const resizing=h.width!==o.width||h.height!==o.height;h[field]={...b,x:b.x+(resizing?0:h.x-o.x),y:b.y+(resizing?0:h.y-o.y)};return;}if(!o.overlay_bounds)return;const b=o.overlay_bounds,sx=h.width/o.width,sy=h.height/o.height;h.overlay_bounds={x:h.x+(b.x-o.x)*sx,y:h.y+(b.y-o.y)*sy,width:b.width*sx,height:b.height*sy};},
   endArea(cancel=false){const d=this.areaDrag;if(!d)return;const h=this.visual.hotspots.find(h=>h.id===d.id);if(h){if(cancel){Object.assign(h,d.original);this.syncContainerAreas(h);}else if(Object.keys(d.original).some(k=>h[k]!==d.original[k]))this.changed();}this.areaDrag=null;},
-  areaKey(e,h){if(this.preview||e.target!==e.currentTarget)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();this.requestAreaDelete(h.id);return;}if(e.key==='F2'){e.preventDefault();this.beginRename(h);return;}const delta={ArrowLeft:[-.005,0],ArrowRight:[.005,0],ArrowUp:[0,-.005],ArrowDown:[0,.005]}[e.key];if(!delta)return;e.preventDefault();this.hotspotId=h.id;const original={...h,overlay_bounds:h.overlay_bounds?{...h.overlay_bounds}:null};if(e.shiftKey){if(h.overlay)this.resizeAreaProportionally(h,original,'se',delta[0],delta[1]);else{h.width+=delta[0];h.height+=delta[1];}}else{h.x=Math.max(0,Math.min(1-h.width,h.x+delta[0]));h.y=Math.max(0,Math.min(1-h.height,h.y+delta[1]));}this.clampArea();this.transformAreaImage(h,original);this.syncContainerAreas(h);},
+  areaKey(e,h){if(this.preview||e.target!==e.currentTarget)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();this.requestAreaDelete(h.id);return;}if(e.key==='F2'){e.preventDefault();this.beginRename(h);return;}const delta={ArrowLeft:[-.005,0],ArrowRight:[.005,0],ArrowUp:[0,-.005],ArrowDown:[0,.005]}[e.key];if(!delta)return;e.preventDefault();this.hotspotId=h.id;this.ensureAreaImageBounds(h);const original={...h,image_bounds:h.image_bounds?{...h.image_bounds}:null,overlay_bounds:h.overlay_bounds?{...h.overlay_bounds}:null};if(e.shiftKey){if(h.overlay && h.action!=='pickup_v2')this.resizeAreaProportionally(h,original,'se',delta[0],delta[1]);else{h.width+=delta[0];h.height+=delta[1];}}else{h.x=Math.max(0,Math.min(1-h.width,h.x+delta[0]));h.y=Math.max(0,Math.min(1-h.height,h.y+delta[1]));}this.clampArea();this.transformAreaImage(h,original);this.syncContainerAreas(h);},
   sceneLabel(v){return 'Scene '+(this.scenes.findIndex(s=>s.id===v.id)+1)+' · '+v.name+' · '+(this.asset(v.asset_id)?.name||'No image');},
   get referenceAssets(){return this.assets.filter(a=>!a.archived && a.role!=='extraction_reference');},
   openReferences(){this.$refs.referenceDialog.showModal();this.$nextTick(()=>{this.$refs.referenceImagesScroll.scrollTop=0;});},
@@ -531,9 +535,9 @@ export function sceneEditor(options) {
   },
   editorAreaVisible(h){if(this.areaDisabled(h,this.editorVisibilityFlags))return false;if(!h.container_parent_id)return true;const parent=this.visual?.hotspots?.find(p=>p.id===h.container_parent_id);return !!parent?.is_container&&!!parent.overlay&&parent.overlay_always!==false;},
   editorAreaImage(h){if(!h.overlay||!this.editorAreaVisible(h))return null;if(h.action==='state_v2'){if(h.overlay_always===false)return h.is_container?this.asset(h.overlay_asset_id):null;return this.asset(h.state_asset_id);}if(h.overlay_always===false&&this.editorHoverAreaId!==h.id)return null;return this.areaImage(h);},
-  editorAreaImageStyle(h){return this.style(h.overlay_bounds||h)+';z-index:'+this.areaLayer(h)+';object-position:'+this.areaImagePosition(h);},
+  editorAreaImageStyle(h){return this.style(this.renderedAreaImageBounds(h))+';z-index:'+this.areaLayer(h)+';object-position:'+this.areaImagePosition(h);},
   areaImage(h){if(h?.action==='pickup_v2' && this.preview){if(this.collectibleEmpty(h))return null;if(this.placedObjects[h.id] && this.placedObjects[h.id]!==h.object_id)return this.asset(this.collectibleObject(h)?.asset_id);}if(h?.action==='state_v2')return !this.preview || this.flags[h.state_flag]?this.asset(h.state_asset_id):null;return h?.overlay?this.asset(h.overlay_asset_id !== undefined ? h.overlay_asset_id : this.gameObjects.find(v=>v.id===h.object_id)?.asset_id):null;},
-  areaImageStyle(h){const b=h.overlay_bounds;if(!b)return {objectPosition:this.areaImagePosition(h)};return {position:'absolute',left:((b.x-h.x)/h.width*100)+'%',top:((b.y-h.y)/h.height*100)+'%',width:(b.width/h.width*100)+'%',height:(b.height/h.height*100)+'%',maxWidth:'none',objectFit:'fill',pointerEvents:'none'};},
+  areaImageStyle(h){const b=this.renderedAreaImageBounds(h);return {position:'absolute',left:((b.x-h.x)/h.width*100)+'%',top:((b.y-h.y)/h.height*100)+'%',width:(b.width/h.width*100)+'%',height:(b.height/h.height*100)+'%',maxWidth:'none',objectFit:h.overlay_bounds?'fill':'contain',objectPosition:this.areaImagePosition(h),pointerEvents:'none'};},
   areaImagePosition(h){return {top:'center top',middle:'center center',bottom:'center bottom'}[h.overlay_alignment]||'center center';},
   get pickerSelectedAsset(){return this.imagePickerTarget==='area'?this.areaImage(this.hotspot)?.id:this.visual?.asset_id;},
   selectPickerImage(id){if(this.imagePickerTarget==='area'){if(this.hotspot){if(this.hotspot.action==='state_v2')this.hotspot.state_asset_id=id;else this.hotspot.overlay_asset_id=id;this.changed();}}else if(this.visual){if(id)this.useImage(id);else{this.visual.asset_id=null;this.changed();}}this.$refs.visualImagePicker.close();},
@@ -575,8 +579,8 @@ export function sceneEditor(options) {
   addAreaChoice(){if(!this.hotspot)return;this.hotspot.choices??=[];if(this.hotspot.choices.length>=20)return;this.hotspot.choices.push({label:'New action',response:'',target_id:null});this.changed();},
   get modalArea(){return this.playVisuals.find(v=>v.id===this.modal?.sceneId)?.hotspots?.find(h=>h.id===this.modal?.areaId);},
   areaTextOptions(h){return {sourceAreaId:h.id,animate:h.animate_hover_text===true,area:{x:h.x,y:h.y,width:h.width,height:h.height},position:h.description_position||'top'};},
-  areaTooltip(h){if(this.sceneTransition||this.pendingInventoryUse||(this.hasAreaAction(h)&&!this.descriptionStep(h)&&!this.actionAllowed(h)))return '';return this.cursorTooltips[this.areaCursor(h)]||'';},
-  areaCursor(h){const action=this.hasAreaAction(h)&&!this.descriptionStep(h);const value=action?h.action_cursor:h.cursor;const allowed=['pointer','grab','help','crosshair','zoom-in','alias','not-allowed','default'];if(allowed.includes(value))return value;if(action&&!this.actionAllowed(h))return 'not-allowed';return action&&['pickup','pickup_v2'].includes(h.action)?'grab':action&&h.action==='inventory'?'alias':'pointer';},
+  areaTooltip(h){if(this.narrationSpeaking||this.sceneTransition||this.pendingInventoryUse||(this.hasAreaAction(h)&&!this.descriptionStep(h)&&!this.actionAllowed(h)))return '';return this.cursorTooltips[this.areaCursor(h)]||'';},
+  areaCursor(h){if(this.narrationSpeaking)return 'not-allowed';const action=this.hasAreaAction(h)&&!this.descriptionStep(h);const value=action?h.action_cursor:h.cursor;const allowed=['pointer','grab','help','crosshair','zoom-in','alias','not-allowed','default'];if(allowed.includes(value))return value;if(action&&!this.actionAllowed(h))return 'not-allowed';return action&&['pickup','pickup_v2'].includes(h.action)?'grab':action&&h.action==='inventory'?'alias':'pointer';},
   get narrationSpeaking(){return !!this.soundPlayer?.speaking;},
   stopNarration(){this.soundPlayer?.channel('voice',null);if(this.pendingInventoryUse)this.completeInventoryUse();},
   inventoryDrag:null, suppressInventoryClick:false, pendingInventoryUse:null, inventoryUseTimer:null,
@@ -693,7 +697,7 @@ export function sceneEditor(options) {
    this.armedPickup=null;this.clearSceneTransition();const request=this.transitionRequest;this.sceneTransition=true;
    const commit=()=>{
     if(request!==this.transitionRequest || !this.preview)return;
-   this.outgoingScene={...this.displayed,layers:this.currentHotspots.flatMap(h=>{const image=this.areaImage(h);if(!image || (h.action!=='state_v2' && h.overlay_always===false))return [];return [{id:h.id,url:image.url,style:this.style(h.overlay_bounds||h)+';z-index:'+this.areaLayer(h)+';object-fit:'+(h.overlay_bounds?'fill':'contain')+';object-position:'+this.areaImagePosition(h)}];})};this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;this.soundPlayer?.enter(this.displayed,this.audioSounds);
+   this.outgoingScene={...this.displayed,layers:this.currentHotspots.flatMap(h=>{const image=this.areaImage(h);if(!image || (h.action!=='state_v2' && h.overlay_always===false))return [];return [{id:h.id,url:image.url,style:this.style(this.renderedAreaImageBounds(h))+';z-index:'+this.areaLayer(h)+';object-fit:'+(h.overlay_bounds?'fill':'contain')+';object-position:'+this.areaImagePosition(h)}];})};this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;this.soundPlayer?.enter(this.displayed,this.audioSounds);
    this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview && this.pendingModal)this.deliverPreviewMessage(this.pendingModal);this.pendingModal=null;},250);},200);
    };
    const loading=this.preloadScene(target);

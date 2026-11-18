@@ -430,3 +430,10 @@ html.editor-document, .editor-document body { height:100%; overflow:hidden; }
 .paper .story-flags-table th { background:#d9cdb8; border-color:#ab9b80; }
 .paper .story-flags-table input:not([type=checkbox]) { background:#e1d6c1; border-color:#ab9b80; }
 @media (prefers-reduced-motion:reduce) { .story-flags-table td { transition:none; } }
+
+/* Narration blocks scene actions; text remains clickable to skip speech. */
+.preview-stage.scene-narrating, .preview-stage.scene-narrating * { cursor: not-allowed !important; }
+.preview-stage.scene-narrating .animated-description,
+.preview-stage.scene-narrating .animated-description * { cursor: pointer !important; }
+
+.preview-hotspot { overflow: visible; }

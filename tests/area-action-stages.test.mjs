@@ -100,3 +100,11 @@ test('area messages identify their source and use the story unavailable timeout'
  const [e,h]=setup();e.unavailableTimeout=1750;e.denyAreaAction(h);assert.equal(e.narration.hideAfterMs,1750);assert.equal(e.hasAreaMessage(h),true);assert.equal(e.hasAreaMessage({id:'other'}),false);
  const d=sceneEditor({});assert.equal(d.unavailableTimeout,1000);assert.equal(e.areaTextOptions(h).sourceAreaId,h.id);
 });
+
+
+test('narration overrides action cursors and tooltips then restores them after playback',()=>{
+ const [e,h]=setup('pickup_v2');h.show_hover_text=true;e.flags.read=true;e.cursorTooltips={grab:'Take item',help:'Inspect'};
+ assert.equal(e.areaCursor(h),'grab');assert.equal(e.areaTooltip(h),'Take item');e.soundPlayer={speaking:true};
+ assert.equal(e.areaCursor(h),'not-allowed');assert.equal(e.areaTooltip(h),'');h.action_cursor='help';assert.equal(e.areaCursor(h),'not-allowed');
+ e.soundPlayer.speaking=false;assert.equal(e.areaCursor(h),'help');assert.equal(e.areaTooltip(h),'Inspect');
+});
