@@ -12,10 +12,11 @@ class InventoryLibrary {
  public function uses(Story $story): array {
   $uses=[];
   foreach($story->pages()->get() as $p)foreach($p->visual_document['visuals']??[] as $v){
-   $ids=[];foreach($v['hotspots']??[] as $h){if(!empty($h['object_id']))$ids[]=$h['object_id'];foreach($h['inventory_rules']??[] as $r)if(!empty($r['object_id']))$ids[]=$r['object_id'];}
+   $ids=[];foreach($v['hotspots']??[] as $h){$ids=array_merge($ids,$h['required_items']??[]);if(!empty($h['object_id']))$ids[]=$h['object_id'];foreach($h['inventory_rules']??[] as $r)if(!empty($r['object_id']))$ids[]=$r['object_id'];}
    foreach($v['skip_rules']??[] as $r)$ids=array_merge($ids,$r['object_ids']??[]);
    foreach(array_unique($ids) as $id)$uses[$id][]=['page_id'=>$p->id,'scene_id'=>$v['id'],'label'=>'Page '.$p->position.' · '.$p->title.' / '.$v['name'],'url'=>route('stories.edit',[$story,'page'=>$p->id,'tab'=>'visuals','visual'=>$v['id']])];
   }
+  foreach(\App\Models\ContainerPlan::where('story_id',$story->id)->get() as $plan)foreach($plan->contents??[] as $content)if(!empty($content['object_id']))$uses[$content['object_id']][]=['page_id'=>$plan->story_page_id,'scene_id'=>$plan->visual_id,'label'=>'Container plan: '.$plan->name,'url'=>route('stories.edit',[$story,'page'=>$plan->story_page_id,'tab'=>'visuals','visual'=>$plan->visual_id])];
   return $uses;
  }
 }

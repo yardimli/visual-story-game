@@ -29,6 +29,12 @@ Route::middleware('auth')->group(function () {
     Route::delete('/stories/{story}/audio/jobs/{job}',[\App\Http\Controllers\AudioManageController::class,'destroyJob']);
     Route::get('/stories/{story}/audio/sounds/{sound}/usage',[\App\Http\Controllers\AudioManageController::class,'usage']);
     Route::delete('/stories/{story}/audio/sounds/{sound}',[\App\Http\Controllers\AudioManageController::class,'destroySound']);
+    Route::post('/stories/{story}/pages/{page}/containers/prompt',[\App\Http\Controllers\ContainerPromptController::class,'store'])->name('containers.prompt');
+    Route::get('/stories/{story}/pages/{page}/containers',[\App\Http\Controllers\ContainerController::class,'index'])->name('containers.index');
+    Route::post('/stories/{story}/pages/{page}/containers',[\App\Http\Controllers\ContainerController::class,'store']);
+    Route::delete('/stories/{story}/pages/{page}/containers',[\App\Http\Controllers\ContainerController::class,'destroy'])->name('containers.delete');
+    Route::post('/stories/{story}/pages/{page}/containers/{plan}/prepare',[\App\Http\Controllers\ContainerController::class,'prepare'])->name('containers.prepare');
+    Route::post('/stories/{story}/pages/{page}/containers/{plan}/activate',[\App\Http\Controllers\ContainerController::class,'activate'])->name('containers.activate');
     Route::get('/stories/{story}/audio',[\App\Http\Controllers\AudioController::class,'index'])->name('audio.index');
     Route::put('/stories/{story}/audio/settings',[\App\Http\Controllers\AudioController::class,'settings'])->name('audio.settings');
     Route::get('/stories/{story}/audio/voices',[\App\Http\Controllers\AudioController::class,'voices']);
@@ -39,10 +45,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/audio/{sound}',[\App\Http\Controllers\AudioController::class,'file'])->name('audio.file');
 
     Route::get('/stories/{story}/flags',[\App\Http\Controllers\StoryStateController::class,'show'])->name('flags.show');
+    Route::put('/stories/{story}/flags/{flag}',[\App\Http\Controllers\StoryStateController::class,'rename'])->name('flags.rename');
+    Route::get('/stories/{story}/flags/{flag}/uses',[\App\Http\Controllers\StoryStateController::class,'uses'])->name('flags.uses');
+    Route::delete('/stories/{story}/flags/{flag}',[\App\Http\Controllers\StoryStateController::class,'destroy'])->name('flags.delete');
     Route::put('/stories/{story}/flags',[\App\Http\Controllers\StoryStateController::class,'update'])->name('flags.update');
     Route::get('/stories/{story}/pages/{page}/extractions',[\App\Http\Controllers\SceneExtractionController::class,'index'])->name('extractions.index');
     Route::post('/stories/{story}/pages/{page}/extractions',[\App\Http\Controllers\SceneExtractionController::class,'store'])->name('extractions.store');
     Route::post('/stories/{story}/pages/{page}/extractions/{extraction}/outputs/{output}',[\App\Http\Controllers\SceneExtractionController::class,'output'])->name('extractions.output');
+    Route::delete('/stories/{story}/pages/{page}/extractions/{extraction}',[\App\Http\Controllers\SceneExtractionController::class,'destroy'])->name('extractions.delete');
     Route::post('/stories/{story}/pages/{page}/extractions/{extraction}/activate',[\App\Http\Controllers\SceneExtractionController::class,'activate'])->name('extractions.activate');
     Route::delete('/stories/{story}/image-drafts/{image}',[\App\Http\Controllers\SceneController::class,'deleteDraft'])->name('images.draft.delete');
     Route::put('/stories/{story}/image-order',[\App\Http\Controllers\StoryStateController::class,'order'])->name('images.order');

@@ -787,3 +787,18 @@ Generation workspace verification: 85-test regression passed before two new test
 - [x] Unify compact audio selectors with narrower categories and flexible sound widths; fix scene row placement, Story bible overflow, and project category selection/empty filter state.
 
 - [x] Place scene dialog colors and extraction/drawing tools immediately below the image, before Visual name and scene settings.
+
+## Container plans
+- [x] Add plans bound to user-drawn container areas, with multiple plans per container and cropped sources.
+- [x] Add open-preview review, relative content-area drawing, dependent layer/inventory generation and per-output retries.
+- [x] Activate one plan per container with persistent open/closed and collected states; hide contents and hit areas when closed.
+- [x] Add companion plan proposals, document workflows, and test ownership, review gates, activation and gameplay.
+
+- [x] Simplify action menu, merge object inspection/navigation into Examine, and add description-first action stages with independent flag/inventory requirements including inventory drops.
+
+- [x] Review story flag uses before deleting; atomically remove nested condition/effect rows and local-state references with stale-review protection.
+
+- [x] Split click-area settings into Image and description / Action; independent sounds/cursors and one action-only availability gate. Migrate duplicate saved conditions, preserve existing content, and protect deletion references.
+
+- [x] Container padding with linked/independent 0-500px sliders and persisted rendering offsets; keep click targets unchanged.
+- [x] Existing Inventory checklist and editable AI prompt drafting with call logging and final-only chat messages on generation.

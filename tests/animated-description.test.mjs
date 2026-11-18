@@ -97,3 +97,38 @@ test('text completion is emitted only after the final word and once per response
  d.$dispatch=(event,detail)=>{if(event==='description-complete')completed.push(detail.key);};
  d.play('One two three','top','response',true);assert.deepEqual(completed,[]);t.mock.timers.tick(110);assert.deepEqual(completed,[]);t.mock.timers.tick(110);assert.deepEqual(completed,['response']);d.reveal();assert.deepEqual(completed,['response']);d.destroy();
 });
+
+
+test('clicking narration reveals every word and stops speech',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const previous=globalThis.window;let stopped=0;globalThis.window={vsgSceneEditor:{soundPlayer:{speak(){},channel(name,sound){assert.equal(name,'voice');assert.equal(sound,null);stopped++;}},stopNarration(){}}};
+ try{const d=animatedDescription();d.play('One two three');assert.equal(d.count,1);d.skipSpeech();assert.equal(d.count,3);assert.equal(stopped,1);d.destroy();}finally{globalThis.window=previous;}
+});
+
+
+test('clicked text hides after three seconds even for persistent descriptions',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription({persistent:true});
+ d.play('One two three');d.skipSpeech();assert.equal(d.count,3);
+ t.mock.timers.tick(2999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);assert.equal(d.instantHide,false);d.destroy();
+});
+test('second text click hides immediately and a new description resets the click state',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();
+ d.play('First description');d.skipSpeech();d.skipSpeech();assert.equal(d.visible,false);assert.equal(d.instantHide,true);
+ d.play('Next description');assert.equal(d.textClicked,false);assert.equal(d.instantHide,false);d.skipSpeech();assert.equal(d.visible,true);d.destroy();
+});
+test('clicked hover text times out and stays suppressed until leaving the area',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=hoverDescription(),area={id:'rose',description:'A rose',action:'examine'};
+ d.hoverArea(area,1,'scene');d.skipSpeech();t.mock.timers.tick(3000);assert.equal(d.visible,false);
+ d.hoverArea(area,1,'scene');assert.equal(d.visible,false);d.leaveArea();d.hoverArea(area,1,'scene');assert.equal(d.visible,true);d.destroy();
+});
+
+
+test('unavailable messages honor configured millisecond timeout',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.hideAfterMs=1000;
+ d.play('Not yet','top','blocked',false);t.mock.timers.tick(999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);
+ d.hideAfterMs=2400;d.play('Not yet','top','blocked2',false);d.skipSpeech();t.mock.timers.tick(2399);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);d.destroy();
+});
+test('source-area clicks use the same reveal and dismiss state as text-box clicks',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.play('One two three','top','scene:1');
+ d.clickFromArea('scene:2');assert.equal(d.count,1);d.clickFromArea('scene:1');assert.equal(d.count,3);assert.equal(d.visible,true);
+ d.skipSpeech();assert.equal(d.visible,false);assert.equal(d.instantHide,true);d.destroy();
+});

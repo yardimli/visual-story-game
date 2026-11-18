@@ -160,4 +160,33 @@ class SceneExtractionTest extends TestCase {
   $b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();
   $this->postJson(route('extractions.output',[$s,$p,$b['id'],$b['outputs'][1]['id']]),['action'=>'accept','asset_id'=>$b['source_asset_id']])->assertUnprocessable();
  }
+
+ public function test_switch_references_preserve_crop_validate_ownership_and_can_be_cleared():void {
+  [$u,$s,$p,$data]=$this->fixture();$doc=$p->visual_document;$doc['visuals'][0]['hotspots'][0]['action']='state_v2';$p->update(['visual_document'=>$doc]);$data['mode']='switches';
+  $b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();$o=$b['outputs'][1];$extra=$this->asset($s);$url=route('extractions.output',[$s,$p,$b['id'],$o['id']]);
+  $this->postJson($url,['action'=>'switch_references','extra_references'=>[$extra->id],'prompt'=>'Use image 2 for the new shape.'])->assertOk()->assertJsonPath('outputs.1.references',[$o['references'][0],$extra->id]);
+  $this->assertDatabaseCount('image_generations',0);
+  $foreign=Story::create(['user_id'=>$u->id,'title'=>'Other','premise'=>'Test']);$other=$this->asset($foreign);
+  $this->postJson($url,['action'=>'switch_references','extra_references'=>[$other->id]])->assertUnprocessable();
+  $this->postJson($url,['action'=>'switch_references','extra_references'=>[]])->assertOk()->assertJsonPath('outputs.1.references',[$o['references'][0]]);
+ }
+
+ public function test_padding_expands_switch_and_collectible_crops_without_expanding_click_targets():void {
+  foreach(['switches','collectibles'] as $mode){
+   [$u,$s,$p,$data]=$this->fixture();$doc=$p->visual_document;$doc['visuals'][0]['hotspots'][0]['action']=$mode==='switches'?'state_v2':'pickup_v2';$p->update(['visual_document'=>$doc]);$original=$doc['visuals'][0]['hotspots'][0];
+   $data['mode']=$mode;$data['areas'][0]['padding']=['top'=>500,'right'=>10,'bottom'=>5,'left'=>5];$data['areas'][0]['equal_padding']=false;
+   $b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();$type=$mode==='switches'?'switch_on':'layer';$layer=collect($b['outputs'])->firstWhere('type',$type);
+   $this->assertEquals(.05,$layer['bounds']['x']);$this->assertEquals(0,$layer['bounds']['y']);$this->assertGreaterThan($original['width'],$layer['bounds']['width']);$this->assertEquals(.2,$layer['area_bounds']['width']);$this->assertSame(500,$layer['padding']['top']);
+   $batch=SceneExtraction::find($b['id']);$outputs=$batch->outputs;foreach($outputs as &$o)$o['accepted_asset_id']=$this->asset($s,true)->id;unset($o);$batch->update(['outputs'=>$outputs]);
+   $this->postJson(route('extractions.activate',[$s,$p,$batch]),['revision'=>$b['revision'],'inventory_revision'=>$b['inventory_revision']])->assertOk();$h=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];
+   foreach(['x','y','width','height'] as $key)$this->assertEquals($original[$key],$h[$key]);$this->assertEquals($layer['bounds'],$h['overlay_bounds']);
+   $data['revision']=$p->fresh()->visual_revision;$data['areas'][0]['padding']['top']=501;$this->postJson(route('extractions.store',[$s,$p]),$data)->assertUnprocessable();
+  }
+ }
+
+ public function test_plan_deletion_is_owned_and_keeps_images_and_scene():void {
+  [$u,$s,$p,$data]=$this->fixture();$b=$this->postJson(route('extractions.store',[$s,$p]),$data)->assertCreated()->json();$doc=$p->fresh()->visual_document;$count=Asset::count();$url=route('extractions.delete',[$s,$p,$b['id']]);
+  $this->actingAs(User::factory()->create())->deleteJson($url)->assertNotFound();$this->assertDatabaseHas('scene_extractions',['id'=>$b['id']]);
+  $this->actingAs($u)->deleteJson($url)->assertOk();$this->assertDatabaseMissing('scene_extractions',['id'=>$b['id']]);$this->assertSame($count,Asset::count());$this->assertSame($doc,$p->fresh()->visual_document);
+ }
 }

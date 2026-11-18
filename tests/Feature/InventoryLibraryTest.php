@@ -39,4 +39,10 @@ class InventoryLibraryTest extends TestCase {
   $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0,1]])->assertOk();
   $this->assertCount(2,$s->fresh()->inventory_document['visuals']);$this->assertSame('A shared brass key',$s->fresh()->inventory_document['visuals'][0]['description']);$this->assertCount(1,$p->fresh()->visual_document['visuals']);
  }
+ public function test_required_inventory_items_cannot_be_deleted_until_conditions_are_removed():void {
+  [$u,$s,$p,$item]=$this->setupLibrary();$doc=$p->visual_document;$doc['visuals'][0]['hotspots'][]=['id'=>(string)Str::uuid(),'action'=>'examine','move_after_examine'=>true,'required_items'=>[$item['id']]];$p->update(['visual_document'=>$doc]);
+  $this->getJson(route('inventory.show',$s))->assertJsonPath('uses.'.$item['id'].'.0.scene_id',$doc['visuals'][0]['id']);
+  $this->putJson(route('inventory.update',$s),['revision'=>1,'items'=>[]])->assertUnprocessable();
+  $doc['visuals'][0]['hotspots']=[];$p->update(['visual_document'=>$doc]);$this->putJson(route('inventory.update',$s),['revision'=>1,'items'=>[]])->assertOk();
+ }
 }

@@ -24,3 +24,9 @@ test('defaults, inventory inheritance, explicit silence and local switch silence
  p.action({action:'state_v2'},null,sounds);assert.equal(p.channels.effects,current);
  p.action({action:'pickup'},null,sounds);assert.equal(p.channels.effects.url,'/2');
 }));
+
+
+test('voice pause clears on completion, failure and stop without stopping music',()=>withPlayer(p=>{
+ p.start({music_id:1},sounds);p.speak('A locked door.',sounds);assert.equal(p.speaking,true);p.channels.voice.onPlaybackFailure();assert.equal(p.speaking,false);assert.equal(p.channels.music.paused,false);
+ p.speak('A locked door.',sounds);const previous=p.channels.voice;p.speak('A locked door.',sounds);previous.onPlaybackFailure();assert.equal(p.speaking,true);p.channel('voice',null);assert.equal(p.speaking,false);
+}));

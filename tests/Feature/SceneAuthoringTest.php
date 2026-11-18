@@ -21,6 +21,39 @@ class SceneAuthoringTest extends TestCase {
   Cache::put('openrouter.image-endpoints.'.hash('sha256','openai/image'),[['provider_tag'=>'openai','supported_parameters'=>['input_references'=>['type'=>'range','max'=>2],'quality'=>['type'=>'enum','values'=>['high']]],'pricing'=>[['billable'=>'output_image','unit'=>'image','cost_usd'=>0.05]]]],60);
   return [$u,$s,$p->fresh(),$doc];
  }
+ public function test_inventory_outcomes_allow_other_pages_and_clear_deleted_destinations():void {
+  [$u,$s,$p,$doc]=$this->setupScene();$target=$doc['visuals'][0];$target['id']=(string)Str::uuid();$target['hotspots']=[];
+  $other=$s->pages()->create(['position'=>2,'title'=>'Hall','visual_document'=>['visuals'=>[$target]]]);
+  $h=&$doc['visuals'][0]['hotspots'][0];$h['action']='inventory';$h['inventory_rules']=[['object_id'=>$doc['visuals'][1]['id'],'response'=>'Opened','target_id'=>$target['id'],'consume'=>false]];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $this->assertSame($target['id'],$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['inventory_rules'][0]['target_id']);
+  $h['inventory_rules'][0]['target_id']=(string)Str::uuid();
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+  $remaining=$target;$remaining['id']=(string)Str::uuid();
+  $this->putJson(route('visuals.update',[$s,$other]),['revision'=>$other->fresh()->visual_revision,'document'=>['visuals'=>[$remaining]]])->assertOk();
+  $this->assertNull($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['inventory_rules'][0]['target_id']);
+ }
+ public function test_deleting_scene_clears_incoming_page_destinations_and_skip_rules():void {
+  [$u,$s,$p,$doc]=$this->setupScene();$deleted=$doc['visuals'][0]['id'];$remaining=$doc['visuals'][0];$remaining['id']=(string)Str::uuid();$remaining['name']='Remaining';
+  $remaining['hotspots'][0]['action']='page';$remaining['hotspots'][0]['object_id']=null;$remaining['hotspots'][0]['target_page_id']=$p->id;$remaining['hotspots'][0]['target_scene_id']=$deleted;
+  $remaining['skip_rules']=[['id'=>(string)Str::uuid(),'object_ids'=>[],'target_page_id'=>$p->id,'target_scene_id'=>$deleted]];
+  $doc['visuals'][]=$remaining;$p->update(['visual_document'=>$doc]);
+  $other=$s->pages()->create(['position'=>2,'title'=>'Other','visual_document'=>['visuals'=>[$remaining]]]);$before=$other->fresh()->visual_revision;
+  $doc['visuals']=array_values(array_filter($doc['visuals'],fn($v)=>$v['id']!==$deleted));
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  foreach([$p->fresh(),$other->fresh()] as $saved){$v=collect($saved->visual_document['visuals'])->firstWhere('id',$remaining['id']);$this->assertNull($v['hotspots'][0]['target_scene_id']);$this->assertNull($v['hotspots'][0]['target_page_id']);$this->assertSame('examine',$v['hotspots'][0]['action']);$this->assertFalse($v['hotspots'][0]['move_after_examine']);$this->assertSame([],$v['skip_rules']);}
+  $this->assertSame($before+1,$other->fresh()->visual_revision);
+  $this->putJson(route('visuals.update',[$s,$other]),['revision'=>$before,'document'=>$other->visual_document])->assertUnprocessable();
+ }
+ public function test_examine_options_and_second_action_requirements_save_and_validate():void {
+  [$u,$s,$p,$doc]=$this->setupScene();$s->update(['game_flags'=>[['key'=>'envelope_read','label'=>'Envelope read','initial'=>false]]]);
+  $h=&$doc['visuals'][0]['hotspots'][0];$h['cursor']='help';$h['action_cursor']='grab';$h['action']='examine';$h['show_object']=true;$h['move_after_examine']=true;$h['target_page_id']=$p->id;$h['target_scene_id']=$doc['visuals'][0]['id'];
+  $h['action_requirements']=['availability_enabled'=>true,'flag_conditions'=>[['key'=>'envelope_read','value'=>true]],'required_items'=>[$doc['visuals'][1]['id']],'unavailable_text'=>'Read the envelope and find the key first.'];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $stored=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];$this->assertSame('help',$stored['cursor']);$this->assertSame('grab',$stored['action_cursor']);$this->assertArrayNotHasKey('action_requirements',$stored);foreach($h['action_requirements'] as $key=>$value)$this->assertSame($value,$stored[$key]);$this->assertArrayNotHasKey('show_object',$stored);$this->assertTrue($stored['move_after_examine']);
+  $h['action_requirements']['flag_conditions'][0]['key']='missing';$this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+  $h['action_requirements']['flag_conditions']=[];$h['action_requirements']['required_items']=[(string)Str::uuid()];$this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+ }
  public function test_pickup_accepts_other_page_objects_but_rejects_foreign_story_objects(): void {
   [$u,$s,$p,$doc]=$this->setupScene();
   $key=['id'=>(string)Str::uuid(),'name'=>'Brass key','kind'=>'object','asset_id'=>null,'hotspots'=>[]];
@@ -63,7 +96,7 @@ class SceneAuthoringTest extends TestCase {
   $this->assertFalse($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['overlay_always']);
   $this->assertFalse($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['show_hover_text']);
   $this->assertSame('#123456',$p->fresh()->visual_document['visuals'][0]['dialog_background']);
-  $this->assertTrue($p->fresh()->visual_document['visuals'][0]['hotspots'][0]['use_item_description']);
+  $this->assertArrayNotHasKey('use_item_description',$p->fresh()->visual_document['visuals'][0]['hotspots'][0]);
   $this->assertSame('bottom',$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['overlay_alignment']);
   $doc['visuals'][0]['hotspots'][0]['overlay_asset_id']=999999;
   $this->expectException(\Illuminate\Validation\ValidationException::class);

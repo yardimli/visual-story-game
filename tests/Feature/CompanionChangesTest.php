@@ -73,7 +73,7 @@ class CompanionChangesTest extends TestCase {
   [$u,$s,$p,$second,$m]=$this->fixture();
   $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[1,2,3,4]])->assertOk()->assertJsonPath('revision',2);
   $this->assertSame('Original',$s->fresh()->premise);$this->assertSame('New narrative',$second->fresh()->narrative);
-  $doc=$p->fresh()->visual_document;$this->assertSame('Read the envelope',$doc['visuals'][0]['hotspots'][0]['description']);$this->assertFalse($doc['visuals'][0]['hotspots'][0]['use_item_description']);
+  $doc=$p->fresh()->visual_document;$this->assertSame('Read the envelope',$doc['visuals'][0]['hotspots'][0]['description']);$this->assertArrayNotHasKey('use_item_description',$doc['visuals'][0]['hotspots'][0]);
   $item=$s->fresh()->inventory_document['visuals'][0];$this->assertCount(1,$doc['visuals']);$this->assertSame($item['id'],$doc['visuals'][0]['hotspots'][0]['object_id']);$this->assertSame('Readable letter',$item['prompt']);
   $this->assertDatabaseCount('image_generations',0);$this->assertDatabaseCount('story_revisions',1);
   $this->postJson(route('companion.changes',[$s,$m]),['selected'=>[0]])->assertUnprocessable();

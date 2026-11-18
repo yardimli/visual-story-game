@@ -2,9 +2,9 @@ import {notify} from './toasts.js';
 export const audioActions={examine:'Examine',inspect:'Inspect object',pickup:'Pick up object',pickup_v2:'Pick up local layer',state_v2:'Change local state',transition:'Change scene',inventory:'Use inventory',choices:'Choose an action',page:'Move to page',complete:'Finish story'};
 export const speechText=text=>String(text||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
 export class GameAudio {
- constructor(){this.channels={music:null,voice:null,effects:null};this.preview=null;this.muted=false;this.defaults={};}
- play(sound,volume=1,loop=false){if(!sound?.url || typeof Audio==='undefined')return null;const audio=new Audio(sound.url);audio.volume=1;audio.muted=this.muted;audio.loop=loop;audio.play().catch(()=>{});return audio;}
- channel(name,sound,loop=false){this.channels[name]?.pause();this.channels[name]=this.play(sound,1,loop);return this.channels[name];}
+ constructor(){this.channels={music:null,voice:null,effects:null};this.preview=null;this.speaking=false;this.muted=false;this.defaults={};}
+ play(sound,volume=1,loop=false){if(!sound?.url || typeof Audio==='undefined')return null;const audio=new Audio(sound.url);audio.volume=1;audio.muted=this.muted;audio.loop=loop;audio.play().catch(()=>audio.onPlaybackFailure?.());return audio;}
+ channel(name,sound,loop=false){this.channels[name]?.pause();const audio=this.play(sound,1,loop);this.channels[name]=audio;if(name==='voice'){this.speaking=!!audio;if(audio){const finished=()=>{if(this.channels.voice===audio)this.speaking=false;};audio.addEventListener?.('ended',finished);audio.addEventListener?.('error',finished);audio.onPlaybackFailure=finished;}}return audio;}
  toggleMute(){this.muted=!this.muted;for(const a of [...Object.values(this.channels),this.preview])if(a)a.muted=this.muted;return this.muted;}
  audition(area,sounds){this.stopAudition();this.preview=this.play(sounds.find(s=>s.id===Number(area?.sound_id)));}
  stopAudition(){this.preview?.pause();this.preview=null;}
@@ -14,7 +14,7 @@ export class GameAudio {
  click(area,sounds){const id=this.resolve(area.sound_id,this.defaults[area.action||'inspect']?.click);if(id)this.channel('effects',sounds.find(s=>s.id===Number(id)));}
  action(area,item,sounds){const fallback=area.action==='state_v2'?null:this.resolve(item?.action_sound_id,this.defaults[area.action||'inventory']?.action);const id=this.resolve(area.action_sound_id,fallback);if(id)this.channel('effects',sounds.find(s=>s.id===Number(id)));}
  speak(text,sounds){const normalized=speechText(text);this.channel('voice',normalized?sounds.find(s=>s.source_text && speechText(s.source_text)===normalized):null);}
- stop(){this.stopAudition();for(const key of Object.keys(this.channels)){this.channels[key]?.pause();this.channels[key]=null;}}
+ stop(){this.speaking=false;this.stopAudition();for(const key of Object.keys(this.channels)){this.channels[key]?.pause();this.channels[key]=null;}}
 }
 export function storyAudio(url){return {
  editingJob:null,voiceModels:[],batchBusy:false,batchProgress:'',jobBusy:false,

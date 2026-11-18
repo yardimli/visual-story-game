@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 class SceneDocument {
  public function validate(Story $story, array $document, ?int $pageId=null): array {
+  $document=AreaActionSettings::document($document);
   $stateRules=[];
   foreach(['visuals.*','visuals.*.hotspots.*'] as $path){
    foreach(['sound_id','action_sound_id'] as $field)$stateRules[$path.'.'.$field]=['sometimes','nullable',function($a,$v,$fail)use($story){if($v!=='silent' && (!is_numeric($v)||!\App\Models\StorySound::where('story_id',$story->id)->whereKey($v)->exists()))$fail('Choose a sound in this story, default, or silent.');}];
@@ -13,8 +14,8 @@ class SceneDocument {
   $stateRules['visuals.*.music_mode']='sometimes|in:keep,replace,stop';
   $stateRules['visuals.*.music_id']=['sometimes','nullable','integer',\Illuminate\Validation\Rule::exists('story_sounds','id')->where('story_id',$story->id)];
   $stateRules['visuals.*.music_loop']='sometimes|boolean';$stateRules['visuals.*.sound_loop']='sometimes|boolean';
-  foreach(['visuals.*.skip_rules.*.flag_conditions','visuals.*.hotspots.*.flag_conditions','visuals.*.hotspots.*.flag_effects','visuals.*.hotspots.*.inventory_rules.*.flag_conditions','visuals.*.hotspots.*.inventory_rules.*.flag_effects','visuals.*.hotspots.*.choices.*.flag_effects'] as $path){$stateRules[$path]='sometimes|array|max:100';$stateRules[$path.'.*']='array:key,value';$stateRules[$path.'.*.key']=['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))];$stateRules[$path.'.*.value']='required|boolean';}
-  foreach(['default_bounds','default_overlay_bounds'] as $field){
+  foreach(['visuals.*.skip_rules.*.flag_conditions','visuals.*.hotspots.*.visible_when','visuals.*.hotspots.*.disabled_when','visuals.*.hotspots.*.flag_conditions','visuals.*.hotspots.*.flag_effects','visuals.*.hotspots.*.inventory_rules.*.flag_conditions','visuals.*.hotspots.*.inventory_rules.*.flag_effects','visuals.*.hotspots.*.choices.*.flag_effects'] as $path){$stateRules[$path]='sometimes|array|max:100';$stateRules[$path.'.*']='array:key,value';$stateRules[$path.'.*.key']=['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))];$stateRules[$path.'.*.value']='required|boolean';}
+  foreach(['default_bounds','default_overlay_bounds','container_bounds'] as $field){
    $path='visuals.*.hotspots.*.'.$field;$stateRules[$path]='sometimes|array:x,y,width,height';
    foreach(['x','y','width','height'] as $axis)$stateRules[$path.'.'.$axis]='required_with:'.$path.'|numeric|min:'.(in_array($axis,['width','height'])?'0.005':'0').'|max:1';
   }
@@ -25,10 +26,10 @@ class SceneDocument {
    'visuals.*.dialog_background'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
    'visuals.*.dialog_border'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
    'visuals.*.dialog_footer'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
+   'visuals.*.hotspots.*.move_after_examine'=>'sometimes|boolean',
    'visuals.*.hotspots.*.animate_hover_text'=>'sometimes|boolean',
    'visuals.*.hotspots.*.overlay_always'=>'sometimes|boolean',
    'visuals.*.hotspots.*.show_hover_text'=>'sometimes|boolean',
-   'visuals.*.hotspots.*.use_item_description'=>'sometimes|boolean',
    'visuals.*.skip_rules'=>'sometimes|array|max:50',
    'visuals.*.skip_rules.*'=>'array:id,object_ids,flag_conditions,target_page_id,target_scene_id',
    'visuals.*.skip_rules.*.id'=>'required|uuid',
@@ -37,15 +38,16 @@ class SceneDocument {
    'visuals.*.skip_rules.*.target_page_id'=>'nullable|integer',
    'visuals.*.skip_rules.*.target_scene_id'=>'nullable|uuid',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
-   'visuals.*.hotspots.*'=>'array:id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,use_item_description,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_behavior,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*.is_container'=>'sometimes|boolean','visuals.*.hotspots.*.container_parent_id'=>'sometimes|uuid','visuals.*.hotspots.*.container_plan_id'=>'sometimes|integer',
+   'visuals.*.hotspots.*'=>'array:visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
    'visuals.*.hotspots.*.initial_empty'=>'sometimes|boolean',
    'visuals.*.hotspots.*.placement_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.collectible_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],
+   'visuals.*.hotspots.*.action_cursor'=>'sometimes|in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default',
    'visuals.*.hotspots.*.cursor'=>'sometimes|in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default',
    'visuals.*.hotspots.*.availability_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.required_items'=>'sometimes|array|max:100',
    'visuals.*.hotspots.*.required_items.*'=>'required|uuid',
-   'visuals.*.hotspots.*.unavailable_behavior'=>'sometimes|in:hide,disable',
    'visuals.*.hotspots.*.unavailable_text'=>'sometimes|nullable|string|max:3000',
    'visuals.*.hotspots.*.state_description'=>'sometimes|nullable|string|max:3000',
    'visuals.*.hotspots.*.state_prompt'=>'sometimes|nullable|string|max:3000',
@@ -109,11 +111,17 @@ class SceneDocument {
    $ids=[];
    if($visual['kind']==='object' && count($visual['hotspots'])) $this->invalid('Object images cannot contain scene hotspots.');
    foreach($visual['hotspots'] as $h) {
-    foreach($h['required_items']??[] as $id)if(!in_array($id,$objects,true))$this->invalid('Required item must belong to this game.');
+    if(!empty($h['container_parent_id'])){
+     $parent=collect($visual['hotspots'])->firstWhere('id',$h['container_parent_id']);$bounds=$h['container_bounds']??null;
+     if(!$parent||empty($parent['is_container'])||!empty($parent['container_parent_id'])||$parent['id']===$h['id']||!$bounds)$this->invalid('Container contents must belong to a drawn container on the same scene.');
+     if($bounds['x']+$bounds['width']>1.000001||$bounds['y']+$bounds['height']>1.000001)$this->invalid('Keep item areas inside their container.');
+    }
+
+    foreach(($h['required_items']??[]) as $id)if(!in_array($id,$objects,true))$this->invalid('Required item must belong to this game.');
     if(!empty($h['target_scene_id'])){
      $destination=$story->pages()->find($h['target_page_id']??null);
      $destinationVisuals=$destination && $destination->id===$pageId?$v['visuals']:($destination?->visual_document['visuals']??[]);
-     if(!collect($destinationVisuals)->contains(fn($scene)=>$scene['id']===$h['target_scene_id'] && $scene['kind']==='scene'))$this->invalid('Destination scene must belong to the selected page.');
+     if(!collect($destinationVisuals)->contains(fn($scene)=>$scene['id']===$h['target_scene_id'] && $scene['kind']==='scene'))$this->invalid('Scene “'.$visual['name'].'”, area “'.$h['label'].'”: the destination scene no longer exists on the selected page. Choose a new destination or change the click action.');
     }
     if(!empty($h['target_page_id']) && !$story->pages()->whereKey($h['target_page_id'])->exists())$this->invalid('Destination page must belong to this story.');
     $ruleObjects=[];
@@ -124,7 +132,10 @@ class SceneDocument {
       $ruleObjects[]=$rule['object_id'];
      }
     }
-    foreach(array_merge($h['inventory_rules']??[],$h['choices']??[]) as $outcome){
+    foreach($h['inventory_rules']??[] as $outcome){
+     if(!empty($outcome['target_id']) && !$pageVisuals->flatten(1)->contains(fn($scene)=>$scene['id']===$outcome['target_id'] && $scene['kind']==='scene'))$this->invalid('Inventory outcome must target a scene in this story.');
+    }
+    foreach($h['choices']??[] as $outcome){
      if(!empty($outcome['target_id']) && ($visuals->get($outcome['target_id'])['kind']??null)!=='scene')$this->invalid('Interaction outcome must target a scene on this page.');
     }
     if(in_array($h['id'],$ids,true)) $this->invalid('Duplicate hotspot ID.'); $ids[]=$h['id'];

@@ -80,6 +80,8 @@ export function studioAutosave(initialRevision, options = {}) {
                         if (result.errors?.revision || response.status !== 422) this.stopped = true;
                         throw new Error(Object.values(result.errors ?? {}).flat().join(' ') || result.message || 'Save failed.');
                     }
+                    if('unavailable_text' in result)window.dispatchEvent(new CustomEvent('vsg-unavailable-text',{detail:{text:result.unavailable_text,timeout:result.unavailable_timeout_ms}}));
+                    if(result.cursor_tooltips)window.dispatchEvent(new CustomEvent('vsg-cursor-tooltips',{detail:result.cursor_tooltips}));
                     this.revision = result.revision;
                     document.querySelectorAll('input[name="revision"]').forEach(field => { field.value = this.revision; });
                     this.error = ''; this.status = 'All changes saved';

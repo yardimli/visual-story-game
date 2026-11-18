@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sceneEditor} from '../resources/js/scene-editor.js';
 
-test('note inspection, stone transition and key pickup preview leave authored scene unchanged', () => {
+test('note inspection, stone transition and key pickup preview leave authored scene unchanged', t => {
+ t.mock.timers.enable({apis:['setTimeout']});
  const editor=sceneEditor({});
  editor.document={visuals:[
   {id:'porch',kind:'scene',hotspots:[]},
@@ -16,7 +17,7 @@ test('note inspection, stone transition and key pickup preview leave authored sc
  editor.activate({id:'note-area',label:'Note',description:'Lift the lid.',action:'inspect',object_id:'note'});
  assert.equal(editor.modal.url,'/note.png');assert.equal(editor.previewId,'porch');
  editor.activate({id:'stone-area',action:'transition',target_id:'opened'});
- assert.equal(editor.previewId,'opened');
+ assert.equal(editor.previewId,'opened');t.mock.timers.tick(450);
  const pickup={id:'key-area',action:'pickup',object_id:'key'};
  editor.activate(pickup);editor.activate(pickup);
  assert.equal(editor.inventory.length,1);assert.equal(editor.currentHotspots.length,0);
@@ -311,7 +312,7 @@ test('image sidebar remembers collapse and filters archived assets without losin
 test('inventory areas match carried object states, show fallback, consume keys and transition without editing story', (t)=>{
  t.mock.timers.enable({apis:['setTimeout']});
  const editor=sceneEditor({});
- const lock={id:'lock',label:'Door lock',action:'inventory',interaction_text:'A brass keyhole.',fallback_text:'Nothing happens.',inventory_rules:[{object_id:'envelope',response:'You lack the lock-picking skill.',consume:false},{object_id:'key',response:'The door unlocks.',target_id:'open',consume:true}]};
+ const lock={id:'lock',label:'Door lock',action:'inventory',description:'A brass keyhole.',fallback_text:'Nothing happens.',inventory_rules:[{object_id:'envelope',response:'You lack the lock-picking skill.',consume:false},{object_id:'key',response:'The door unlocks.',target_id:'open',consume:true}]};
  editor.document={visuals:[{id:'porch',kind:'scene',hotspots:[lock]},{id:'open',kind:'scene',hotspots:[]},{id:'key',kind:'object',name:'Key'},{id:'envelope',kind:'object',name:'Envelope'},{id:'stone',kind:'object',name:'Stone'}]};
  editor.selected='porch';editor.startPreview();editor.inventory=[{id:'envelope',inventoryId:'slot1'},{id:'key',inventoryId:'slot2'},{id:'stone',inventoryId:'slot3'}];const original=JSON.stringify(editor.document);
  editor.activate(lock);assert.equal(editor.narration.text,'A brass keyhole.');assert.equal(editor.modal,null);assert.equal(editor.previewId,'porch');
@@ -573,10 +574,10 @@ test('world flags survive page revisits and consumption, route open/closed state
  e.activate({id:'close',action:'transition',target_id:'closed',flag_effects:[condition('stone_opened',false)]});e.clearSceneTransition();e.transitionScene('wide',1);assert.equal(e.previewId,'wide');e.clearSceneTransition();
  e.startPreview();assert.equal(e.flags.key_collected,false);assert.equal(e.flags.stone_opened,false);e.closePreview();
 });
-test('flag-only skips cap loops and hidden areas require all conditions',()=>{
+test('flag-only skips cap loops while action conditions leave descriptions accessible',()=>{
  const e=sceneEditor({});e.editorPageId=1;e.previewPageId=1;e.flags={open:true};e.preview=true;e.previewId='a';
  e.document={visuals:[{id:'a',kind:'scene',hotspots:[{id:'hidden',unavailable_behavior:'hide',flag_conditions:[{key:'open',value:false}]}],skip_rules:[{object_ids:[],flag_conditions:[{key:'open',value:true}],target_page_id:1,target_scene_id:'b'}]},{id:'b',kind:'scene',hotspots:[],skip_rules:[{object_ids:[],flag_conditions:[{key:'open',value:true}],target_page_id:1,target_scene_id:'a'}]}]};
- assert.equal(e.currentHotspots.length,0);e.resolveSceneEntry(1,'a');assert.equal(e.skipJumpCount,3);
+ assert.equal(e.currentHotspots.length,1);e.resolveSceneEntry(1,'a');assert.equal(e.skipJumpCount,3);
 });
 test('image ordering persists through the server and does not change scenes',async()=>{
  const e=sceneEditor({orderUrl:'/order'});e.jobs=[{id:3,status:'completed'},{id:2,status:'completed',sourcePage:'Page 2'},{id:1,status:'completed'}];e.assets=[];e.document={visuals:[{id:'scene'}]};
@@ -647,7 +648,7 @@ test('area cursors use validated overrides and useful automatic defaults',()=>{
 test('closing preview cancels pending inventory effects and transition',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const e=sceneEditor({});e.preview=true;e.previewId='a';e.previewPageId=1;e.flags={unlocked:false};e.flagDefinitions=[{key:'unlocked'}];e.inventory=[{id:'key'}];
  e.useInventoryOnArea('key',{id:'lock',action:'inventory',inventory_rules:[{object_id:'key',consume:true,flag_effects:[{key:'unlocked',value:true}]}]});
- e.finishInventoryText(e.pendingInventoryUse.key);e.closePreview();t.mock.timers.tick(5000);assert.equal(e.flags.unlocked,false);assert.equal(e.pendingInventoryUse,null);
+ e.finishInventoryText(e.pendingInventoryUse.key);e.closePreview();t.mock.timers.tick(5000);assert.deepEqual(e.flags,{});assert.equal(e.pendingInventoryUse,null);
 });
 
 test('extracted layers stay hidden after inventory consumption and can return through flags',()=>{
@@ -666,14 +667,13 @@ test('local switches toggle patches and v2 pickups never transition the full sce
  e.activate({id:'legacy',action:'pickup',object_id:'key',target_id:'other'});assert.equal(transitions,1);
 });
 
-test('switch descriptions require two clicks independently for both states',()=>{
+test('switch changed description appears on activation and closing is immediate and silent',()=>{
  const e=sceneEditor({});e.preview=true;e.previewId='room';e.previewPageId=1;e.editorPageId=1;e.document={visuals:[{id:'room',kind:'scene',hotspots:[]}]};e.flags={switch_a:false};e.assets=[{id:2,url:'/on'}];
  const h={id:'switch',action:'state_v2',state_flag:'switch_a',state_asset_id:2,description:'Unpressed button',state_description:'Pressed button',show_hover_text:false};
  e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration.text,'Unpressed button');assert.equal(e.pickupReady(h),true);
- e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration,null);assert.equal(e.pickupReady(h),false);
- e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration.text,'Pressed button');
+ e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration.text,'Pressed button');assert.equal(e.pickupReady(h),false);
  e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration,null);
- h.show_hover_text=true;assert.equal(e.hoverDetails(h).description,'Unpressed button');e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.hoverDetails(h).description,'Pressed button');
+ h.show_hover_text=true;assert.equal(e.hoverDetails(h).description,'Unpressed button');e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.hoverDetails(h).description,'');assert.equal(e.narration.text,'Pressed button');
  e.preview=false;assert.equal(e.areaImage(h).id,2);
 });
 
@@ -688,4 +688,49 @@ test('empty collectible slots accept returns, reject wrong items and remain avai
  area.inventory_rules=[{object_id:'crystal',allowed:true,response:'Try the crystal.',flag_conditions:[{key:'enabled',value:true}]}];
  e.useInventoryOnArea('crystal',area);e.completeInventoryUse();assert.equal(e.flags.empty,true);assert.equal(e.inventory.length,2);
  e.flags.enabled=true;e.useInventoryOnArea('crystal',area);e.completeInventoryUse();assert.equal(e.flags.empty,false);assert.equal(e.areaImage(area).id,12);e.activate(area);assert.equal(e.flags.empty,true);assert.equal(e.inventory.filter(i=>i.id==='crystal').length,1);
+});
+
+test('deleting a scene clears page-scene destinations before autosave',()=>{
+ const e=sceneEditor({});e.document={visuals:[{id:'gone',kind:'scene',hotspots:[]},{id:'stay',kind:'scene',hotspots:[{id:'door',action:'page',target_page_id:1,target_scene_id:'gone'}],skip_rules:[{target_scene_id:'gone'}]}]};e.selected='gone';e.deleteVisualId='gone';e.changed=()=>{};e.choose=id=>e.selected=id;e.$refs={deleteVisualDialog:{close(){}}};e.confirmVisualDelete();
+ assert.equal(e.document.visuals.length,1);assert.equal(e.document.visuals[0].hotspots[0].target_scene_id,null);assert.equal(e.document.visuals[0].hotspots[0].target_page_id,null);assert.equal(e.document.visuals[0].hotspots[0].action,'examine');assert.deepEqual(e.document.visuals[0].skip_rules,[]);
+});
+
+test('unused image flags inspect every scene and persist while assets are archived',async()=>{
+ const e=sceneEditor({url:'/visuals'});e.request=async()=>({preview_pages:[{visuals:[{kind:'scene',asset_id:1,hotspots:[{overlay_asset_id:2,state_asset_id:3,object_id:'key'}]}]},{visuals:[{kind:'scene',asset_id:5}]}],inventory_items:[{id:'key',asset_id:4}],assets:[1,2,3,4,5,6].map(id=>({id})).concat([{id:7,role:'extraction_reference'}])});
+ await e.flagUnusedImages();assert.deepEqual(e.unusedImageIds,[6]);assert.equal(e.unusedImage(6),true);assert.equal(e.unusedImage(2),false);e.assets=[{id:6,archived:true}];assert.equal(e.unusedImage(6),true);e.unusedImageIds=[];assert.equal(e.unusedImage(6),false);
+});
+
+
+test('walking through an open door preserves its composed image during transition and never toggles it',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const e=sceneEditor({});
+ const door={id:'door',action:'state_v2',state_flag:'door_open',state_asset_id:2,x:.4,y:.2,width:.3,height:.7,overlay_bounds:{x:.35,y:.1,width:.4,height:.8}};
+ const walk={id:'walk',action:'examine',description:'',move_after_examine:true,target_page_id:2,target_scene_id:'inside',x:.6,y:.3,width:.1,height:.5};
+ e.document={visuals:[{id:'porch',kind:'scene',asset_id:1,hotspots:[door,walk]}]};e.editorPageId=1;e.previewPageId=1;e.previewId='porch';e.preview=true;e.flags={door_open:true};
+ e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,visuals:[{id:'inside',kind:'scene',asset_id:3,hotspots:[]}]}];e.assets=[{id:1,url:'/closed.jpg'},{id:2,url:'/open-door.png'},{id:3,url:'/inside.jpg'}];
+ assert.ok(e.areaLayer(walk)>e.areaLayer(door));e.activate(walk);
+ assert.equal(e.previewId,'inside');assert.equal(e.flags.door_open,true);assert.equal(e.outgoingScene.layers.length,1);assert.equal(e.outgoingScene.layers[0].url,'/open-door.png');assert.match(e.outgoingScene.layers[0].style,/left:35%/);
+ e.activate(door);assert.equal(e.flags.door_open,true);
+ t.mock.timers.tick(200);assert.equal(e.outgoingScene,null);assert.equal(e.sceneTransition,false);e.closePreview();
+});
+
+
+test('slow destination images keep the open-door scene intact until loaded, then start the fade',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const e=sceneEditor({});
+ const door={id:'door',action:'state_v2',state_flag:'open',state_asset_id:2,x:0,y:0,width:1,height:1};
+ e.document={visuals:[{id:'porch',kind:'scene',asset_id:1,hotspots:[door]},{id:'inside',kind:'scene',asset_id:3,hotspots:[]}]};e.editorPageId=1;e.previewPageId=1;e.previewId='porch';e.preview=true;e.flags={open:true};e.assets=[{id:1,url:'/closed'},{id:2,url:'/open'},{id:3,url:'/inside'}];
+ let ready;e.preloadScene=()=>new Promise(resolve=>{ready=resolve;});const pending=e.transitionScene('inside');
+ t.mock.timers.tick(5000);assert.equal(e.previewId,'porch');assert.equal(e.areaImage(door).url,'/open');assert.equal(e.outgoingScene,null);assert.equal(e.sceneTransition,true);
+ ready();await pending;assert.equal(e.previewId,'inside');assert.equal(e.outgoingScene.layers[0].url,'/open');assert.equal(e.flags.open,true);
+ t.mock.timers.tick(199);assert.ok(e.outgoingScene);t.mock.timers.tick(1);assert.equal(e.outgoingScene,null);e.closePreview();
+});
+test('closing preview cancels a destination image load without reopening or navigating',async()=>{
+ const e=sceneEditor({});e.document={visuals:[{id:'a',kind:'scene',hotspots:[]},{id:'b',kind:'scene',hotspots:[]}]};e.preview=true;e.previewId='a';e.editorPageId=1;e.previewPageId=1;
+ let ready;e.preloadScene=()=>new Promise(resolve=>ready=resolve);const pending=e.transitionScene('b');e.closePreview();ready();await pending;
+ assert.equal(e.preview,false);assert.equal(e.previewId,'a');assert.equal(e.outgoingScene,null);assert.equal(e.sceneTransition,false);
+});
+test('scene preloading waits for image decode, including local layer references',async()=>{
+ const Original=globalThis.Image;const images=[];globalThis.Image=class{constructor(){images.push(this);}decode(){return new Promise(resolve=>{this.decoded=resolve;});}};
+ try{const e=sceneEditor({});e.assets=[{id:1,url:'/scene'},{id:2,url:'/layer'}];const loading=e.preloadScene({asset_id:1,hotspots:[{state_asset_id:2,overlay_asset_id:2}]});let done=false;loading.then(()=>done=true);
+ assert.equal(images.length,2);for(const image of images)image.onload();await Promise.resolve();assert.equal(done,false);for(const image of images)image.decoded();await loading;assert.equal(done,true);
+ }finally{globalThis.Image=Original;}
 });

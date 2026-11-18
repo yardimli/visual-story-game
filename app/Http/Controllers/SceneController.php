@@ -21,8 +21,16 @@ class SceneController extends Controller {
    if(!empty($visual['asset_id']))$uses[$visual['asset_id']][]=['id'=>$visual['id'],'name'=>$visual['name'],'kind'=>$visual['kind'],'url'=>route('stories.edit',['story'=>$story,'page'=>$usedPage->id,'tab'=>'visuals','visual'=>$visual['id']])];
   }
   foreach($story->inventory_document['visuals']??[] as $item)if(!empty($item['asset_id']))$uses[$item['asset_id']][]=['id'=>$item['id'],'name'=>$item['name'],'kind'=>'object','url'=>route('stories.edit',[$story,'page'=>$page->id,'tab'=>'inventory'])];
-  return response()->json(['remaining'=>$r->user()->availableCredit()/1000000,'page_id'=>$page->id,'game_flags'=>$story->game_flags??[],'image_order'=>$story->image_order??[],'inventory_items'=>$story->inventory_document['visuals']??[],'preview_pages'=>$story->pages()->get(['id','position','title','visual_document'])->map(fn($p)=>['id'=>$p->id,'position'=>$p->position,'images_url'=>route('visuals.show',[$story,$p]),'title'=>$p->title,'visuals'=>$p->visual_document['visuals']??[]]),'document'=>$page->visual_document??['visuals'=>[]],'revision'=>$page->visual_revision,
-   'assets'=>Asset::withGenerationNames($story->assets()->latest()->get(),$story->id)->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a),'role'=>$a->role,'page_ids'=>array_values(array_unique($assetPages[$a->id]??[])),'archived'=>!!$a->archived_at,'update_url'=>route('assets.update',$a),'uses'=>$uses[$a->id]??[]]),
+  $planReferences=[];$containers=\App\Models\ContainerPlan::where('story_id',$story->id)->get()->keyBy('extraction_id');
+  foreach(\App\Models\SceneExtraction::where('story_id',$story->id)->get() as $batch){
+   $container=$containers->get($batch->id);$type=$batch->mode==='container'?'Container':($batch->mode==='switches'?'Switch':'Extraction');
+   $name=$container?->name??($pageLabels[$batch->story_page_id]??'Plan').' #'.$batch->id;
+   $ids=[$batch->source_asset_id];if($container?->preview_asset_id)$ids[]=$container->preview_asset_id;
+   foreach($batch->outputs??[] as $output)foreach($output['references']??[] as $id)$ids[]=$id;
+   foreach(array_unique(array_filter($ids)) as $id)$planReferences[$id][]=['id'=>$batch->id,'label'=>$type.' reference · '.$name,'url'=>route('stories.edit',['story'=>$story,'page'=>$batch->story_page_id,'tab'=>'visuals','visual'=>$batch->visual_id])];
+  }
+  return response()->json(['remaining'=>$r->user()->availableCredit()/1000000,'page_id'=>$page->id,'container_plans'=>\App\Models\ContainerPlan::where('story_page_id',$page->id)->get(['id','visual_id','area_id','name','stage']),'game_flags'=>$story->game_flags??[],'unavailable_timeout_ms'=>(int)($story->unavailable_timeout_ms??1000),'unavailable_text'=>$story->fresh()->unavailable_text,'cursor_tooltips'=>$story->cursor_tooltips??[],'image_order'=>$story->image_order??[],'inventory_items'=>$story->inventory_document['visuals']??[],'preview_pages'=>$story->pages()->get(['id','position','title','visual_document'])->map(fn($p)=>['id'=>$p->id,'position'=>$p->position,'images_url'=>route('visuals.show',[$story,$p]),'title'=>$p->title,'visuals'=>$p->visual_document['visuals']??[]]),'document'=>$page->visual_document??['visuals'=>[]],'revision'=>$page->visual_revision,
+   'assets'=>Asset::withGenerationNames($story->assets()->latest()->get(),$story->id)->map(fn($a)=>['id'=>$a->id,'name'=>$a->name,'url'=>route('assets.show',$a),'role'=>$a->role,'page_ids'=>array_values(array_unique($assetPages[$a->id]??[])),'archived'=>!!$a->archived_at,'update_url'=>route('assets.update',$a),'uses'=>$uses[$a->id]??[],'plan_references'=>$planReferences[$a->id]??[]]),
    'jobs'=>ImageGeneration::where('story_id',$story->id)->latest('id')->get(['id','story_page_id','visual_id','name','status','error','asset_ids','created_at','started_at','payload','references'])->map(fn($j)=>['id'=>$j->id,'page_id'=>$j->story_page_id,'visual_id'=>$j->visual_id,'name'=>$j->name,'status'=>$j->status,'error'=>$j->error,'asset_ids'=>$j->asset_ids,'created_at'=>$j->created_at,'started_at'=>$j->started_at,'prompt'=>$j->payload['prompt']??'','model'=>$j->payload['model']??'','video_prompt'=>$j->payload['_video_prompt']??'','references'=>array_column($j->references??[],'id'),'settings'=>array_intersect_key($j->payload??[],array_flip(['quality','resolution','aspect_ratio','background'])),'retry_url'=>route('images.retry',[$story,$page,$j])])]);
  }
  public function deleteDraft(Request $r,Story $story,ImageGeneration $image) {
@@ -45,15 +53,41 @@ class SceneController extends Controller {
  }
  public function update(Request $r,Story $story,StoryPage $page,SceneDocument $validator) {
   $this->owner($r,$story,$page);$data=$r->validate(['revision'=>'required|integer','document'=>'required|array']);
-  $doc=$validator->validate($story,$data['document'],$page->id);
-  $revision=DB::transaction(function() use($story,$page,$data,$doc) {
+  $revision=DB::transaction(function() use($story,$page,$data,$validator) {
    $s=Story::whereKey($story->id)->lockForUpdate()->firstOrFail();
    $p=StoryPage::whereKey($page->id)->lockForUpdate()->firstOrFail();
    if($p->visual_revision!==(int)$data['revision']) throw ValidationException::withMessages(['revision'=>'Scene artwork changed in another tab. Reload before editing.']);
+   $removed=collect($p->visual_document['visuals']??[])->where('kind','scene')->pluck('id')->diff(collect($data['document']['visuals']??[])->pluck('id'))->all();
+   $doc=$this->clearDeletedDestinations($data['document'],$removed);
+   $doc=$validator->validate($s,$doc,$p->id);
+   if($removed)foreach($s->pages()->where('id','!=',$p->id)->lockForUpdate()->get() as $other){
+    $clean=$this->clearDeletedDestinations($other->visual_document??['visuals'=>[]],$removed);
+    if($clean!==$other->visual_document)$other->update(['visual_document'=>$clean,'visual_revision'=>$other->visual_revision+1]);
+   }
    $doc=app(\App\Services\InventoryLibrary::class)->extract($s,$doc);
+   // Plans cannot outlive the drawn container they target. Keep generated assets/history.
+   foreach(\App\Models\ContainerPlan::where('story_page_id',$p->id)->lockForUpdate()->get() as $plan){
+    $scene=collect($doc['visuals'])->firstWhere('id',$plan->visual_id);
+    if(!$scene || !collect($scene['hotspots']??[])->contains('id',$plan->area_id)){$batchId=$plan->extraction_id;$plan->delete();\App\Models\SceneExtraction::whereKey($batchId)->delete();}
+   }
    $p->update(['visual_document'=>$doc,'visual_revision'=>$p->visual_revision+1]);return $p->visual_revision;
   });
-  return response()->json(['revision'=>$revision]);
+  return response()->json(['revision'=>$revision,'preview_pages'=>$story->pages()->get()->map(fn($p)=>['id'=>$p->id,'position'=>$p->position,'title'=>$p->title,'images_url'=>route('visuals.show',[$story,$p]),'visuals'=>$p->visual_document['visuals']??[]])]);
+ }
+ private function clearDeletedDestinations(array $doc,array $removed):array {
+  if(!$removed)return $doc;
+  foreach($doc['visuals']??[] as $i=>$visual){
+   if(isset($visual['skip_rules']))$doc['visuals'][$i]['skip_rules']=array_values(array_filter($visual['skip_rules'],fn($r)=>!in_array($r['target_scene_id']??null,$removed,true)));
+   foreach($visual['hotspots']??[] as $j=>$area){
+    if(in_array($area['target_scene_id']??null,$removed,true)){
+     $area['target_scene_id']=null;$area['move_after_examine']=false;$area['target_page_id']=null;if($area['action']==='page')$area['action']='examine';
+    }
+    if(in_array($area['target_id']??null,$removed,true)){$area['target_id']=null;if($area['action']==='transition')$area['action']='examine';}
+    foreach(['inventory_rules','choices'] as $key)foreach($area[$key]??[] as $k=>$rule)if(in_array($rule['target_id']??null,$removed,true))$area[$key][$k]['target_id']=null;
+    $doc['visuals'][$i]['hotspots'][$j]=$area;
+   }
+  }
+  return $doc;
  }
  public function moveImage(Request $r,Story $story,StoryPage $page,ImageGeneration $image) {
   $this->owner($r,$story,$page);abort_unless($image->story_page_id===$page->id && $image->user_id===$r->user()->id,404);

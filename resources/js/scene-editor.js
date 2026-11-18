@@ -1,3 +1,4 @@
+import {containerPlans,containerVisible,containerGeometry} from './container-plans.js';
 import {GameAudio} from './story-audio.js';
 import {sceneExtraction} from './scene-extraction.js';
 import {scenePalette, contrastText} from './scene-colors.js';
@@ -6,7 +7,8 @@ import {notify, watchNotices} from './toasts.js';
 import {selectableModels, rememberedModel, rememberModel, imagePriceLabel, imageModelLabel} from './model-preferences.js';
 export function sceneEditor(options) {
  return Object.defineProperties({
-  audioSettings:{}, audioMuted:false,audioSounds:[], soundPlayer:null,
+  cursorTooltips:{},
+  unavailableTimeout:1000, unavailableText:'You cannot do that yet.', audioSettings:{}, audioMuted:false,audioSounds:[], soundPlayer:null,
   flagDefinitions:[], flags:{}, previewFlags:[], imageOrder:[], orderingImages:false, movedImageId:null, deleteImageId:null, deletingImage:false, inventoryItems:[], visualMenuOpen:false, draggedVisualId:'', visualDropId:'', narration:null, narrationVersion:0, inventoryPulse:false, pickupFlight:null, pickupTimer:null, previewInventorySelection:[], previewPages:[], editorPageId:null, previewPageId:null, generationMode:!!options.generationMode, generationName:'', selectedImageId:null, generationInput:{prompt:'',video_prompt:''}, namingImage:false, retryingJob:null, editingVisual:false, showArchived:false, showFailed:false, cardStates:{}, expandedPrompts:{}, assetNames:{}, assetSaving:{}, copiedPrompt:null, document: {visuals:[]}, revision:1, assets:[], jobs:[], selected:'', hotspotId:'', models:[], model:'', endpoints:[],  settings:{}, references:[],
   renderClock:Date.now(), renderClockTimer:null,
   loading:true, dirty:false, saving:false, halted:false, status:'Loading scene artwork…', error:'', timer:null, active:null, polling:null, generating:false, uploading:false, uploadStatus:'', requestKey:crypto.randomUUID(),
@@ -17,6 +19,8 @@ export function sceneEditor(options) {
    if(this.generationMode)this.renderClockTimer=setInterval(()=>{this.renderClock=Date.now();},1000);
    watchNotices(this,{status:'success',error:'error',uploadStatus:'success'});
    window.vsgSceneEditor=this;
+   this.unavailableTextListener=e=>{this.unavailableText=e.detail.text||'You cannot do that yet.';this.unavailableTimeout=e.detail.timeout??1000;};window.addEventListener('vsg-unavailable-text',this.unavailableTextListener);
+   this.cursorTooltipsListener=e=>{this.cursorTooltips=e.detail||{};};window.addEventListener('vsg-cursor-tooltips',this.cursorTooltipsListener);
    this.soundPlayer=new GameAudio();this.audioSettingsListener=e=>{this.audioSettings=e.detail||{};};window.addEventListener('vsg-audio-settings',this.audioSettingsListener);
    this.audioTabListener=e=>{if(e.detail.tab!=='visuals')this.soundPlayer?.stopAudition();};window.addEventListener('vsg-editor-tab',this.audioTabListener);
    this.audioListener=e=>{this.audioSounds=e.detail;};window.addEventListener('vsg-audio',this.audioListener);
@@ -28,7 +32,7 @@ export function sceneEditor(options) {
    this.unload=e=>{if(this.dirty || this.saving){e.preventDefault();e.returnValue='';}};
    window.addEventListener('beforeunload',this.unload);
    try {
-    const data=await this.request(options.url);this.document=data.document;this.previewPages=data.preview_pages||[];this.inventoryItems=data.inventory_items||[];this.editorPageId=data.page_id;this.revision=data.revision;this.assets=data.assets;this.jobs=data.jobs;this.flagDefinitions=data.game_flags||[];this.imageOrder=data.image_order||[];this.upgradePageLinks();this.credit(data);this.restoreVisual();
+    const data=await this.request(options.url);this.document=data.document;this.containerPlans=data.container_plans||[];this.previewPages=data.preview_pages||[];this.inventoryItems=data.inventory_items||[];this.editorPageId=data.page_id;this.revision=data.revision;this.assets=data.assets;this.jobs=data.jobs;this.flagDefinitions=data.game_flags||[];this.cursorTooltips=data.cursor_tooltips||{};this.unavailableText=data.unavailable_text||'You cannot do that yet.';this.unavailableTimeout=data.unavailable_timeout_ms??1000;this.imageOrder=data.image_order||[];this.upgradePageLinks();this.credit(data);this.restoreVisual();
     if(this.generationMode){const params=new URL(window.location.href).searchParams;const job=this.jobs.find(j=>String(j.id)===params.get('image'));if(job)this.fillImageCard(job);else if(params.get('visual')){const v=[...this.document.visuals,...this.gameObjects].find(v=>v.id===(params.get('visual')||this.selected));this.generationInput={prompt:v?.prompt||'',video_prompt:v?.video_prompt||''};}}
     this.status='';
    } catch(e){this.error=e.message;this.halted=true;}
@@ -37,7 +41,7 @@ export function sceneEditor(options) {
    try { this.models=selectableModels((await imageCatalog()).models,'image'); if(!this.models.some(m=>m.id===this.model)) this.model=''; if(this.model){const settings={...this.settings};await this.loadEndpoints();this.settings=settings;} } catch(e) { this.error='Image catalog unavailable. You can still edit existing visuals; reload to try discovery again.'; }
    this.polling=setInterval(()=>this.refresh(),5000);
   },
-  destroy(){window.removeEventListener('vsg-audio-settings',this.audioSettingsListener);window.removeEventListener('vsg-editor-tab',this.audioTabListener);this.soundPlayer?.stop();window.removeEventListener('vsg-audio',this.audioListener);clearInterval(this.renderClockTimer);clearInterval(this.extractionTimer);this.cancelInventoryUse();window.removeEventListener('vsg-flags',this.flagsListener);window.removeEventListener('vsg-inventory',this.inventoryListener);clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
+  destroy(){window.removeEventListener('vsg-unavailable-text',this.unavailableTextListener);window.removeEventListener('vsg-cursor-tooltips',this.cursorTooltipsListener);window.removeEventListener('vsg-audio-settings',this.audioSettingsListener);window.removeEventListener('vsg-editor-tab',this.audioTabListener);this.soundPlayer?.stop();window.removeEventListener('vsg-audio',this.audioListener);clearInterval(this.renderClockTimer);clearInterval(this.extractionTimer);clearTimeout(this.containerTimer);this.cancelInventoryUse();window.removeEventListener('vsg-flags',this.flagsListener);window.removeEventListener('vsg-inventory',this.inventoryListener);clearTimeout(this.pickupTimer);this.clearSceneTransition();clearTimeout(this.timer);clearInterval(this.polling);window.removeEventListener('beforeunload',this.unload);delete window.vsgSceneEditor;},
   async request(url,method='GET',body=null) {
    const response=await fetch(url,{method,headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},...(body ? {body:JSON.stringify(body)} : {})});
    const data=await response.json();
@@ -47,7 +51,7 @@ export function sceneEditor(options) {
   },
   upgradePageLinks(){
    for(const page of this.previewPages){const index=this.previewPages.indexOf(page),next=this.previewPages[index+1];
-    for(const visual of page.id===this.editorPageId?this.document.visuals:(page.visuals||[]))for(const area of visual.hotspots||[]){if(area.action==='next_page'){area.action=next?'page':'complete';area.target_page_id=next?.id||null;}}
+    for(const visual of page.id===this.editorPageId?this.document.visuals:(page.visuals||[]))for(const area of visual.hotspots||[]){if(area.action==='next_page'){area.action=next?'page':'complete';area.target_page_id=next?.id||null;}if(['inspect','transition','page'].includes(area.action)){const previous=area.action;area.move_after_examine=previous==='page'||!!area.target_id;if(area.target_id){area.target_page_id=page.id;area.target_scene_id=area.target_id;}area.target_id=null;area.action='examine';}if(['choices','complete'].includes(area.action)){area.description ||= area.interaction_text||'';area.action='examine';}}
    }
   },
   get visual(){if(this.generationMode)return this.generationInput;return this.document.visuals.find(v=>v.id===this.selected);},
@@ -95,7 +99,8 @@ export function sceneEditor(options) {
    return {supported_parameters,pricing:[...new Map(this.endpoints.flatMap(e=>e.pricing||[]).map(l=>[JSON.stringify(l),l])).values()]};
   },
   get displayed(){return this.preview ? this.playVisuals.find(v=>v.id===this.previewId) : this.visual;},
-  get currentHotspots(){return (this.displayed?.hotspots||[]).filter(h=>!this.preview || ((h.action==='pickup_v2' || h.overlay_bounds || !this.collected.includes(h.id)) && (h.unavailable_behavior!=='hide'||this.conditionsMet(h))));},
+  areaDisabled(h,flags=this.flags){return (h?.visible_when||[]).some(c=>!!flags[c.key]!==c.value) || (!!h?.disabled_when?.length && h.disabled_when.every(c=>!!flags[c.key]===c.value));},
+  get currentHotspots(){return (this.displayed?.hotspots||[]).filter(h=>!this.preview || (!this.areaDisabled(h) && containerVisible(h,this.displayed?.hotspots||[],this.flags) && !this.inactiveCollectible(h) && !(h.action==='pickup' && h.overlay_bounds && (h.flag_conditions||[]).some(c=>c.value===false && this.flags[c.key] && (h.flag_effects||[]).some(f=>f.key===c.key&&f.value===true))) && (h.action==='pickup_v2' || h.overlay_bounds || !this.collected.includes(h.id))));},
   asset(id){return this.assets.find(a=>a.id===Number(id));},
   async uploadReferences(input){
    const files=[...input.files];if(!files.length||this.uploading)return;
@@ -122,20 +127,47 @@ export function sceneEditor(options) {
   },
   placedObjects:{},
   collectibleFlag(h){const key='collected_'+String(h.id).replaceAll('-','');return h.collectible_flag||((h.flag_effects||[]).some(f=>f.key===key)?key:null);},
+  inactiveCollectible(h){return h.action==='pickup_v2'&&h.placement_enabled===false&&this.collectibleEmpty(h);},
   collectibleEmpty(h){if(h.action!=='pickup_v2')return false;const key=this.collectibleFlag(h);if(key)return !!this.flags[key];return this.placedObjects[h.id]?false:(this.collected.includes(h.id)||!!h.initial_empty);},
   collectibleObject(h){return this.gameObjects.find(v=>v.id===(this.placedObjects[h.id]||h.object_id));},
   placementRules(h){const rules=h.inventory_rules||[];return h.object_id && !rules.some(r=>r.object_id===h.object_id)?[{object_id:h.object_id,allowed:true,response:'You place the item back.'},...rules]:rules;},
   configurePlacement(){const h=this.hotspot;if(!h)return;h.inventory_rules=this.placementRules(h);this.changed();},
   armedPickup:null,
   pickupKey(h){return this.previewPageId+':'+this.previewId+':'+h.id+(h.action==='state_v2'?':'+!!this.flags[h.state_flag]:'');},
-  pickupReady(h){return ['pickup','pickup_v2','state_v2'].includes(h.action) && this.armedPickup===this.pickupKey(h);},
-  areaDescription(h){return h.action==='state_v2' && this.preview && this.flags[h.state_flag]?h.state_description||'':h.description||'';},
+  pickupReady(h){return ['examine','inventory','pickup','pickup_v2','state_v2'].includes(h.action) && this.armedPickup===this.pickupKey(h);},
+  areaDescription(h){return h.action==='state_v2' && this.preview && this.flags[h.state_flag]?'':h.description||'';},
   hoverDetails(h){return {...h,description:h.show_hover_text===false?'':this.areaDescription(h)};},
   visualAsset(id){return this.asset([...this.document.visuals,...this.gameObjects].find(v=>v.id===id)?.asset_id);},
-  changeAreaAction(action){if(!this.hotspot)return;this.hotspot.action=action;if(!['pickup','inspect','transition'].includes(action))this.hotspot.target_id=null;this.armedPickup=null;this.changed();},
+  editorAreaAction(h){return ['pickup','pickup_v2'].includes(h.action)?'pickup_v2':['state_v2','inventory'].includes(h.action)?h.action:'examine';},
+  hasAreaAction(h){return h.action!=='examine'||!!h.move_after_examine;},
+  descriptionStep(h){return this.hasAreaAction(h)&&h.show_hover_text===false&&!!this.areaDescription(h).trim()&&!this.pickupReady(h);},
+  actionAllowed(h){return !this.hasAreaAction(h)||this.conditionsMet(h);},
+  denyAreaAction(h,point=null){this.showObjectModal({sourceAreaId:h.id,hideAfterMs:this.unavailableTimeout,animate:false,area:{x:point?.x??h.x+h.width/2,y:point?.y??h.y+h.height/2,width:0,height:0},position:'area_bottom',label:h.label,text:h.unavailable_text||this.unavailableText||'You cannot do that yet.',url:null});},
+  changeAreaAction(action){if(!this.hotspot)return;this.hotspot.action=action;if(action!=='examine'){this.hotspot.move_after_examine=false;this.hotspot.target_page_id=null;this.hotspot.target_scene_id=null;}if(!['pickup','inspect','transition'].includes(action))this.hotspot.target_id=null;this.armedPickup=null;this.changed();},
+  editingStateFlag:null,stateFlagName:'',stateFlagKey:'',stateFlagError:'',renamingStateFlag:false,
+  editStateFlag(area){this.editingStateFlag=area.state_flag;this.stateFlagKey=area.state_flag;this.stateFlagName=this.flagLabel(area.state_flag);this.stateFlagError='';},
+  async renameStateFlag(){
+   if(this.renamingStateFlag)return;this.renamingStateFlag=true;this.stateFlagError='';
+   try{
+    if(!(await this.flush()))throw new Error(this.error||'Save the scene before renaming its flag.');
+    if(window.vsgFlags&&!(await window.vsgFlags.flush()))throw new Error('Save Story bible flags before renaming.');
+    const current=await this.request(options.flagsUrl);const d=await this.request(options.flagsUrl+'/'+encodeURIComponent(this.editingStateFlag),'PUT',{revision:current.revision,key:this.stateFlagKey.trim(),label:this.stateFlagName.trim()});
+    const page=d.pages.find(p=>p.id===this.editorPageId);if(page){this.document=page.document;this.revision=page.revision;}
+    this.previewPages=this.previewPages.map(p=>({...p,visuals:d.pages.find(saved=>saved.id===p.id)?.document?.visuals||p.visuals}));this.flagDefinitions=d.flags;this.inventoryItems=d.inventory_items;
+    if(window.vsgFlags){window.vsgFlags.flags=d.flags;window.vsgFlags.revision=d.revision;window.vsgFlags.dirty=false;}
+    window.dispatchEvent(new CustomEvent('vsg-flags',{detail:d.flags}));window.dispatchEvent(new CustomEvent('vsg-inventory',{detail:d.inventory_items}));this.editingStateFlag=null;notify('Flag renamed and references updated.');
+   }catch(e){this.stateFlagError=e.message;}finally{this.renamingStateFlag=false;}
+  },
+  flagContextLabel(key){
+   const locations=[];const pages=this.previewPages.length?this.previewPages:[{id:this.editorPageId,position:1,title:'Current page'}];
+   for(const page of pages)for(const [index,scene] of (page.id===this.editorPageId?this.document.visuals:(page.visuals||[])).filter(v=>v.kind==='scene').entries())for(const area of scene.hotspots||[]){
+    if(area.state_flag===key || area.collectible_flag===key)locations.push('Page '+page.position+' / Scene '+(index+1));
+   }
+   return this.flagLabel(key)+(locations.length?' — '+[...new Set(locations)].join('; '):'');
+  },
   flagLabel(key){return this.flagDefinitions.find(f=>f.key===key)?.label||key;},
   availabilityEnabled(area){return area?.availability_enabled ?? !!(area?.flag_conditions?.length || area?.required_items?.length);},
-  conditionsMet(rule){if(rule.availability_enabled===false)return true;return (rule.flag_conditions||[]).filter(c=>!(rule.action==='pickup_v2' && rule.placement_enabled!==false && c.key===this.collectibleFlag(rule))).every(c=>!!this.flags[c.key]===c.value) && (rule.required_items||rule.object_ids||[]).every(id=>this.inventory.some(item=>item.id===id));},
+  conditionsMet(rule){if(!containerVisible(rule,this.displayed?.hotspots||[],this.flags))return false;if(rule.availability_enabled===false)return true;return (rule.flag_conditions||[]).filter(c=>!(rule.action==='pickup_v2' && rule.placement_enabled!==false && c.key===this.collectibleFlag(rule))).every(c=>!!this.flags[c.key]===c.value) && (rule.required_items||rule.object_ids||[]).every(id=>this.inventory.some(item=>item.id===id));},
   applyFlagEffects(rule){for(const effect of rule?.flag_effects||[])if(this.flagDefinitions.some(f=>f.key===effect.key))this.flags[effect.key]=effect.value;},
   addFlagRule(target,field){target[field]??=[];const flag=this.flagDefinitions.find(f=>!target[field].some(c=>c.key===f.key));if(flag){target[field].push({key:flag.key,value:true});this.changed();}else notify('Add a story flag in Story bible first.','info');},
   removeFlagRule(target,field,index){target[field].splice(index,1);this.changed();},
@@ -239,6 +271,13 @@ export function sceneEditor(options) {
   rememberCard(job,open){this.cardStates={...this.cardStates,[job.id]:open};try{localStorage.setItem('vsg-image-cards:'+options.url,JSON.stringify(this.cardStates));}catch(_){}},
   get historyJobs(){return this.jobs;},
   pageImageLabel(page){const label='Page '+page.position,title=(page.title||'').trim();return !title || title.toLowerCase()===label.toLowerCase()?label:label+' \u00b7 '+title;},
+  unusedImageIds:[],flaggingUnusedImages:false,
+  async flagUnusedImages(){if(this.flaggingUnusedImages)return;this.flaggingUnusedImages=true;try{const data=await this.request(options.url);const used=new Set(),items=new Map((data.inventory_items||[]).map(i=>[i.id,i])),visited=new Set();
+   const visit=value=>{if(!value||typeof value!=='object')return;for(const [key,v] of Object.entries(value)){if((key==='asset_id'||key.endsWith('_asset_id'))&&v)used.add(Number(v));if((key==='object_id'||key==='target_id')&&items.has(v)&&!visited.has(v)){visited.add(v);visit(items.get(v));}if(v&&typeof v==='object')visit(v);}};
+   for(const page of data.preview_pages||[])for(const visual of page.visuals||[])if(visual.kind==='scene')visit(visual);
+   this.unusedImageIds=(data.assets||[]).filter(a=>a.role!=='extraction_reference'&&!used.has(Number(a.id))).map(a=>Number(a.id));
+  }catch(e){this.error=e.message;}finally{this.flaggingUnusedImages=false;}},
+  unusedImage(id){return this.unusedImageIds.includes(Number(id));},
   get visibleJobs(){const rank=new Map(this.imageOrder.map((id,i)=>[id,i]));return this.historyJobs.filter(job=>(this.showFailed || job.status!=='failed') && (!job.asset_ids?.length || this.jobAssets(job).length)).sort((a,b)=>(rank.get(a.id)??-1)-(rank.get(b.id)??-1));},
   async moveImageOrder(id,direction){
    if(this.orderingImages)return;const visible=this.visibleJobs.map(j=>j.id),index=visible.indexOf(id),target=index+direction;if(index<0||target<0||target>=visible.length)return;
@@ -262,7 +301,7 @@ export function sceneEditor(options) {
    try{await navigator.clipboard.writeText(job.prompt||'');this.copiedPrompt=job.id;notify('Prompt copied.');}
    catch(_){this.error='Could not copy the prompt. Select the prompt text and copy it manually.';}
   },
-  duplicate(name=null){if(!this.visual||this.document.visuals.length>=100)return;const v=JSON.parse(JSON.stringify(this.visual));v.id=crypto.randomUUID();v.name=name||v.name+' copy';v.hotspots.forEach(h=>h.id=crypto.randomUUID());(v.actions||[]).forEach(a=>a.id=crypto.randomUUID());this.document.visuals.push(v);this.choose(v.id);this.changed();},
+  duplicate(name=null){if(!this.visual||this.document.visuals.length>=100)return;const v=JSON.parse(JSON.stringify(this.visual));v.id=crypto.randomUUID();v.name=name||v.name+' copy';const ids=new Map(v.hotspots.map(h=>[h.id,crypto.randomUUID()]));v.hotspots.forEach(h=>{h.id=ids.get(h.id);if(h.container_parent_id)h.container_parent_id=ids.get(h.container_parent_id);delete h.container_plan_id;});(v.actions||[]).forEach(a=>a.id=crypto.randomUUID());this.document.visuals.push(v);this.choose(v.id);this.changed();},
   applyInteractionProposal(proposal,pageId){
    const target=proposal._interaction,change=proposal.interaction;
    if(target.page_id!==pageId||target.revision!==this.revision||target.visual_id!==this.selected||target.hotspot_id!==this.hotspotId||this.dirty||this.saving||!this.hotspot)throw new Error('Select the original area and request a fresh suggestion; this area has changed.');
@@ -315,8 +354,8 @@ export function sceneEditor(options) {
   },
   requestVisualDelete(){if(!this.visual)return;this.deleteVisualId=this.visual.id;this.$refs.deleteVisualDialog.showModal();},
   get deletingVisual(){return this.document.visuals.find(v=>v.id===this.deleteVisualId);},
-  get dependentAreas(){return this.document.visuals.filter(v=>v.id!==this.deleteVisualId).flatMap(v=>[...(v.hotspots||[]),...(v.actions||[]),...(v.hotspots||[]).flatMap(h=>[...(h.inventory_rules||[]),...(h.choices||[])])]).filter(h=>h.target_id===this.deleteVisualId||h.object_id===this.deleteVisualId).length;},
-  clearSkipReferences(id){for(const v of this.document.visuals)v.skip_rules=(v.skip_rules||[]).filter(r=>r.target_scene_id!==id && !r.object_ids.includes(id));},
+  get dependentAreas(){return this.document.visuals.filter(v=>v.id!==this.deleteVisualId).flatMap(v=>[...(v.hotspots||[]),...(v.actions||[]),...(v.hotspots||[]).flatMap(h=>[...(h.inventory_rules||[]),...(h.choices||[])])]).filter(h=>h.target_scene_id===this.deleteVisualId||h.target_id===this.deleteVisualId||h.object_id===this.deleteVisualId).length;},
+  clearSkipReferences(id){for(const v of this.document.visuals)v.skip_rules=(v.skip_rules||[]).filter(r=>r.target_scene_id!==id && !(r.object_ids||[]).includes(id));},
   confirmVisualDelete(){
    const id=this.deleteVisualId;if(!this.deletingVisual)return;
    this.clearSkipReferences(id);
@@ -325,6 +364,7 @@ export function sceneEditor(options) {
    for(const v of this.document.visuals)for(const h of v.hotspots){
     if(h.inventory_rules)h.inventory_rules=h.inventory_rules.filter(rule=>rule.object_id!==id);
     for(const rule of [...(h.inventory_rules||[]),...(h.choices||[])])if(rule.target_id===id)rule.target_id=null;
+    if(h.target_scene_id===id){h.target_scene_id=null;h.target_page_id=null;h.move_after_examine=false;if(h.action==='page')h.action='examine';}
     if(h.target_id===id){h.target_id=null;if(h.action==='transition')h.action='examine';}
     if(h.object_id===id){h.object_id=null;if(!h.overlay_asset_id)h.overlay=false;if(['inspect','pickup'].includes(h.action))h.action='examine';}
    }
@@ -340,8 +380,8 @@ export function sceneEditor(options) {
   async saveLoop(){
    while(this.dirty){
     this.dirty=false;this.saving=true;this.status='Saving visuals…';
-    try {if(this.generationMode){await this.saveGenerationDraft();this.error='';this.status='Image draft saved';continue;}const data=await this.request(options.url,'PUT',{revision:this.revision,document:JSON.parse(JSON.stringify(this.document))});this.revision=data.revision;this.error='';this.status='All visual changes saved';}
-    catch(e){this.dirty=true;this.error=e.message;this.status='Visual changes not saved';this.halted=e.conflict||!e.validation;return false;}
+    try {if(this.generationMode){await this.saveGenerationDraft();this.error='';this.status='Image draft saved';continue;}const data=await this.request(options.url,'PUT',{revision:this.revision,document:JSON.parse(JSON.stringify(this.document))});this.revision=data.revision;if(data.preview_pages){this.previewPages=data.preview_pages;this.upgradePageLinks();}this.error='';this.status='All visual changes saved';}
+    catch(e){this.dirty=true;this.error=e.message;this.status='Visual changes not saved: '+e.message;this.halted=e.conflict||!e.validation;return false;}
     finally{this.saving=false;}
    }return true;
   },
@@ -408,7 +448,7 @@ export function sceneEditor(options) {
   requestAreaDelete(id){if(this.preview)return;this.hotspotId=id;this.deleteAreaId=id;this.$refs.deleteAreaDialog.showModal();},
   confirmAreaDelete(){
    const visual=this.visual,area=visual?.hotspots.find(h=>h.id===this.deleteAreaId);if(!area)return;
-   visual.hotspots=visual.hotspots.filter(h=>h.id!==area.id);
+   visual.hotspots=visual.hotspots.filter(h=>h.id!==area.id&&h.container_parent_id!==area.id);
    this.hotspotId='';this.deleteAreaId='';this.renamingId='';this.areaDrag=null;this.changed();this.$refs.deleteAreaDialog.close();
   },
   beginRename(h){if(this.preview)return;this.hotspotId=h.id;this.renamingId=h.id;this.labelDraft=h.label;},
@@ -437,7 +477,7 @@ export function sceneEditor(options) {
     }
     if(!bounds){notify('No saved default position is available for this area yet.','error');return;}
     Object.assign(h,JSON.parse(JSON.stringify(bounds)));if(overlay)h.overlay_bounds={...overlay};
-    h.default_bounds={...bounds};if(overlay)h.default_overlay_bounds={...overlay};this.changed();
+    this.syncContainerAreas(h);h.default_bounds={...bounds};if(overlay)h.default_overlay_bounds={...overlay};this.changed();
    }catch(e){notify(e.message,'error');}finally{this.resettingArea=false;}
   },
   startArea(e,h,handle='move'){
@@ -462,8 +502,9 @@ export function sceneEditor(options) {
     if(d.handle.includes('s'))bottom=clamp(bottom+dy,top+.005,1);
     Object.assign(h,{x:left,y:top,width:right-left,height:bottom-top});
    }
-   this.transformAreaImage(h,o);
+   this.transformAreaImage(h,o);this.syncContainerAreas(h);
   },
+  syncContainerAreas(h){if(h.is_container){for(const child of this.visual.hotspots.filter(a=>a.container_parent_id===h.id&&a.container_bounds)){const b=containerGeometry(h,child.container_bounds);Object.assign(child,b);child.overlay_bounds={...b};}}else if(h.container_parent_id){let p=this.visual.hotspots.find(a=>a.id===h.container_parent_id);if(p){const base=p.overlay_bounds||p;p=base;h.width=Math.min(h.width,p.width);h.height=Math.min(h.height,p.height);h.x=Math.max(p.x,Math.min(h.x,p.x+p.width-h.width));h.y=Math.max(p.y,Math.min(h.y,p.y+p.height-h.height));h.container_bounds={x:(h.x-p.x)/p.width,y:(h.y-p.y)/p.height,width:h.width/p.width,height:h.height/p.height};h.overlay_bounds={x:h.x,y:h.y,width:h.width,height:h.height};}}},
   resizeAreaProportionally(h,o,handle,dx,dy){
    const west=handle.includes('w'),north=handle.includes('n');
    const sx=(west?-dx:dx)/o.width,sy=(north?-dy:dy)/o.height;
@@ -475,13 +516,22 @@ export function sceneEditor(options) {
    h.x=west?o.x+o.width-h.width:o.x;h.y=north?o.y+o.height-h.height:o.y;
   },
   transformAreaImage(h,o){if(!o.overlay_bounds)return;const b=o.overlay_bounds,sx=h.width/o.width,sy=h.height/o.height;h.overlay_bounds={x:h.x+(b.x-o.x)*sx,y:h.y+(b.y-o.y)*sy,width:b.width*sx,height:b.height*sy};},
-  endArea(cancel=false){const d=this.areaDrag;if(!d)return;const h=this.visual.hotspots.find(h=>h.id===d.id);if(h){if(cancel)Object.assign(h,d.original);else if(Object.keys(d.original).some(k=>h[k]!==d.original[k]))this.changed();}this.areaDrag=null;},
-  areaKey(e,h){if(this.preview||e.target!==e.currentTarget)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();this.requestAreaDelete(h.id);return;}if(e.key==='F2'){e.preventDefault();this.beginRename(h);return;}const delta={ArrowLeft:[-.005,0],ArrowRight:[.005,0],ArrowUp:[0,-.005],ArrowDown:[0,.005]}[e.key];if(!delta)return;e.preventDefault();this.hotspotId=h.id;const original={...h,overlay_bounds:h.overlay_bounds?{...h.overlay_bounds}:null};if(e.shiftKey){if(h.overlay)this.resizeAreaProportionally(h,original,'se',delta[0],delta[1]);else{h.width+=delta[0];h.height+=delta[1];}}else{h.x=Math.max(0,Math.min(1-h.width,h.x+delta[0]));h.y=Math.max(0,Math.min(1-h.height,h.y+delta[1]));}this.clampArea();this.transformAreaImage(h,original);},
+  endArea(cancel=false){const d=this.areaDrag;if(!d)return;const h=this.visual.hotspots.find(h=>h.id===d.id);if(h){if(cancel){Object.assign(h,d.original);this.syncContainerAreas(h);}else if(Object.keys(d.original).some(k=>h[k]!==d.original[k]))this.changed();}this.areaDrag=null;},
+  areaKey(e,h){if(this.preview||e.target!==e.currentTarget)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();this.requestAreaDelete(h.id);return;}if(e.key==='F2'){e.preventDefault();this.beginRename(h);return;}const delta={ArrowLeft:[-.005,0],ArrowRight:[.005,0],ArrowUp:[0,-.005],ArrowDown:[0,.005]}[e.key];if(!delta)return;e.preventDefault();this.hotspotId=h.id;const original={...h,overlay_bounds:h.overlay_bounds?{...h.overlay_bounds}:null};if(e.shiftKey){if(h.overlay)this.resizeAreaProportionally(h,original,'se',delta[0],delta[1]);else{h.width+=delta[0];h.height+=delta[1];}}else{h.x=Math.max(0,Math.min(1-h.width,h.x+delta[0]));h.y=Math.max(0,Math.min(1-h.height,h.y+delta[1]));}this.clampArea();this.transformAreaImage(h,original);this.syncContainerAreas(h);},
   sceneLabel(v){return 'Scene '+(this.scenes.findIndex(s=>s.id===v.id)+1)+' · '+v.name+' · '+(this.asset(v.asset_id)?.name||'No image');},
   get referenceAssets(){return this.assets.filter(a=>!a.archived && a.role!=='extraction_reference');},
   openReferences(){this.$refs.referenceDialog.showModal();this.$nextTick(()=>{this.$refs.referenceImagesScroll.scrollTop=0;});},
   get pickerAssets(){return this.assets.filter(a=>!a.archived && a.role!=='extraction_reference');},
   imagePickerTarget:'visual',
+  editorHoverAreaId:null,
+  get editorVisibilityFlags(){
+   const flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,!!f.initial]));
+   for(const h of this.visual?.hotspots||[])if(h.state_flag)flags[h.state_flag]=!!h.overlay&&h.overlay_always!==false;
+   return flags;
+  },
+  editorAreaVisible(h){if(this.areaDisabled(h,this.editorVisibilityFlags))return false;if(!h.container_parent_id)return true;const parent=this.visual?.hotspots?.find(p=>p.id===h.container_parent_id);return !!parent?.is_container&&!!parent.overlay&&parent.overlay_always!==false;},
+  editorAreaImage(h){if(!h.overlay||!this.editorAreaVisible(h))return null;if(h.action==='state_v2'){if(h.overlay_always===false)return h.is_container?this.asset(h.overlay_asset_id):null;return this.asset(h.state_asset_id);}if(h.overlay_always===false&&this.editorHoverAreaId!==h.id)return null;return this.areaImage(h);},
+  editorAreaImageStyle(h){return this.style(h.overlay_bounds||h)+';z-index:'+this.areaLayer(h)+';object-position:'+this.areaImagePosition(h);},
   areaImage(h){if(h?.action==='pickup_v2' && this.preview){if(this.collectibleEmpty(h))return null;if(this.placedObjects[h.id] && this.placedObjects[h.id]!==h.object_id)return this.asset(this.collectibleObject(h)?.asset_id);}if(h?.action==='state_v2')return !this.preview || this.flags[h.state_flag]?this.asset(h.state_asset_id):null;return h?.overlay?this.asset(h.overlay_asset_id !== undefined ? h.overlay_asset_id : this.gameObjects.find(v=>v.id===h.object_id)?.asset_id):null;},
   areaImageStyle(h){const b=h.overlay_bounds;if(!b)return {objectPosition:this.areaImagePosition(h)};return {position:'absolute',left:((b.x-h.x)/h.width*100)+'%',top:((b.y-h.y)/h.height*100)+'%',width:(b.width/h.width*100)+'%',height:(b.height/h.height*100)+'%',maxWidth:'none',objectFit:'fill',pointerEvents:'none'};},
   areaImagePosition(h){return {top:'center top',middle:'center center',bottom:'center bottom'}[h.overlay_alignment]||'center center';},
@@ -514,15 +564,24 @@ export function sceneEditor(options) {
    if(rect.width>=.005&&rect.height>=.005)this.newHotspot(rect);
    setTimeout(()=>{this.suppressImageClick=false;},0);
   },
+  get inventoryStateTargets(){return (this.visual?.hotspots||[]).filter(h=>h.state_flag&&h.state_asset_id).map(h=>({id:h.id,label:h.label,flag:h.state_flag}));},
+  inventoryStateEffects(rule){return (rule.flag_effects||[]).filter(effect=>this.inventoryStateTargets.some(target=>target.flag===effect.key));},
+  addInventoryStateTarget(rule,key){const target=this.inventoryStateTargets.find(target=>target.flag===key);if(!target || this.inventoryStateEffects(rule).some(effect=>effect.key===key))return;this.setInventoryState(rule,target,'true');},
+  changeInventoryStateTarget(rule,effect,key){if(!this.inventoryStateTargets.some(target=>target.flag===key) || this.inventoryStateEffects(rule).some(other=>other!==effect&&other.key===key))return;effect.key=key;this.changed();},
+  inventoryStateValue(rule,target){const effect=(rule.flag_effects||[]).find(effect=>effect.key===target.flag);return effect?String(effect.value):'';},
+  setInventoryState(rule,target,value){rule.flag_effects=(rule.flag_effects||[]).filter(effect=>effect.key!==target.flag);if(value!=='')rule.flag_effects.push({key:target.flag,value:value==='true'});this.changed();},
   addInventoryRule(objectId=null){if(!this.hotspot)return;this.hotspot.inventory_rules??=[];if(this.hotspot.inventory_rules.length>=100)return;this.hotspot.inventory_rules.push({object_id:objectId,response:'',target_id:null,consume:false});this.changed();},
   addAllInventoryRules(){if(!this.hotspot)return;for(const object of this.previewInventoryItems)if(!(this.hotspot.inventory_rules||[]).some(r=>r.object_id===object.id))this.addInventoryRule(object.id);},
   addAreaChoice(){if(!this.hotspot)return;this.hotspot.choices??=[];if(this.hotspot.choices.length>=20)return;this.hotspot.choices.push({label:'New action',response:'',target_id:null});this.changed();},
   get modalArea(){return this.playVisuals.find(v=>v.id===this.modal?.sceneId)?.hotspots?.find(h=>h.id===this.modal?.areaId);},
-  areaTextOptions(h){return {animate:h.animate_hover_text===true,area:{x:h.x,y:h.y,width:h.width,height:h.height},position:h.description_position||'top'};},
-  areaCursor(h){const allowed=['pointer','grab','help','crosshair','zoom-in','alias','not-allowed','default'];return allowed.includes(h.cursor)?h.cursor:(this.pickupReady(h)||['pickup','pickup_v2'].includes(h.action)?'grab':h.action==='inventory'?'alias':'pointer');},
+  areaTextOptions(h){return {sourceAreaId:h.id,animate:h.animate_hover_text===true,area:{x:h.x,y:h.y,width:h.width,height:h.height},position:h.description_position||'top'};},
+  areaTooltip(h){if(this.sceneTransition||this.pendingInventoryUse||(this.hasAreaAction(h)&&!this.descriptionStep(h)&&!this.actionAllowed(h)))return '';return this.cursorTooltips[this.areaCursor(h)]||'';},
+  areaCursor(h){const action=this.hasAreaAction(h)&&!this.descriptionStep(h);const value=action?h.action_cursor:h.cursor;const allowed=['pointer','grab','help','crosshair','zoom-in','alias','not-allowed','default'];if(allowed.includes(value))return value;if(action&&!this.actionAllowed(h))return 'not-allowed';return action&&['pickup','pickup_v2'].includes(h.action)?'grab':action&&h.action==='inventory'?'alias':'pointer';},
+  get narrationSpeaking(){return !!this.soundPlayer?.speaking;},
+  stopNarration(){this.soundPlayer?.channel('voice',null);if(this.pendingInventoryUse)this.completeInventoryUse();},
   inventoryDrag:null, suppressInventoryClick:false, pendingInventoryUse:null, inventoryUseTimer:null,
   startInventoryDrag(event,item){
-   if(event.button!==0 || this.pendingInventoryUse || this.sceneTransition)return;
+   if(this.narrationSpeaking || event.button!==0 || this.pendingInventoryUse || this.sceneTransition)return;
    this.inventoryDrag={itemId:item.id,inventoryId:item.inventoryId||item.id,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,active:false,url:this.asset(item.asset_id)?.url};
    event.currentTarget.setPointerCapture?.(event.pointerId);
   },
@@ -542,7 +601,7 @@ export function sceneEditor(options) {
    const overTray=trayBounds && event.clientX>=trayBounds.left && event.clientX<=trayBounds.right && event.clientY>=trayBounds.top && event.clientY<=trayBounds.bottom;
    const area=cancel||overTray?null:[...this.currentHotspots].reverse().find(h=>point.x>=h.x && point.x<=h.x+h.width && point.y>=h.y && point.y<=h.y+h.height);
    const item=this.inventory.find(i=>(i.inventoryId||i.id)===drag.inventoryId);if(!item)return;
-   if(area && ['inventory','pickup_v2'].includes(area.action) && this.conditionsMet(area))this.useInventoryOnArea(drag.inventoryId,area,point);
+   if(area && ['inventory','pickup_v2'].includes(area.action) && containerVisible(area,this.displayed?.hotspots||[],this.flags))this.useInventoryOnArea(drag.inventoryId,area,point);
    else this.animatePickup(item,point);
   },
   finishInventoryText(key){
@@ -565,17 +624,18 @@ export function sceneEditor(options) {
    }
    if(pending.rule?.consume)this.inventory.splice(index,1);
    this.applyFlagEffects(pending.area);this.applyFlagEffects(pending.rule);
-   if(pending.rule?.target_id)this.transitionScene(pending.rule.target_id);
+   if(pending.rule?.target_id){const destination=this.pageSceneDestinations.find(d=>d.sceneId===pending.rule.target_id);this.transitionScene(pending.rule.target_id,destination?.pageId??this.previewPageId);}
    if(!pending.rule?.consume)this.animatePickup(item,pending.point);
   },
   cancelInventoryUse(){clearTimeout(this.inventoryUseTimer);this.inventoryUseTimer=null;this.pendingInventoryUse=null;this.inventoryDrag=null;},
   openAreaInteraction(h){
-   if(h.action==='inventory'){this.inventoryOpen=true;this.modal=null;this.narration={...this.areaTextOptions(h),label:h.label,text:h.interaction_text||h.description||'',inventoryAreaId:h.id};this.narrationVersion++;return;}
+   if(h.action==='inventory'){this.inventoryOpen=true;this.modal=null;this.narration={...this.areaTextOptions(h),label:h.label,text:h.description||'',inventoryAreaId:h.id};this.narrationVersion++;return;}
    this.inventoryOpen=false;this.showObjectModal({...this.areaTextOptions(h),areaId:h.id,sceneId:this.previewId,label:h.label,text:h.interaction_text||'',position:h.description_position||'top'});
   },
   useInventoryOnArea(inventoryId,area=this.modalArea,point=null){
-   if(!this.preview || this.pendingInventoryUse || this.sceneTransition || !['inventory','pickup_v2'].includes(area?.action) || !this.conditionsMet(area))return;
+   if(this.areaDisabled(area) || this.narrationSpeaking || !this.preview || this.pendingInventoryUse || this.sceneTransition || !['inventory','pickup_v2'].includes(area?.action) || !containerVisible(area,this.displayed?.hotspots||[],this.flags))return;
    const item=this.inventory.find(i=>(i.inventoryId||i.id)===inventoryId);if(!item)return;
+   if(!this.actionAllowed(area)){this.denyAreaAction(area,point);if(point)this.animatePickup(item,point);return;}
    if(area.action==='pickup_v2'){
     const empty=this.collectibleEmpty(area),rule=this.placementRules(area).find(r=>r.object_id===item.id);
     const allowed=empty && area.placement_enabled!==false && !!rule && rule.allowed!==false && this.conditionsMet(rule);
@@ -599,7 +659,8 @@ export function sceneEditor(options) {
   removeObjectAction(id){this.visual.actions=(this.visual.actions||[]).filter(a=>a.id!==id);this.changed();},
   deliverPreviewMessage(value){if(value?.text && (value.url || value.inventoryId || value.inspect))this.soundPlayer?.speak(value.text,this.audioSounds);if(value && !value.url && !value.areaId && !value.inventoryId && !value.inspect){this.modal=null;this.narration={...value,position:value.position||'top'};this.narrationVersion++;}else{this.narration=null;this.modal=value;}},
   showObjectModal(value){if(this.sceneTransition || this.modalTimer!==null){this.pendingModal=value;}else{this.deliverPreviewMessage(value);}},
-  clearSceneTransition(){clearTimeout(this.transitionTimer);clearTimeout(this.modalTimer);this.transitionTimer=null;this.modalTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
+  transitionRequest:0,
+  clearSceneTransition(){this.transitionRequest++;clearTimeout(this.transitionTimer);clearTimeout(this.modalTimer);this.transitionTimer=null;this.modalTimer=null;this.sceneTransition=false;this.outgoingScene=null;this.pendingModal=null;},
   skipRuleId:'', skipItemSelection:[], skipJumpCount:0,
   selectSceneBackground(){if(!this.drawing && !this.suppressImageClick)this.hotspotId='';},
   addSkipRule(){this.visual.skip_rules??=[];this.visual.skip_rules.push({id:crypto.randomUUID(),object_ids:[],target_page_id:null,target_scene_id:null});this.changed();},
@@ -618,16 +679,32 @@ export function sceneEditor(options) {
    }
    return {pageId,sceneId};
   },
+  preloadScene(scene){
+   if(typeof Image==='undefined')return null;
+   const ids=[scene.asset_id,...(scene.hotspots||[]).flatMap(h=>[h.overlay_asset_id,h.state_asset_id,this.gameObjects.find(o=>o.id===h.object_id)?.asset_id])];
+   return Promise.all([...new Set(ids.map(id=>this.asset(id)?.url).filter(Boolean))].map(url=>new Promise((resolve,reject)=>{
+    const image=new Image();image.onload=()=>{if(image.decode)image.decode().then(resolve,reject);else resolve();};image.onerror=()=>reject(new Error('Scene image could not be loaded.'));image.src=url;
+   })));
+  },
   transitionScene(id,nextPageId=this.previewPageId){
    const destination=this.resolveSceneEntry(nextPageId,id);id=destination.sceneId;nextPageId=destination.pageId;
    const target=(nextPageId===this.editorPageId?this.document.visuals:(this.previewPages.find(p=>p.id===nextPageId)?.visuals||[])).find(v=>v.kind==='scene' && v.id===id);if(!target||(id===this.previewId && nextPageId===this.previewPageId))return;
-   this.armedPickup=null;this.clearSceneTransition();this.outgoingScene=this.displayed;this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;this.soundPlayer?.enter(this.displayed,this.audioSounds);
+   if(this.sceneTransition)return;
+   this.armedPickup=null;this.clearSceneTransition();const request=this.transitionRequest;this.sceneTransition=true;
+   const commit=()=>{
+    if(request!==this.transitionRequest || !this.preview)return;
+   this.outgoingScene={...this.displayed,layers:this.currentHotspots.flatMap(h=>{const image=this.areaImage(h);if(!image || (h.action!=='state_v2' && h.overlay_always===false))return [];return [{id:h.id,url:image.url,style:this.style(h.overlay_bounds||h)+';z-index:'+this.areaLayer(h)+';object-fit:'+(h.overlay_bounds?'fill':'contain')+';object-position:'+this.areaImagePosition(h)}];})};this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;this.soundPlayer?.enter(this.displayed,this.audioSounds);
    this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview && this.pendingModal)this.deliverPreviewMessage(this.pendingModal);this.pendingModal=null;},250);},200);
+   };
+   const loading=this.preloadScene(target);
+   if(!loading){commit();return;}
+   return loading.then(commit).catch(()=>{if(request!==this.transitionRequest)return;this.clearSceneTransition();notify('Could not load the next scene image. Please try again.','error');});
   },
-  selectInventoryItemForPlay(item){if(!this.suppressInventoryClick && !this.inventoryDrag?.active && !this.pendingInventoryUse)this.openInventory(item);},
+  selectInventoryItemForPlay(item){if(!this.narrationSpeaking && !this.suppressInventoryClick && !this.inventoryDrag?.active && !this.pendingInventoryUse)this.openInventory(item);},
   openInventory(item,click=true){if(click)this.soundPlayer?.click({...item,action:'inspect'},this.audioSounds);this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',position:item.description_position||'top',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
   get inventoryActions(){const item=this.inventory.find(v=>(v.inventoryId||v.id)===this.modal?.inventoryId);return item?(this.objects.find(v=>v.id===item.id)?.actions||[]):[];},
   performObjectAction(id){
+   if(this.narrationSpeaking)return;
    if(!this.preview||!this.modal?.inventoryId)return;
    const index=this.inventory.findIndex(v=>(v.inventoryId||v.id)===this.modal.inventoryId);if(index<0)return;
    const item=this.inventory[index],action=(this.objects.find(v=>v.id===item.id)?.actions||[]).find(a=>a.id===id);
@@ -645,7 +722,7 @@ export function sceneEditor(options) {
   },
   confirmPreviewInventory(){const selected=[...this.previewInventorySelection];this.$refs.previewInventoryDialog.close();this.startPreview(selected,this.previewStartKey,this.previewFlags);},
   startPreview(initialItems=[],startKey=null,initialFlags=null){this.cancelInventoryUse();this.placedObjects={};this.flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,initialFlags===null?!!f.initial:initialFlags.includes(f.key)]));if(initialFlags===null){for(const scene of [...this.document.visuals,...this.previewPages.flatMap(p=>p.visuals||[])])for(const h of scene.hotspots||[])if(h.collectible_flag && h.initial_empty!==undefined)this.flags[h.collectible_flag]=!!h.initial_empty;}this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing scenes.','error');return;}const start=this.pageSceneDestinations.find(d=>d.key===startKey);this.previewPageId=start?.pageId??this.editorPageId;this.previewId=start?.sceneId??this.document.visuals.find(v=>v.kind==='scene')?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));const entry=this.resolveSceneEntry(this.previewPageId,this.previewId);this.previewPageId=entry.pageId;this.previewId=entry.sceneId;this.soundPlayer?.start(this.audioSettings,this.audioSounds);this.soundPlayer?.enter(this.displayed,this.audioSounds);this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
-  closePreview(){this.soundPlayer?.stop();this.cancelInventoryUse();this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];},
+  closePreview(){this.soundPlayer?.stop();this.cancelInventoryUse();this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];this.flags={};this.placedObjects={};this.editorHoverAreaId=null;},
   nextPreviewPage(){
    if(this.sceneTransition)return;
    const index=this.previewPages.findIndex(p=>p.id===this.previewPageId),next=this.previewPages[index+1];
@@ -695,34 +772,42 @@ export function sceneEditor(options) {
    };
    if(this.$nextTick)this.$nextTick(()=>start());else start();
   },
-  activate(h){
+  hasAreaMessage(h){return !!this.narration?.text && this.narration.sourceAreaId===h.id;},
+  clickAreaMessage(h){if(!this.hasAreaMessage(h))return false;globalThis.window?.dispatchEvent(new CustomEvent('description-area-click',{detail:{key:this.previewId+':'+this.narrationVersion}}));return true;},
+  activate(h,point=null){
    if(!this.preview){if(!this.drawing)this.hotspotId=h.id;return;}
-   if(this.pendingInventoryUse || this.inventoryDrag?.active)return;
-   if(!this.conditionsMet(h)){this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.unavailable_text||'You cannot do that yet.',url:null});return;}
-   this.soundPlayer?.click(h,this.audioSounds);
+   if(this.sceneTransition || this.narrationSpeaking || this.pendingInventoryUse || this.inventoryDrag?.active)return;
+   if(this.areaDisabled(h)||!containerVisible(h,this.displayed?.hotspots||[],this.flags)||this.inactiveCollectible(h))return;
+   if(h.action==='inventory')this.inventoryOpen=true;
+   if(!this.hasAreaAction(h)||this.descriptionStep(h))this.soundPlayer?.click(h,this.audioSounds);
+   if(this.hasAreaAction(h)){
+    const text=this.areaDescription(h),key=this.pickupKey(h);
+    if(this.descriptionStep(h)){
+     this.armedPickup=key;this.showObjectModal({...this.areaTextOptions(h),label:h.label,text,url:null,pickupKey:key,examineKey:key});return;
+    }
+    if(!this.actionAllowed(h)){this.denyAreaAction(h,point);return;}
+    this.armedPickup=null;
+    // The description stage has already run; legacy handlers must not start it again.
+    h={...h,show_hover_text:true};
+   }
    if(!['pickup','pickup_v2','examine','inspect','inventory','choices'].includes(h.action))this.applyFlagEffects(h);
    if(h.action==='state_v2'){
     if(!h.state_flag || !h.state_asset_id)return;
-    const text=this.areaDescription(h);
-    if(h.show_hover_text===false && text.trim() && !this.pickupReady(h)){
-     this.armedPickup=this.pickupKey(h);this.showObjectModal({...this.areaTextOptions(h),label:h.label,text,url:null,pickupKey:this.armedPickup});return;
-    }
     this.armedPickup=null;this.narration=null;this.narrationVersion++;this.pendingModal=null;
-    this.soundPlayer?.action(h,null,this.audioSounds);this.flags[h.state_flag]=!this.flags[h.state_flag];return;
+    const changed=!this.flags[h.state_flag];this.flags[h.state_flag]=changed;
+    if(changed){this.soundPlayer?.action(h,null,this.audioSounds);if(h.state_description?.trim())this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.state_description,url:null});}
+    else this.soundPlayer?.channel?.('voice',null);
+    return;
    }
    if(h.action==='page'){this.soundPlayer?.action(h,null,this.audioSounds);this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
    if(h.action==='complete'){this.soundPlayer?.action(h,null,this.audioSounds);this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
    if(h.action==='next_page'){this.nextPreviewPage();return;}
-   if(['inventory','choices'].includes(h.action)){this.applyFlagEffects(h);this.openAreaInteraction(h);return;}
+   if(['inventory','choices'].includes(h.action)){this.soundPlayer?.action(h,null,this.audioSounds);this.applyFlagEffects(h);this.openAreaInteraction(h);return;}
    if(h.action==='pickup' && !h.overlay_bounds && this.collected.includes(h.id))return;
    if(h.action==='pickup_v2' && this.collectibleEmpty(h)){
     this.inventoryOpen=true;if(h.description)this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.description,url:null});return;
    }
    const object=h.action==='pickup_v2'?this.collectibleObject(h):this.gameObjects.find(v=>v.id===h.object_id);
-   if(['pickup','pickup_v2'].includes(h.action) && object && h.show_hover_text===false && this.areaDescription(h).trim() && !this.pickupReady(h)){
-    this.armedPickup=this.pickupKey(h);
-    this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:this.areaDescription(h),url:null,pickupKey:this.armedPickup});return;
-   }
    if(['pickup','pickup_v2'].includes(h.action) && object){
     if(this.narration?.pickupKey===this.pickupKey(h)){this.narration=null;this.narrationVersion++;}
     if(this.pendingModal?.pickupKey===this.pickupKey(h))this.pendingModal=null;
@@ -731,8 +816,9 @@ export function sceneEditor(options) {
    if(['examine','inspect'].includes(h.action))this.applyFlagEffects(h);
    if(['pickup','pickup_v2'].includes(h.action) && object){this.soundPlayer?.action(h,object,this.audioSounds);this.applyFlagEffects(h);if(!this.inventory.some(v=>v.id===object.id)){this.inventory.push({...object,inventoryId:h.id});this.animatePickup(object,h);}this.collected.push(h.id);if(h.action==='pickup_v2'){const key=this.collectibleFlag(h);if(key)this.flags[key]=true;delete this.placedObjects[h.id];}}
    if(h.action==='transition')this.soundPlayer?.action(h,null,this.audioSounds);if(['pickup','inspect','transition'].includes(h.action) && h.target_id)this.transitionScene(h.target_id);
+   if(h.action==='examine' && h.move_after_examine && h.target_page_id){this.soundPlayer?.action(h,null,this.audioSounds);this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
    if(h.action==='examine'){const examineKey=this.previewPageId+':'+this.previewId+':'+h.id;if(this.narration?.examineKey===examineKey){this.narration=null;this.narrationVersion++;}else this.showObjectModal({...this.areaTextOptions(h),label:h.label,text:h.description||'',url:null,examineKey});}
    if(h.action==='inspect' && object)this.showObjectModal({inspect:true,label:object.name,text:object.description||'',position:object.description_position||'top',url:this.asset(object.asset_id)?.url});
   }
- },Object.getOwnPropertyDescriptors(sceneExtraction(options)));
+ },{...Object.getOwnPropertyDescriptors(sceneExtraction(options)),...Object.getOwnPropertyDescriptors(containerPlans(options))});
 }

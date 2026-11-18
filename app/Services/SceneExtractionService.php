@@ -37,8 +37,9 @@ class SceneExtractionService {
    $doc=$page->visual_document;$vi=array_search($data['visual_id'],array_column($doc['visuals'],'id'),true);
    if($vi===false)$this->fail('The scene no longer exists.');$visual=$doc['visuals'][$vi];
    $inventory=$story->inventory_document??['visuals'=>[]];$created=[];
-   foreach($data['areas'] as $selection){
+   foreach($data['areas'] as $selectionIndex=>$selection){
     $h=collect($visual['hotspots'])->firstWhere('id',$selection['id']);$item=collect($inventory['visuals'])->firstWhere('id',$h['object_id']??null);
+    if(!empty($h['is_container'])||!empty($h['container_parent_id']))$this->fail('Use Container plans to edit this container and its contents.');
     if(!$h || $h['action']!==($mode==='switches'?'state_v2':'pickup_v2'))$this->fail('Select only '.($mode==='switches'?'Change state v2':'Pick up object v2').' areas.');
     if($mode==='collectibles' && !$item){
      $item=['id'=>(string)Str::uuid(),'kind'=>'object','name'=>$h['label'],'description'=>$h['description']??'','description_position'=>in_array($h['description_position']??'top',['top','bottom'])?($h['description_position']??'top'):'top','asset_id'=>null,'prompt'=>'','hotspots'=>[],'actions'=>[]];
@@ -49,19 +50,20 @@ class SceneExtractionService {
     if($empty && (empty($item['asset_id']) || !$story->assets()->whereKey($item['asset_id'])->exists()))$this->fail('Choose an Inventory item with an image for the empty area '.$h['label'].'.');
     $hi=array_search($h['id'],array_column($doc['visuals'][$vi]['hotspots'],'id'),true);
     if($mode==='collectibles' && ($empty || array_key_exists('initial_empty',$selection)))$doc['visuals'][$vi]['hotspots'][$hi]['initial_empty']=$empty;
-    $b=$selection['bounds'];if($b['x']+$b['width']>1.00001 || $b['y']+$b['height']>1.00001)$this->fail('Extraction boundaries must fit inside the scene.');
+    $b=isset($selection['padding'])?app(ContainerPlans::class)->paddedBounds($source,array_intersect_key($h,array_flip(['x','y','width','height'])),$selection['padding']):$selection['bounds'];if($b['x']+$b['width']>1.00001 || $b['y']+$b['height']>1.00001)$this->fail('Extraction boundaries must fit inside the scene.');
+    $data['areas'][$selectionIndex]['bounds']=$b;
     $x=(int)floor($b['x']*$info[0]);$y=(int)floor($b['y']*$info[1]);$w=max(1,min($info[0]-$x,(int)round($b['width']*$info[0])));$height=max(1,min($info[1]-$y,(int)round($b['height']*$info[1])));
     $crop=imagecrop($image,['x'=>$x,'y'=>$y,'width'=>$w,'height'=>$height]);if(!$crop)$this->fail('Could not crop '.$h['label']);
     ob_start();imagepng($crop);$png=ob_get_clean();imagedestroy($crop);
     $path='stories/'.$story->id.'/extraction/'.Str::uuid().'.png';if(!Storage::disk('local')->put($path,$png))$this->fail('Could not save extraction reference.');$paths[]=$path;
     $asset=Asset::create(['story_id'=>$story->id,'name'=>$h['label'].' extraction reference','path'=>$path,'mime'=>'image/png','bytes'=>strlen($png),'role'=>'reference']);
     if($mode==='switches'){
-     $base=['area_bounds'=>array_intersect_key($h,array_flip(['x','y','width','height'])),'area_id'=>$h['id'],'bounds'=>$b,'references'=>[$asset->id],'versions'=>[]];
+     $base=['padding'=>$selection['padding']??null,'equal_padding'=>$selection['equal_padding']??true,'area_bounds'=>array_intersect_key($h,array_flip(['x','y','width','height'])),'area_id'=>$h['id'],'bounds'=>$b,'references'=>[$asset->id],'versions'=>[]];
      $outputs[]=array_merge($base,['id'=>(string)Str::uuid(),'type'=>'switch_off','name'=>$h['label'].' original state','prompt'=>'Original cropped area.','accepted_asset_id'=>$asset->id]);
      $outputs[]=array_merge($base,['id'=>(string)Str::uuid(),'type'=>'switch_on','name'=>$h['label'].' changed state','accepted_asset_id'=>null,'prompt'=>'Edit only the local state of '.$h['label'].' in this cropped reference: '.($h['state_prompt']??'Show it pressed or activated.').'. Preserve the exact framing, dimensions, surrounding background, lighting and perspective. Nothing is removed. Do not change anything outside the mechanism. Output a full rectangular patch with matching edges, not a transparent cutout.']);
      continue;
     }
-    $base=['area_bounds'=>array_intersect_key($h,array_flip(['x','y','width','height'])),'area_id'=>$h['id'],'object_id'=>$item['id'],'bounds'=>$b,'references'=>[$asset->id],'versions'=>[],'accepted_asset_id'=>null,'initial_empty'=>$empty];
+    $base=['padding'=>$selection['padding']??null,'equal_padding'=>$selection['equal_padding']??true,'area_bounds'=>array_intersect_key($h,array_flip(['x','y','width','height'])),'area_id'=>$h['id'],'object_id'=>$item['id'],'bounds'=>$b,'references'=>[$asset->id],'versions'=>[],'accepted_asset_id'=>null,'initial_empty'=>$empty];
     if(!$empty)$removals[]=(array_search($selection,$data['areas'],true)+1).'. '.$h['label'];
     $outputs[]=array_merge($base,['id'=>(string)Str::uuid(),'type'=>'layer','name'=>$h['label'].' scene layer','prompt'=>'Extract only '.$item['name'].' from this cropped reference. Preserve its exact pose, perspective, scale, placement and lighting within the crop. Output a transparent PNG with true alpha, not a checkerboard or solid background. Remove the surrounding background and unrelated objects, retain natural soft contact shadow only. Keep the exact '.$w.' by '.$height.' canvas framing. Do not center, enlarge or redesign the object.']);
     $outputs[]=array_merge($base,['id'=>(string)Str::uuid(),'type'=>'inventory','name'=>$item['name'].' inventory','prompt'=>'Create an isolated inventory render of '.$item['name'].' from this reference. '.($item['description']??$h['description']??'').' Preserve its identity, material and details. Center the entire object with comfortable margins, clearly readable at small inventory size, transparent PNG with true alpha. No scenery, text, hands or extra objects.']);
@@ -166,7 +168,7 @@ class SceneExtractionService {
     if($b->mode==='switches'){
      if($hi===false)$this->fail('A switch area was removed.');
      $h=&$doc['visuals'][$vi]['hotspots'][$hi];if($h['action']!=='state_v2')$this->fail('Switch areas must still use Change state v2.');
-     $key='switch_'.str_replace('-','',$h['id']);if(!collect($flags)->contains('key',$key))$flags[]=['key'=>$key,'label'=>mb_substr('Switch '.$h['label'],0,160),'initial'=>false];
+     $key=$h['state_flag']??app(StoryFlags::class)->generatedKey('Switch '.$h['label'],$flags);if(!collect($flags)->contains('key',$key))$flags[]=['key'=>$key,'label'=>mb_substr('Switch '.$h['label'],0,160),'initial'=>false];
      $h['state_flag']=$key;$h['overlay']=true;$h['overlay_always']=true;$h['overlay_bounds']=$output['bounds'];$h['default_bounds']=$output['area_bounds']??array_intersect_key($h,array_flip(['x','y','width','height']));$h['default_overlay_bounds']=$output['bounds'];$h['target_id']=null;$h['object_id']=null;
      $h[$output['type']==='switch_off'?'overlay_asset_id':'state_asset_id']=$assetId;unset($h);continue;
     }
@@ -175,7 +177,7 @@ class SceneExtractionService {
     if(!empty($output['reused']) && (($output['type']==='layer' && ($doc['visuals'][$vi]['hotspots'][$hi]['overlay_asset_id']??null)===$assetId) || ($output['type']==='inventory' && ($inventory['visuals'][$ii]['asset_id']??null)===$assetId)))continue;
     $h=&$doc['visuals'][$vi]['hotspots'][$hi];if($h['action']!=='pickup_v2' || $h['object_id']!==$output['object_id'])$this->fail('A selected area no longer picks up the original item.');
     if($output['type']==='inventory'){$inventory['visuals'][$ii]['asset_id']=$assetId;unset($h);continue;}
-    $key='collected_'.str_replace('-','',$h['id']);
+    $key=$h['collectible_flag']??app(StoryFlags::class)->generatedKey('Collected '.$inventory['visuals'][$ii]['name'],$flags);
     if(!collect($flags)->contains('key',$key))$flags[]=['key'=>$key,'label'=>mb_substr('Collected '.$h['label'],0,160),'initial'=>(bool)($output['initial_empty']??false)];
     $h['overlay']=true;$h['overlay_always']=true;$h['overlay_asset_id']=$assetId;$h['overlay_bounds']=$output['bounds'];$h['default_bounds']=$output['area_bounds']??array_intersect_key($h,array_flip(['x','y','width','height']));$h['default_overlay_bounds']=$output['bounds'];$h['target_id']=null;
     foreach($flags as &$definition)if($definition['key']===$key)$definition['initial']=(bool)($output['initial_empty']??false);unset($definition);

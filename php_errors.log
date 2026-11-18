@@ -1,1 +1,2 @@
 [08-Nov-2026 06:02:06 UTC] PHP Fatal error:  Access level to Tests\Feature\AiCallHistoryTest::call() must be public (as in class Illuminate\Foundation\Testing\TestCase) in F:\GitHub\visual-story-game\tests\Feature\AiCallHistoryTest.php on line 10
+[12-Nov-2026 14:17:56 UTC] PHP Parse error:  syntax error, unexpected identifier "audio_settings", expecting "]" in app/Http/Controllers/AudioController.php on line 20

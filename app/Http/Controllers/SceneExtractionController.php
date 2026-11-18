@@ -7,18 +7,28 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 class SceneExtractionController extends Controller {
  private function owner(Request $r,Story $s,StoryPage $p,?SceneExtraction $e=null):void {abort_unless($s->user_id===$r->user()->id && $p->story_id===$s->id && (!$e || ($e->story_id===$s->id && $e->story_page_id===$p->id)),404);}
- public function index(Request $r,Story $story,StoryPage $page,SceneExtractionService $service){$this->owner($r,$story,$page);return response()->json(['batches'=>SceneExtraction::where('story_id',$story->id)->where('story_page_id',$page->id)->latest()->get()->map(fn($e)=>$service->present($e)),'inventory_revision'=>$story->inventory_revision]);}
+ public function index(Request $r,Story $story,StoryPage $page,SceneExtractionService $service){$this->owner($r,$story,$page);return response()->json(['batches'=>SceneExtraction::where('story_id',$story->id)->where('story_page_id',$page->id)->where('mode','!=','container')->latest()->get()->map(fn($e)=>$service->present($e)),'inventory_revision'=>$story->inventory_revision]);}
+ public function destroy(Request $r,Story $story,StoryPage $page,SceneExtraction $extraction,SceneExtractionService $service){
+  $this->owner($r,$story,$page,$extraction);return DB::transaction(function()use($extraction,$service){$batch=SceneExtraction::whereKey($extraction->id)->lockForUpdate()->firstOrFail();if($batch->mode==='container')$service->fail('Delete container plans from Create container.');if(ImageGeneration::whereIn('id',collect($batch->outputs)->flatMap(fn($o)=>$o['versions']??[]))->whereIn('status',['queued','running'])->exists())$service->fail('Wait for this plan to finish rendering before deleting it.');$batch->delete();return response()->json(['message'=>'Plan deleted. Scene settings and images were kept.']);});
+ }
  public function store(Request $r,Story $story,StoryPage $page,SceneExtractionService $service){
-  $this->owner($r,$story,$page);$data=$r->validate(['update_plan_id'=>'sometimes|integer','background_references'=>'sometimes|in:original_and_annotated,annotated_only','mode'=>'sometimes|in:collectibles,switches','visual_id'=>'required|uuid','revision'=>'required|integer','areas'=>'required|array|min:1|max:20','areas.*.initial_empty'=>'sometimes|boolean','areas.*.id'=>'required|uuid|distinct','areas.*.bounds'=>'required|array:x,y,width,height','areas.*.bounds.x'=>'required|numeric|min:0|max:0.999','areas.*.bounds.y'=>'required|numeric|min:0|max:0.999','areas.*.bounds.width'=>'required|numeric|min:0.005|max:1','areas.*.bounds.height'=>'required|numeric|min:0.005|max:1']);
+  $this->owner($r,$story,$page);$data=$r->validate(['update_plan_id'=>'sometimes|integer','background_references'=>'sometimes|in:original_and_annotated,annotated_only','mode'=>'sometimes|in:collectibles,switches','visual_id'=>'required|uuid','revision'=>'required|integer','areas'=>'required|array|min:1|max:20','areas.*.padding'=>'sometimes|array:top,right,bottom,left','areas.*.padding.*'=>'integer|min:0|max:500','areas.*.equal_padding'=>'sometimes|boolean','areas.*.initial_empty'=>'sometimes|boolean','areas.*.id'=>'required|uuid|distinct','areas.*.bounds'=>'required|array:x,y,width,height','areas.*.bounds.x'=>'required|numeric|min:0|max:0.999','areas.*.bounds.y'=>'required|numeric|min:0|max:0.999','areas.*.bounds.width'=>'required|numeric|min:0.005|max:1','areas.*.bounds.height'=>'required|numeric|min:0.005|max:1']);
   $batch=$service->prepare($story,$page,$data);$page->refresh();$story->refresh();
   return response()->json($service->present($batch)+['document'=>$page->visual_document,'revision'=>$page->visual_revision,'inventory_items'=>$story->inventory_document['visuals']??[],'inventory_revision'=>$story->inventory_revision],201);
  }
  public function output(Request $r,Story $story,StoryPage $page,SceneExtraction $extraction,string $output,SceneExtractionService $service,OpenRouter $router){
   $this->owner($r,$story,$page,$extraction);
-  $data=$r->validate(['reference_mode'=>'required_if:action,references|in:original_and_annotated,annotated_only','action'=>'required|in:generate,accept,unaccept,align,references','prompt'=>'sometimes|required|string|max:10000','model'=>'required_if:action,generate|string|max:200','bounds'=>'required_if:action,align|array:x,y,width,height','bounds.x'=>'required_with:bounds|numeric|min:0|max:1','bounds.y'=>'required_with:bounds|numeric|min:0|max:1','bounds.width'=>'required_with:bounds|numeric|min:0.005|max:1','bounds.height'=>'required_with:bounds|numeric|min:0.005|max:1','asset_id'=>'required_if:action,accept|integer']);
+  $data=$r->validate(['container_user_prompt'=>'nullable|string|max:10000','container_prompt_model'=>'nullable|string|max:200','reference_mode'=>'required_if:action,references|in:original_and_annotated,annotated_only','extra_references'=>'sometimes|array|max:19','extra_references.*'=>'integer|distinct','action'=>'required|in:generate,accept,unaccept,align,references,switch_references','prompt'=>'sometimes|required|string|max:10000','model'=>'required_if:action,generate|string|max:200','bounds'=>'required_if:action,align|array:x,y,width,height','bounds.x'=>'required_with:bounds|numeric|min:0|max:1','bounds.y'=>'required_with:bounds|numeric|min:0|max:1','bounds.width'=>'required_with:bounds|numeric|min:0.005|max:1','bounds.height'=>'required_with:bounds|numeric|min:0.005|max:1','asset_id'=>'required_if:action,accept|integer']);
   return DB::transaction(function()use($r,$story,$page,$extraction,$output,$service,$router,$data){
-   $batch=SceneExtraction::whereKey($extraction->id)->lockForUpdate()->firstOrFail();$outputs=$batch->outputs;$i=array_search($output,array_column($outputs,'id'),true);abort_if($i===false,404);$o=$outputs[$i];
-   if($data['action']==='references'){
+   $batch=SceneExtraction::whereKey($extraction->id)->lockForUpdate()->firstOrFail();$outputs=$batch->outputs;$i=array_search($output,array_column($outputs,'id'),true);abort_if($i===false,404);$o=$outputs[$i];$chatMessages=[];
+   if($o['type']==='container_preview' && \App\Models\ContainerPlan::where('extraction_id',$batch->id)->where('stage','!=','preview')->exists())$service->fail('This preview has already been approved for extraction. Create a new container plan to change it.');
+   if($data['action']==='switch_references'){
+    if($batch->mode!=='switches'||$o['type']!=='switch_on')$service->fail('Extra references are available for local switch images only.');
+    if(ImageGeneration::whereIn('id',$o['versions'])->whereIn('status',['queued','running'])->exists())$service->fail('Wait for the current render before changing references.');
+    $crop=$o['references'][0];$ids=array_values(array_filter($data['extra_references']??[],fn($id)=>$id!==$crop));
+    if($story->assets()->whereIn('id',$ids)->whereNull('archived_at')->where('role','!=','extraction_reference')->count()!==count($ids))$service->fail('Choose available reference images from this story.');
+    $outputs[$i]['references']=array_merge([$crop],$ids);$outputs[$i]['prompt']=$data['prompt']??$o['prompt'];
+   }elseif($data['action']==='references'){
     $outputs[$i]=$service->backgroundReferences($story,$batch,$o,$data['reference_mode'],$data['prompt']??$o['prompt']);
    }elseif($data['action']==='align'){
     if($o['type']!=='layer' || $data['bounds']['x']+$data['bounds']['width']>1.00001 || $data['bounds']['y']+$data['bounds']['height']>1.00001)$service->fail('Keep the layer inside the scene.');$outputs[$i]['bounds']=$data['bounds'];
@@ -38,10 +48,15 @@ class SceneExtractionController extends Controller {
     $draft=app(ImageDrafts::class)->save($story,$page,['name'=>$o['name'],'prompt'=>$prompt,'model'=>$data['model'],'references'=>$o['references'],'settings'=>$settings]);
     $request=Request::create('/', 'POST',['name'=>$o['name'],'revision'=>$page->visual_revision,'draft_id'=>$draft->id,'request_key'=>(string)Str::uuid(),'model'=>$data['model'],'references'=>$o['references'],'settings'=>$settings]);$request->setUserResolver(fn()=>$r->user());
     app(SceneController::class)->generate($request,$story,$page,$router);
+    if($o['type']==='container_preview' && $batch->mode==='container'){
+     $plan=\App\Models\ContainerPlan::where('extraction_id',$batch->id)->firstOrFail();$userPrompt=$data['container_user_prompt']??$plan->user_prompt;
+     $plan->update(['prompt'=>$prompt,'user_prompt'=>$userPrompt,'prompt_model'=>$data['container_prompt_model']??$plan->prompt_model]);
+     if(trim($userPrompt??'')!==''){$chatMessages[]=$story->messages()->create(['role'=>'user','content'=>$userPrompt,'revision'=>$story->revision]);$chatMessages[]=$story->messages()->create(['role'=>'assistant','content'=>$prompt,'model'=>$plan->prompt_model,'revision'=>$story->revision]);}
+    }
     $outputs[$i]['reused']=false;$outputs[$i]['versions'][]=$draft->id;$outputs[$i]['prompt']=$prompt;
    }
-   $batch->update(['outputs'=>$outputs]);return response()->json($service->present($batch));
+   $batch->update(['outputs'=>$outputs]);return response()->json($service->present($batch)+['chat_messages'=>$chatMessages]);
   });
  }
- public function activate(Request $r,Story $story,StoryPage $page,SceneExtraction $extraction,SceneExtractionService $service){$this->owner($r,$story,$page,$extraction);$data=$r->validate(['revision'=>'required|integer','inventory_revision'=>'required|integer']);$message=$service->activate($story,$page,$extraction,$data['revision'],$data['inventory_revision']);return response()->json(['message'=>'Accepted extraction activated.','chat_message'=>$message]);}
+ public function activate(Request $r,Story $story,StoryPage $page,SceneExtraction $extraction,SceneExtractionService $service){$this->owner($r,$story,$page,$extraction);$data=$r->validate(['revision'=>'required|integer','inventory_revision'=>'required|integer']);abort_if($extraction->mode==='container',422,'Activate this plan from Containers.');$message=$service->activate($story,$page,$extraction,$data['revision'],$data['inventory_revision']);return response()->json(['message'=>'Accepted extraction activated.','chat_message'=>$message]);}
 }

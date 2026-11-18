@@ -1,18 +1,18 @@
 export function animatedDescription(options={}) {
  return {
-  independentScene:!!options.independentScene, persistent:!!options.persistent,
-  sizeObserver:null,
+  independentScene:!!options.independentScene, persistent:!!options.persistent, autoSpeak:options.autoSpeak!==false, textClicked:false, instantHide:false,
+  sizeObserver:null, hideAfterMs:null,
   init(){this.$nextTick?.(()=>{if(typeof ResizeObserver==='undefined'||!this.$refs?.words)return;this.sizeObserver=new ResizeObserver(()=>{if(this.visible)this.measure();});this.sizeObserver.observe(this.$refs.words);});},
   syncSceneSpace(){if(!this.independentScene)return;const stage=this.$refs?.box?.closest?.('.preview-stage');if(!stage)return;for(const side of ['top','bottom'])stage.style.setProperty('--scene-'+side+'-space',this.visible && this.placement===side?(this.height+12)+'px':'0px');},
   completed:false, identity:null, signature:null, measured:false, words:[], count:0, visible:false, placement:'top', height:0, wordTimer:null, hideTimer:null,
   anchor:null, boundsWidth:0, boundsHeight:0,
   updateBounds(){const stage=this.$refs?.box?.closest?.('.preview-stage');if(stage){this.boundsWidth=stage.clientWidth;this.boundsHeight=stage.clientHeight;}},
-  get boxStyle(){if(!this.anchor || !['area_top','area_bottom'].includes(this.placement))return {height:this.height+'px',visibility:this.measured?'visible':'hidden'};const b=areaDescriptionBounds(this.anchor,this.boundsWidth,this.boundsHeight,this.height,this.placement);return {visibility:this.measured?'visible':'hidden',left:b.left+'px',right:'auto',top:b.top+'px',bottom:'auto',width:b.width+'px',height:b.height+'px',maxHeight:this.boundsHeight+'px'};},
+  get boxStyle(){if(!this.anchor || !['area_top','area_bottom'].includes(this.placement))return {height:this.height+'px',visibility:this.measured && !(this.instantHide && !this.visible)?'visible':'hidden'};const b=areaDescriptionBounds(this.anchor,this.boundsWidth,this.boundsHeight,this.height,this.placement);return {visibility:this.measured && !(this.instantHide && !this.visible)?'visible':'hidden',left:b.left+'px',right:'auto',top:b.top+'px',bottom:'auto',width:b.width+'px',height:b.height+'px',maxHeight:this.boundsHeight+'px'};},
   play(text,position='top',key='',animate=true,area=null) {
    const signature=JSON.stringify([text,position,key,animate,area]);if(signature===this.signature)return;
-   this.signature=signature;this.identity=key;this.completed=false;this.stop();this.placement=['bottom','area_top','area_bottom'].includes(position)?position:'top';this.anchor=area;this.updateBounds();
+   this.signature=signature;this.textClicked=false;this.instantHide=false;this.identity=key;this.completed=false;this.stop();this.placement=['bottom','area_top','area_bottom'].includes(position)?position:'top';this.anchor=area;this.updateBounds();
    this.words=String(text||'').match(/\S+\s*/g)||[];this.count=0;this.height=0;this.measured=false;this.visible=!!this.words.length;
-   this.syncSceneSpace();if(!this.visible)return;globalThis.window?.vsgSceneEditor?.soundPlayer?.speak(text,globalThis.window?.vsgSceneEditor?.audioSounds||[]);
+   this.syncSceneSpace();if(!this.visible)return;if(this.autoSpeak)globalThis.window?.vsgSceneEditor?.soundPlayer?.speak(text,globalThis.window?.vsgSceneEditor?.audioSounds||[]);
    if(!animate){this.reveal();return;}
    if(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches){this.reveal();return;}
    this.step();
@@ -22,7 +22,16 @@ export function animatedDescription(options={}) {
     const box=this.$refs.box,word=content.querySelectorAll?.('span')[this.count-1];
     if(box && word){const bottom=word.offsetTop+word.offsetHeight;if(bottom>box.scrollTop+box.clientHeight-12)box.scrollTop=bottom-box.clientHeight+12;}
     else if(box && this.height<250)box.scrollTop=0;}});},
-  scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.persistent)this.hideTimer=setTimeout(()=>this.dismiss(),5000);},
+  scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.persistent)this.hideTimer=setTimeout(()=>{if(globalThis.window?.vsgSceneEditor?.narrationSpeaking)this.scheduleHide();else this.dismiss();},this.hideAfterMs??5000);},
+  clickFromArea(key){if(this.visible && this.identity===key)this.skipSpeech();},
+  skipSpeech(){
+   if(this.textClicked){this.instantHide=true;this.dismissClickedText();return;}
+   this.textClicked=true;
+   globalThis.window?.vsgSceneEditor?.soundPlayer?.channel('voice',null);
+   this.reveal();globalThis.window?.vsgSceneEditor?.stopNarration?.();
+   clearTimeout(this.hideTimer);this.hideTimer=setTimeout(()=>this.dismissClickedText(),this.hideAfterMs??3000);
+  },
+  dismissClickedText(){this.dismiss();},
   reveal(){clearTimeout(this.wordTimer);this.count=this.words.length;this.measure();this.scheduleHide();},
   dismiss(){const wasVisible=this.visible;this.visible=false;this.stop();this.syncSceneSpace();if(wasVisible)this.$dispatch?.('description-hidden',{key:this.identity});},
   stop(){clearTimeout(this.wordTimer);clearTimeout(this.hideTimer);},
@@ -37,13 +46,13 @@ export function hoverDescription() {
   updateHoverBounds(){const stage=this.$refs?.box?.parentElement;if(stage){this.stageWidth=stage.clientWidth;this.stageHeight=stage.clientHeight;}},
   measure(){animatedDescription().measure.call(this);this.$nextTick?.(()=>this.updateHoverBounds());},
   get hoverBoxStyle(){
-   if(!this.hoveredArea || !['area_top','area_bottom'].includes(this.areaPlacement))return {height:this.height+'px',visibility:this.measured?'visible':'hidden'};
+   if(!this.hoveredArea || !['area_top','area_bottom'].includes(this.areaPlacement))return {height:this.height+'px',visibility:this.measured && !(this.instantHide && !this.visible)?'visible':'hidden'};
    const b=areaDescriptionBounds(this.hoveredArea,this.stageWidth,this.stageHeight,this.height,this.areaPlacement);
-   return {visibility:this.measured?'visible':'hidden',pointerEvents:'none',left:b.left+'px',right:'auto',top:b.top+'px',bottom:'auto',width:b.width+'px',height:b.height+'px',maxHeight:this.stageHeight+'px'};
+   return {visibility:this.measured && !(this.instantHide && !this.visible)?'visible':'hidden',pointerEvents:'auto',left:b.left+'px',right:'auto',top:b.top+'px',bottom:'auto',width:b.width+'px',height:b.height+'px',maxHeight:this.stageHeight+'px'};
   },
   seen:new Set(), suppressedHoverKey:null, hoverKey:null, pendingAction:null, clicked:false,
   hoverArea(area,pageId,sceneId){
-   if(this.clicked)return;
+   if(this.clicked || globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;
    const text=String(area.description||'').trim();
    if(!text){this.leaveArea();return;}
    this.hoveredArea={x:area.x,y:area.y,width:area.width,height:area.height};this.areaPlacement=area.description_position||'top';this.updateHoverBounds();
@@ -59,14 +68,15 @@ export function hoverDescription() {
    clearTimeout(this.hideTimer);
    if(this.clicked){const action=this.pendingAction;this.pendingAction=null;this.clicked=false;this.suppressedHoverKey=this.hoverKey;this.dismiss();action?.();}
   },
-  leaveArea(){this.suppressedHoverKey=null;if(!this.clicked){this.hoverKey=null;this.dismiss();}},
+  dismissClickedText(){this.suppressedHoverKey=this.hoverKey;this.dismiss();},
+  leaveArea(){if(globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;this.suppressedHoverKey=null;if(!this.clicked){this.hoverKey=null;this.dismiss();}},
   clickArea(area,action){
-   if(this.clicked)return;
+   if(this.clicked || globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;
    if(!this.visible){action();return;}
    this.clicked=true;this.pendingAction=area.action==='examine'?null:action;
    if(this.count>=this.words.length)this.scheduleHide();
   },
-  outsideClick(event){if(event.target.closest('.preview-hotspot') || event.target.closest('.hover-description') || !this.visible)return;this.clicked=true;this.pendingAction=null;if(this.count>=this.words.length)this.scheduleHide();},
+  outsideClick(event){if(globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;if(event.target.closest('.preview-hotspot') || event.target.closest('.hover-description') || !this.visible)return;this.clicked=true;this.pendingAction=null;if(this.count>=this.words.length)this.scheduleHide();},
   resetHover(){this.pendingAction=null;this.clicked=false;this.hoverKey=null;this.suppressedHoverKey=null;this.seen.clear();this.signature=null;this.dismiss();},
  };
 }
