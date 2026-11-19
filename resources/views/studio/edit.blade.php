@@ -15,9 +15,16 @@
 @foreach(['title'=>'Title','genre'=>'Genre','language'=>'Language'] as $field=>$label)<label class="field">{{ $label }}<input name="{{ $field }}" required value="{{ $story->$field }}"></label>@endforeach
 @foreach(['premise'=>'Premise','style'=>'Visual direction','bible'=>'Complete story bible'] as $field=>$label)<label class="field">{{ $label }}<textarea name="{{ $field }}" rows="{{ $field==='bible'?12:3 }}">{{ $story->$field }}</textarea></label>@endforeach
 </div><div x-show="bibleTab==='gameplay'" class="space-y-5">
-<label class="field">Unavailable action message<textarea name="unavailable_text" rows="2" maxlength="3000">{{ $story->unavailable_text ?? 'You cannot do that yet.' }}</textarea></label>
-<label class="field">Unavailable message timeout (ms)<input type="number" name="unavailable_timeout_ms" min="0" max="60000" step="1" required value="{{ $story->unavailable_timeout_ms ?? 1000 }}"></label>
-<p class="text-xs">Shown near the player's click when action conditions are not met. Individual areas can override this message.</p>
+<div class="gameplay-message-row flex items-end gap-3">
+<label class="field min-w-0 flex-1">Unavailable action message<input type="text" data-speech-input name="unavailable_text" maxlength="3000" value="{{ $story->unavailable_text ?? 'You cannot do that yet.' }}"></label>
+<label class="field w-36 shrink-0">Timeout (ms)<input type="number" name="unavailable_timeout_ms" min="0" max="60000" step="1" required value="{{ $story->unavailable_timeout_ms ?? 1000 }}"></label>
+</div>
+@foreach(\App\Services\GameplayMessages::forStory($story) as $key=>$message)
+<div class="gameplay-message-row flex items-end gap-3">
+<label class="field min-w-0 flex-1">{{ $message['label'] }}<input type="text" data-speech-input name="gameplay_messages[{{ $key }}][text]" maxlength="3000" value="{{ $message['text'] }}"></label>
+<label class="field w-36 shrink-0">Timeout (ms)<input type="number" name="gameplay_messages[{{ $key }}][timeout_ms]" min="0" max="60000" step="1" required value="{{ $message['timeout_ms'] }}"></label>
+</div>
+@endforeach
 <section class="space-y-3 rounded-xl border border-stone-200 p-4 dark:border-stone-700"><h3 class="font-serif text-lg">Mouse cursor tooltips</h3><p class="text-xs">Default tooltip for each cursor during play. Leave blank for no tooltip. Blocked actions never show a tooltip. Automatic cursors use the tooltip of the cursor they display.</p><div class="grid grid-cols-1 gap-3 md:grid-cols-2">
 @foreach(['pointer'=>'Pointing hand','grab'=>'Grab hand','help'=>'Help / examine','alias'=>'Use item / shortcut','crosshair'=>'Crosshair','zoom-in'=>'Magnifying glass','not-allowed'=>'Not allowed','default'=>'Arrow'] as $cursor=>$label)
 <label class="field min-w-0">{{ $label }}<input name="cursor_tooltips[{{ $cursor }}]" value="{{ $story->cursor_tooltips[$cursor] ?? '' }}" maxlength="200" placeholder="No tooltip" style="cursor: {{ $cursor }}"></label>

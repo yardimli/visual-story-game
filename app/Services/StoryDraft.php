@@ -9,7 +9,7 @@ class StoryDraft {
             $locked = Story::whereKey($story->id)->lockForUpdate()->firstOrFail();
             if ($locked->revision !== $revision) throw ValidationException::withMessages(['revision'=>'This story changed in another tab. Reload before saving.']);
             $locked->revisions()->create(['revision'=>$locked->revision,'reason'=>$reason,'snapshot'=>[
-                'story'=>$locked->only(['title','premise','genre','language','style','bible','llm_model','image_model','inventory_document','game_flags','unavailable_text','unavailable_timeout_ms','cursor_tooltips']),
+                'story'=>$locked->only(['title','premise','genre','language','style','bible','llm_model','image_model','inventory_document','game_flags','gameplay_messages','unavailable_text','unavailable_timeout_ms','cursor_tooltips']),
                 'pages'=>$locked->pages()->get()->map->only(['id','position','title','narrative','interaction_plan','narrative_delta','interaction_plan_delta'])->all(),
             ]]);
             $callback($locked);

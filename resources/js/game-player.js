@@ -10,7 +10,7 @@ export function gamePlayer(game){
    this.previewPages=game.pages;this.editorPageId=game.start.pageId;
    this.document={visuals:game.pages.find(p=>p.id===this.editorPageId)?.visuals||[]};
    this.inventoryItems=game.inventory;this.assets=game.assets;this.flagDefinitions=game.flags;
-   this.cursorTooltips=game.cursorTooltips;this.unavailableText=game.unavailableText;this.unavailableTimeout=game.unavailableTimeout;
+   this.gameplayMessages=game.messages||{};this.cursorTooltips=game.cursorTooltips;this.unavailableText=game.unavailableText;this.unavailableTimeout=game.unavailableTimeout;
    this.audioSettings=game.audioSettings;this.audioSounds=game.sounds;this.soundPlayer=new GameAudio();this.upgradePageLinks();
    window.vsgPlayer=this;
   },

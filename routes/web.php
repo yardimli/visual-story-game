@@ -34,6 +34,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/stories/{story}/pages/{page}/containers',[\App\Http\Controllers\ContainerController::class,'index'])->name('containers.index');
     Route::post('/stories/{story}/pages/{page}/containers',[\App\Http\Controllers\ContainerController::class,'store']);
     Route::delete('/stories/{story}/pages/{page}/containers',[\App\Http\Controllers\ContainerController::class,'destroy'])->name('containers.delete');
+    Route::patch('/stories/{story}/pages/{page}/containers/{plan}',[\App\Http\Controllers\ContainerController::class,'rename'])->name('containers.rename');
+    Route::patch('/stories/{story}/pages/{page}/extractions/{extraction}',[\App\Http\Controllers\SceneExtractionController::class,'rename'])->name('extractions.rename');
     Route::post('/stories/{story}/pages/{page}/containers/{plan}/prepare',[\App\Http\Controllers\ContainerController::class,'prepare'])->name('containers.prepare');
     Route::post('/stories/{story}/pages/{page}/containers/{plan}/activate',[\App\Http\Controllers\ContainerController::class,'activate'])->name('containers.activate');
     Route::get('/stories/{story}/audio',[\App\Http\Controllers\AudioController::class,'index'])->name('audio.index');

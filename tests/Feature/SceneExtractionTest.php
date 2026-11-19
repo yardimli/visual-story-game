@@ -189,4 +189,10 @@ class SceneExtractionTest extends TestCase {
   $this->actingAs(User::factory()->create())->deleteJson($url)->assertNotFound();$this->assertDatabaseHas('scene_extractions',['id'=>$b['id']]);
   $this->actingAs($u)->deleteJson($url)->assertOk();$this->assertDatabaseMissing('scene_extractions',['id'=>$b['id']]);$this->assertSame($count,Asset::count());$this->assertSame($doc,$p->fresh()->visual_document);
  }
+ public function test_plan_name_can_be_updated_without_changing_outputs():void {
+  [$u,$s,$p,$data]=$this->fixture();$plan=app(\App\Services\SceneExtractionService::class)->prepare($s,$p,$data);$outputs=$plan->outputs;
+  $this->patchJson(route('extractions.rename',[$s,$p,$plan]),['name'=>'Hall collectibles'])->assertOk();$this->assertSame('Hall collectibles',$plan->fresh()->name);$this->assertSame($outputs,$plan->fresh()->outputs);
+  $this->patchJson(route('extractions.rename',[$s,$p,$plan]),['name'=>''])->assertUnprocessable();
+  $this->actingAs(User::factory()->create())->patchJson(route('extractions.rename',[$s,$p,$plan]),['name'=>'Wrong owner'])->assertNotFound();
+ }
 }

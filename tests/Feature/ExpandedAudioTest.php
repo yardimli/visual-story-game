@@ -38,10 +38,10 @@ class ExpandedAudioTest extends TestCase {
   $s=$this->story();Queue::fake();$s->update(['audio_settings'=>['voices'=>['scene'=>['model'=>'heygen/heygen-voice-1-turbo','voice'=>'nadine','language'=>'en']]]]);
   $s->pages()->create(['position'=>1,'title'=>'Hall','narrative'=>'Quiet hall.','visual_document'=>['visuals'=>[['name'=>'Room','kind'=>'scene','description'=>'Quiet hall.','hotspots'=>[['label'=>'Door','description'=>'Locked.']]]]]]);
   StorySound::create(['story_id'=>$s->id,'name'=>'Door','source_text'=>'Locked.','provider'=>'openrouter','path'=>'x','mime'=>'audio/wav']);
-  $s->refresh();$proposal=['changes'=>[['scope'=>'missing_audio']]];$proposal['_review']=app(\App\Services\CompanionChanges::class)->prepare($s,$proposal);$this->assertCount(1,$proposal['_review']['items']);
+  $s->refresh();$proposal=['changes'=>[['scope'=>'missing_audio']]];$proposal['_review']=app(\App\Services\CompanionChanges::class)->prepare($s,$proposal);$this->assertCount(13,$proposal['_review']['items']);
   $m=$s->messages()->create(['role'=>'assistant','content'=>'Drafts','revision'=>$s->revision,'proposal'=>$proposal]);app(\App\Services\CompanionChanges::class)->apply($s,$m,[0]);
   $job=AudioGeneration::firstOrFail();$this->assertSame('draft',$job->status);$this->assertSame('nadine',$job->settings['voice']);$this->assertDatabaseCount('llm_requests',0);Queue::assertNothingPushed();
-  $this->assertCount(0,app(\App\Services\AudioDrafts::class)->missing($s->fresh()));
+  $this->assertCount(12,app(\App\Services\AudioDrafts::class)->missing($s->fresh()));
   config(['story.openrouter_key'=>'test']);$this->catalog();$this->postJson(route('audio.index',$s).'/jobs/'.$job->id.'/start')->assertAccepted();$this->assertSame('queued',$job->fresh()->status);Queue::assertPushed(GenerateStorySpeech::class,1);
  }
  public function test_editing_queued_audio_releases_credit_and_invalidates_old_worker():void {

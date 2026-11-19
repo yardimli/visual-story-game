@@ -36,7 +36,7 @@ test('legacy navigation and inspection load as examine options without changing 
 
 test('description and action use independent cursors and sounds; blocked actions stay silent',()=>{
  const [e,h]=setup('state_v2');Object.assign(h,{cursor:'help',action_cursor:'crosshair',state_description:'Open.',state_flag:'on',state_asset_id:2});const sounds=[];e.soundPlayer={click:()=>sounds.push('description'),action:()=>sounds.push('action')};
- assert.equal(e.areaCursor(h),'help');e.activate(h);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.deepEqual(sounds,['description']);e.flags.read=true;e.activate(h);assert.deepEqual(sounds,['description','action']);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.equal(e.flags.on,false);assert.equal(e.narration,null);assert.deepEqual(sounds,['description','action']);
+ assert.equal(e.areaCursor(h),'help');e.activate(h);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.deepEqual(sounds,['description']);e.flags.read=true;e.activate(h);assert.deepEqual(sounds,['description','action']);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.equal(e.flags.on,false);assert.equal(e.narration,null);assert.deepEqual(sounds,['description','action','action']);
 });
 
 test('cursor tooltips follow the current stage and never advertise blocked actions',()=>{

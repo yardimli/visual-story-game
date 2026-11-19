@@ -679,7 +679,7 @@ test('switch changed description appears on activation and closing is immediate 
 
 test('empty collectible slots accept returns, reject wrong items and remain available after pickup',()=>{
  const e=sceneEditor({});e.preview=true;e.previewId='box';e.previewPageId=1;e.editorPageId=1;e.flags={empty:true,enabled:false};e.flagDefinitions=[{key:'empty'},{key:'enabled'}];e.animatePickup=()=>{};
- const area={id:'groove',action:'pickup_v2',object_id:'medallion',initial_empty:true,collectible_flag:'empty',overlay:true,overlay_asset_id:10,overlay_bounds:{x:0,y:0,width:.2,height:.2},inventory_rules:[{object_id:'crystal',allowed:false,response:'It slides off.'}]};
+ const area={id:'groove',action:'pickup_v2',object_id:'medallion',initial_empty:true,collectible_flag:'empty',overlay:true,overlay_asset_id:10,overlay_bounds:{x:0,y:0,width:.2,height:.2},inventory_rules:[{object_id:'medallion',allowed:true,response:''},{object_id:'crystal',allowed:false,response:'It slides off.'}]};
  e.document={visuals:[{id:'box',kind:'scene',hotspots:[area]}]};e.inventoryItems=[{id:'medallion',kind:'object',asset_id:11},{id:'crystal',kind:'object',asset_id:12}];e.assets=[{id:10},{id:11},{id:12}];e.inventory=e.inventoryItems.map(i=>({...i}));
  assert.equal(e.areaImage(area),null);e.useInventoryOnArea('crystal',area);assert.equal(e.narration.text,'It slides off.');e.completeInventoryUse();assert.equal(e.inventory.length,2);assert.equal(e.flags.empty,true);
  e.useInventoryOnArea('medallion',area);e.completeInventoryUse();assert.equal(e.inventory.length,1);assert.equal(e.flags.empty,false);assert.equal(e.areaImage(area).id,10);

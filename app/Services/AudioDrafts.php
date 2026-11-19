@@ -11,7 +11,10 @@ class AudioDrafts {
   $add=function($name,$text,$category)use(&$known,&$items){$text=self::text($text);if(!$text||isset($known[$text]))return;$known[$text]=true;$items[]=['name'=>mb_substr($name,0,160),'prompt'=>$text,'source_text'=>$text,'category'=>$category];};
   $walk=function($node,$name,$category)use(&$walk,$add){if(!is_array($node))return;foreach($node as $k=>$v){if(is_array($v))$walk($v,$name,$category);elseif(in_array($k,['description','state_description','interaction_text','fallback_text','unavailable_text','response'])&&is_string($v))$add($name.' / '.str_replace('_',' ',$k),$v,$category);}};
   foreach($story->pages as $page){$add($page->title.' / Narrative',$page->narrative,'scenes');foreach($page->visual_document['visuals']??[] as $visual){$add($page->title.' / '.$visual['name'],$visual['description']??'','scenes');foreach($visual['hotspots']??[] as $area)$walk($area,$page->title.' / '.$visual['name'].' / '.($area['label']??'Area'),'click_areas');}}
-  foreach($story->inventory_document['visuals']??[] as $item)$walk($item,'Inventory / '.$item['name'],'inventory');return $items;
+  foreach($story->inventory_document['visuals']??[] as $item)$walk($item,'Inventory / '.$item['name'],'inventory');
+  $add('Unavailable action message',$story->unavailable_text??'You cannot do that yet.','click_areas');
+  foreach(GameplayMessages::forStory($story) as $message)$add($message['label'],$message['text'],'click_areas');
+  return $items;
  }
  public function save(Story $story,array $fields):AudioGeneration {
   $fields=$this->validate($fields);$fields['source_text']=self::text($fields['source_text']??$fields['prompt']);

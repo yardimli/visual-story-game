@@ -25,7 +25,7 @@
 <button type="button" x-show="job.status==='failed' && job.retry_url" class="btn-secondary" @click="retryImage(job)" :disabled="generating" x-text="retryingJob===job.id?'Retrying…':'Try again'"></button>
 <p class="break-words text-xs text-stone-500" x-text="job.model"></p><p x-show="job.error" class="break-words text-xs text-red-600 dark:text-red-400" x-text="job.error"></p>
 <div x-show="['submitting','queued','running'].includes(job.status)" class="relative grid aspect-[4/3] w-full place-items-center rounded-lg bg-stone-100 dark:bg-stone-800" role="status" :aria-label="job.status==='submitting'?'Submitting image request':'Image generation in progress'">
-<span class="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-amber-600 motion-reduce:animate-none dark:border-stone-600 dark:border-t-amber-300" aria-hidden="true"></span>
+<span class="image-render-spinner" aria-hidden="true"></span>
 <span class="absolute inset-x-0 bottom-3 text-center text-xs text-stone-500" x-text="job.status==='running'?'Rendering…':job.status==='queued'?'Queued…':'Submitting…'"></span>
 </div>
 <template x-for="id in jobAssets(job)" :key="id"><div class="space-y-2">

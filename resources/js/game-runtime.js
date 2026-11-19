@@ -16,6 +16,10 @@ export function gameRuntime(){return {
   assets:[],
   placedObjects:{},
   armedPickup:null,
+  seenSceneIntros:{},sceneIntroText:'',
+  prepareSceneIntro(){const key=this.previewPageId+':'+this.previewId;this.sceneIntroText=this.seenSceneIntros[key]?'':this.displayed?.description||'';this.seenSceneIntros[key]=true;},
+  gameplayMessages:{},
+  gameplayMessage(key){const defaults={scene_load_error:['Could not load the next scene image. Please try again.',4000],no_scenes:['Add a scene before testing scenes.',4000],missing_pages:['Reload the editor to load storyboard pages.',4000],next_scene_missing:['Add a scene to the next page before testing this transition.',4000],destination_page_missing:['Choose an available destination page before testing this interaction.',4000],destination_scene_missing:['Choose an available scene on the destination page before testing this transition.',4000],placed:['You place the item back.',3000],occupied:['This location is already occupied.',3000],placement_denied:['You cannot place an item here.',3000],nothing:['Nothing happens.',3000],complete:['You have reached the end of the story.',5000]};const value=this.gameplayMessages[key];return {text:value?value.text||'':defaults[key][0],hideAfterMs:value?.timeout_ms??defaults[key][1]};},
   readyPickups:{},readDescriptions:{},examineMode:false,
   unavailableTimeout:1000,
   unavailableText:"You cannot do that yet.",
@@ -65,12 +69,12 @@ export function gameRuntime(){return {
   inactiveCollectible(h){return h.action==='pickup_v2'&&h.placement_enabled===false&&this.collectibleEmpty(h);},
   collectibleEmpty(h){if(h.action!=='pickup_v2')return false;const key=this.collectibleFlag(h);if(key)return !!this.flags[key];return this.placedObjects[h.id]?false:(this.collected.includes(h.id)||!!h.initial_empty);},
   collectibleObject(h){return this.gameObjects.find(v=>v.id===(this.placedObjects[h.id]||h.object_id));},
-  placementRules(h){const rules=h.inventory_rules||[];return h.object_id && !rules.some(r=>r.object_id===h.object_id)?[{object_id:h.object_id,allowed:true,response:'You place the item back.'},...rules]:rules;},
+  placementRules(h){const rules=h.inventory_rules||[];return h.object_id && !rules.some(r=>r.object_id===h.object_id)?[{object_id:h.object_id,allowed:true,response:''},...rules]:rules;},
   pickupKey(h){return this.previewPageId+':'+this.previewId+':'+h.id+(h.action==='state_v2'?':'+!!this.flags[h.state_flag]:'');},
   pickupReady(h){if(['pickup','pickup_v2'].includes(h.action)&&this.readyPickups[this.pickupKey(h)])return true;return ['examine','inventory','pickup','pickup_v2','state_v2'].includes(h.action) && this.armedPickup===this.pickupKey(h);},
   areaDescription(h){if(this.preview&&this.collectibleEmpty(h))return '';return h.action==='state_v2' && this.preview && this.flags[h.state_flag]?h.state_description||'':h.description||'';},
   descriptionRead(h){return !!this.readDescriptions[this.pickupKey(h)];},
-  showAreaDescription(h){const text=this.areaDescription(h);if(!text.trim())return;this.showObjectModal({...this.areaTextOptions(h),label:h.label,text,url:null,descriptionKey:this.pickupKey(h),pickupKey:this.pickupKey(h)});},
+  showAreaDescription(h){const text=this.areaDescription(h);if(!text.trim())return;this.showObjectModal({...this.areaTextOptions(h),label:h.label,text,url:null,persistent:h.action==='examine'&&!h.move_after_examine,descriptionKey:this.pickupKey(h),pickupKey:this.pickupKey(h)});},
   examineArea(h){if(!this.examineMode)return false;this.examineMode=false;this.soundPlayer?.click(h,this.audioSounds);this.showAreaDescription(h);return true;},
   hoverDetails(h){return {...h,description:this.examineMode||h.show_hover_text===false||(h.action!=='examine'&&this.descriptionRead(h))?'':this.areaDescription(h)};},
   hasAreaAction(h){return h.action!=='examine'||!!h.move_after_examine;},
@@ -119,21 +123,25 @@ export function gameRuntime(){return {
   finishInventoryText(key){
    const pending=this.pendingInventoryUse;if(!pending || pending.key!==key || this.inventoryUseTimer)return;
    const words=(this.narration?.text||'').split(/\s+/).length;
-   this.inventoryUseTimer=setTimeout(()=>this.waitForInventoryVoice(),this.narration?.animate?1000:Math.min(4000,Math.max(1200,words*70)));
+   this.inventoryUseTimer=setTimeout(()=>this.waitForInventoryVoice(),this.narration?.hideAfterMs??(this.narration?.animate?1000:Math.min(4000,Math.max(1200,words*70))));
   },
   waitForInventoryVoice(){const voice=this.soundPlayer?.channels?.voice;if(voice && !voice.ended && !voice.paused){this.inventoryUseTimer=setTimeout(()=>this.waitForInventoryVoice(),150);return;}this.completeInventoryUse();},
   completeInventoryUse(){
    const pending=this.pendingInventoryUse;clearTimeout(this.inventoryUseTimer);this.inventoryUseTimer=null;this.pendingInventoryUse=null;
    if(!pending || !this.preview || pending.sceneId!==this.previewId || pending.pageId!==this.previewPageId)return;
    const index=this.inventory.findIndex(i=>(i.inventoryId||i.id)===pending.inventoryId);if(index<0)return;
-   const item=this.inventory[index];this.soundPlayer?.action(pending.area,item,this.audioSounds);
+   const item=this.inventory[index];
    if(pending.placement){
-    if(pending.allowed && this.collectibleEmpty(pending.area) && this.conditionsMet(pending.rule)){
+    const currentArea=this.displayed?.hotspots?.find(h=>h.id===pending.area.id);
+    const currentRule=currentArea?.inventory_rules?.find(r=>r.object_id===item.id);
+    if(pending.allowed===true && currentArea?.placement_enabled!==false && currentRule && currentRule.allowed!==false && this.collectibleEmpty(currentArea) && this.conditionsMet(currentRule)){
+     this.soundPlayer?.action(currentArea,item,this.audioSounds);
      this.inventory.splice(index,1);this.placedObjects[pending.area.id]=item.id;this.collected=this.collected.filter(id=>id!==pending.area.id);this.armedPickup=null;
      this.applyFlagEffects(pending.rule);const key=this.collectibleFlag(pending.area);if(key)this.flags[key]=false;
     }else this.animatePickup(item,pending.point);
     return;
    }
+   this.soundPlayer?.action(pending.area,item,this.audioSounds);
    if(pending.rule?.consume)this.inventory.splice(index,1);
    this.applyFlagEffects(pending.area);this.applyFlagEffects(pending.rule);
    if(pending.rule?.target_id){const destination=this.pageSceneDestinations.find(d=>d.sceneId===pending.rule.target_id);this.transitionScene(pending.rule.target_id,destination?.pageId??this.previewPageId);}
@@ -149,17 +157,20 @@ export function gameRuntime(){return {
    const item=this.inventory.find(i=>(i.inventoryId||i.id)===inventoryId);if(!item)return;
    if(!this.actionAllowed(area)){this.denyAreaAction(area,point);if(point)this.animatePickup(item,point);return;}
    if(area.action==='pickup_v2'){
-    const empty=this.collectibleEmpty(area),rule=this.placementRules(area).find(r=>r.object_id===item.id);
+    const empty=this.collectibleEmpty(area),rule=(area.inventory_rules||[]).find(r=>r.object_id===item.id);
     const allowed=empty && area.placement_enabled!==false && !!rule && rule.allowed!==false && this.conditionsMet(rule);
     this.inventoryOpen=true;this.modal=null;
-    const text=!empty?'This location is already occupied.':area.placement_enabled===false?'You cannot place an item here.':rule?.response?.trim()||area.fallback_text?.trim()||(allowed?'You place the item back.':'Nothing happens.');
-    this.narration={...this.areaTextOptions(area),text,inventoryAreaId:area.id};this.narrationVersion++;
-    this.pendingInventoryUse={placement:true,allowed,inventoryId,rule:rule?JSON.parse(JSON.stringify(rule)):null,area:JSON.parse(JSON.stringify(area)),point:point||{x:area.x+area.width/2,y:area.y+area.height/2},sceneId:this.previewId,pageId:this.previewPageId,key:this.previewId+':'+this.narrationVersion};return;
+    const custom=rule?.response?.trim()==='You place the item back.'?'':rule?.response?.trim();
+    const fallback=this.gameplayMessage(!empty?'occupied':area.placement_enabled===false?'placement_denied':allowed?'placed':'nothing');
+    const override=empty&&area.placement_enabled!==false&&rule?(custom||area.fallback_text?.trim()):'';
+    this.narration={...this.areaTextOptions(area),...(override?{text:override}:fallback),inventoryAreaId:area.id};this.narrationVersion++;
+    if(!allowed){this.animatePickup(item,point||area);return;}
+    this.pendingInventoryUse={placement:true,allowed,inventoryId,rule:rule?JSON.parse(JSON.stringify(rule)):null,area:JSON.parse(JSON.stringify(area)),point:point||{x:area.x+area.width/2,y:area.y+area.height/2},sceneId:this.previewId,pageId:this.previewPageId,key:this.previewId+':'+this.narrationVersion};this.completeInventoryUse();return;
    }
    const rule=(area.inventory_rules||[]).find(r=>r.object_id===item.id);
    this.inventoryOpen=true;this.modal=null;
-   this.narration={...this.areaTextOptions(area),text:rule?.response?.trim()||area.fallback_text?.trim()||'Nothing happens.',inventoryAreaId:area.id};this.narrationVersion++;
-   this.pendingInventoryUse={inventoryId,rule:rule?JSON.parse(JSON.stringify(rule)):null,area:JSON.parse(JSON.stringify(area)),point:point||{x:area.x+area.width/2,y:area.y+area.height/2,width:0,height:0},sceneId:this.previewId,pageId:this.previewPageId,key:this.previewId+':'+this.narrationVersion};
+   const response=rule?.response?.trim()||area.fallback_text?.trim();this.narration={...this.areaTextOptions(area),...(response?{text:response}:this.gameplayMessage('nothing')),inventoryAreaId:area.id};this.narrationVersion++;
+   this.pendingInventoryUse={inventoryId,rule:rule?JSON.parse(JSON.stringify(rule)):null,area:JSON.parse(JSON.stringify(area)),point:point||{x:area.x+area.width/2,y:area.y+area.height/2,width:0,height:0},sceneId:this.previewId,pageId:this.previewPageId,key:this.previewId+':'+this.narrationVersion};if(!this.narration.text)this.completeInventoryUse();
   },
   chooseAreaAction(index){const area=this.modalArea;if(!this.preview||area?.action!=='choices'||this.modal.sceneId!==this.previewId)return;const choice=area.choices?.[index];if(choice){this.soundPlayer?.action(area,null,this.audioSounds);this.applyFlagEffects(choice);this.areaOutcome(area,choice.response||'',choice.target_id,choice.description_position);}},
   areaOutcome(area,text,targetId,position=area.description_position||'top'){
@@ -194,12 +205,12 @@ export function gameRuntime(){return {
    this.armedPickup=null;this.clearSceneTransition();const request=this.transitionRequest;this.sceneTransition=true;
    const commit=()=>{
     if(request!==this.transitionRequest || !this.preview)return;
-   this.outgoingScene={...this.displayed,layers:this.currentHotspots.flatMap(h=>{const image=this.areaImage(h);if(!image || (h.action!=='state_v2' && h.overlay_always===false))return [];return [{id:h.id,url:image.url,style:this.style(this.renderedAreaImageBounds(h))+';z-index:'+this.areaLayer(h)+';object-fit:'+(h.overlay_bounds?'fill':'contain')+';object-position:'+this.areaImagePosition(h)}];})};this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;this.soundPlayer?.enter(this.displayed,this.audioSounds);
+   this.outgoingScene={...this.displayed,layers:this.currentHotspots.flatMap(h=>{const image=this.areaImage(h);if(!image || (h.action!=='state_v2' && h.overlay_always===false))return [];return [{id:h.id,url:image.url,style:this.style(this.renderedAreaImageBounds(h))+';z-index:'+this.areaLayer(h)+';object-fit:'+(h.overlay_bounds?'fill':'contain')+';object-position:'+this.areaImagePosition(h)}];})};this.modal=null;this.narration=null;this.narrationVersion++;this.sceneTransition=true;this.previewPageId=nextPageId;this.previewId=id;this.prepareSceneIntro();this.soundPlayer?.enter(this.displayed,this.audioSounds);
    this.transitionTimer=setTimeout(()=>{this.sceneTransition=false;this.outgoingScene=null;this.transitionTimer=null;this.modalTimer=setTimeout(()=>{this.modalTimer=null;if(this.preview && this.pendingModal)this.deliverPreviewMessage(this.pendingModal);this.pendingModal=null;},250);},200);
    };
    const loading=this.preloadScene(target);
    if(!loading){commit();return;}
-   return loading.then(commit).catch(()=>{if(request!==this.transitionRequest)return;this.clearSceneTransition();notify('Could not load the next scene image. Please try again.','error');});
+   return loading.then(commit).catch(()=>{if(request!==this.transitionRequest)return;this.clearSceneTransition();notify(this.gameplayMessage('scene_load_error').text,'error',this.gameplayMessage('scene_load_error').hideAfterMs);});
   },
   selectInventoryItemForPlay(item){if(!this.narrationSpeaking && !this.suppressInventoryClick && !this.inventoryDrag?.active && !this.pendingInventoryUse)this.openInventory(item);},
   openInventory(item,click=true){if(click)this.soundPlayer?.click({...item,action:'inspect'},this.audioSounds);this.inventoryOpen=false;this.showObjectModal({label:item.name,text:item.description||'',position:item.description_position||'top',url:this.asset(item.asset_id)?.url,inventoryId:item.inventoryId||item.id});},
@@ -216,15 +227,15 @@ export function gameRuntime(){return {
    const pages=this.previewPages.length?this.previewPages:[{id:this.editorPageId,position:1,title:'',visuals:[]}];
    return [...this.inventoryItems.map(v=>({...v,sourcePage:'Shared inventory'})),...pages.flatMap(page=>(page.id===this.editorPageId?this.document.visuals:page.visuals).filter(v=>v.kind==='object').map(v=>({...v,sourcePage:this.pageImageLabel(page)})))].filter((v,index,all)=>all.findIndex(i=>i.id===v.id)===index);
   },
-  startPreview(initialItems=[],startKey=null,initialFlags=null){this.readyPickups={};this.readDescriptions={};this.examineMode=false;this.cancelInventoryUse();this.placedObjects={};this.flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,initialFlags===null?!!f.initial:initialFlags.includes(f.key)]));if(initialFlags===null){for(const scene of [...this.document.visuals,...this.previewPages.flatMap(p=>p.visuals||[])])for(const h of scene.hotspots||[])if(h.collectible_flag && h.initial_empty!==undefined)this.flags[h.collectible_flag]=!!h.initial_empty;}this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify('Add a scene before testing scenes.','error');return;}const start=this.pageSceneDestinations.find(d=>d.key===startKey);this.previewPageId=start?.pageId??this.editorPageId;this.previewId=start?.sceneId??this.document.visuals.find(v=>v.kind==='scene')?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));const entry=this.resolveSceneEntry(this.previewPageId,this.previewId);this.previewPageId=entry.pageId;this.previewId=entry.sceneId;this.soundPlayer?.start(this.audioSettings,this.audioSounds);this.soundPlayer?.enter(this.displayed,this.audioSounds);this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw?.();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
-  closePreview(){this.readyPickups={};this.readDescriptions={};this.examineMode=false;this.soundPlayer?.stop();this.cancelInventoryUse();this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];this.flags={};this.placedObjects={};this.editorHoverAreaId=null;},
+  startPreview(initialItems=[],startKey=null,initialFlags=null){this.seenSceneIntros={};this.sceneIntroText='';this.readyPickups={};this.readDescriptions={};this.examineMode=false;this.cancelInventoryUse();this.placedObjects={};this.flags=Object.fromEntries(this.flagDefinitions.map(f=>[f.key,initialFlags===null?!!f.initial:initialFlags.includes(f.key)]));if(initialFlags===null){for(const scene of [...this.document.visuals,...this.previewPages.flatMap(p=>p.visuals||[])])for(const h of scene.hotspots||[])if(h.collectible_flag && h.initial_empty!==undefined)this.flags[h.collectible_flag]=!!h.initial_empty;}this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.narrationVersion++;this.clearSceneTransition();this.previewPageId=this.editorPageId;if(!this.scenes.length){notify(this.gameplayMessage('no_scenes').text,'error',this.gameplayMessage('no_scenes').hideAfterMs);return;}const start=this.pageSceneDestinations.find(d=>d.key===startKey);this.previewPageId=start?.pageId??this.editorPageId;this.previewId=start?.sceneId??this.document.visuals.find(v=>v.kind==='scene')?.id;this.preview=!!this.previewId;this.inventory=this.previewInventoryItems.filter(item=>initialItems.includes(item.id)).map(item=>({...JSON.parse(JSON.stringify(item)),inventoryId:'test:'+item.id}));const entry=this.resolveSceneEntry(this.previewPageId,this.previewId);this.previewPageId=entry.pageId;this.previewId=entry.sceneId;this.soundPlayer?.start(this.audioSettings,this.audioSounds);this.prepareSceneIntro();this.soundPlayer?.enter(this.displayed,this.audioSounds);this.inventoryOpen=false;this.collected=[];this.modal=null;this.cancelDraw?.();if(this.preview && !this.$refs?.previewDialog?.open)this.$refs?.previewDialog?.showModal();},
+  closePreview(){this.seenSceneIntros={};this.sceneIntroText='';this.readyPickups={};this.readDescriptions={};this.examineMode=false;this.soundPlayer?.stop();this.cancelInventoryUse();this.armedPickup=null;clearTimeout(this.pickupTimer);this.pickupFlight=null;this.inventoryPulse=false;this.narration=null;this.clearSceneTransition();this.inventoryOpen=false;this.preview=false;this.modal=null;this.inventory=[];this.collected=[];this.flags={};this.placedObjects={};this.editorHoverAreaId=null;},
   nextPreviewPage(){
    if(this.sceneTransition)return;
    const index=this.previewPages.findIndex(p=>p.id===this.previewPageId),next=this.previewPages[index+1];
-   if(index<0){this.showObjectModal({label:'Next page',text:'Reload the editor to load storyboard pages.',url:null});return;}
-   if(!next){this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
+   if(index<0){this.showObjectModal({label:'Next page',...this.gameplayMessage('missing_pages'),url:null});return;}
+   if(!next){this.showObjectModal({label:'Story complete',...this.gameplayMessage('complete'),url:null});return;}
    const scene=next.visuals.find(v=>v.kind==='scene');
-   if(!scene){this.showObjectModal({label:next.title||'Next page',text:'Add a scene to the next page before testing this transition.',url:null});return;}
+   if(!scene){this.showObjectModal({label:next.title||'Next page',...this.gameplayMessage('next_scene_missing'),url:null});return;}
    this.inventoryOpen=false;this.transitionScene(scene.id,next.id);
   },
   get pageSceneDestinations(){
@@ -233,10 +244,10 @@ export function gameRuntime(){return {
   movePreviewPage(id,sceneId=null){
    if(this.sceneTransition)return;
    const page=this.previewPages.find(p=>Number(p.id)===Number(id));
-   if(!page){this.showObjectModal({label:'Move to page',text:'Choose an available destination page before testing this interaction.',url:null});return;}
+   if(!page){this.showObjectModal({label:'Move to page',...this.gameplayMessage('destination_page_missing'),url:null});return;}
    const visuals=page.id===this.editorPageId?this.document.visuals:page.visuals;
    const scene=visuals.find(v=>v.kind==='scene' && (!sceneId || v.id===sceneId));
-   if(!scene){this.showObjectModal({label:page.title,text:'Choose an available scene on the destination page before testing this transition.',url:null});return;}
+   if(!scene){this.showObjectModal({label:page.title,...this.gameplayMessage('destination_scene_missing'),url:null});return;}
    this.inventoryOpen=false;this.transitionScene(scene.id,page.id);
   },
   animatePickup(object,area){
@@ -265,7 +276,7 @@ export function gameRuntime(){return {
    this.finishInventoryText(key);
   },
   hasAreaMessage(h){return !!this.narration?.text && this.narration.sourceAreaId===h.id;},
-  clickAreaMessage(h){if(this.examineMode||!this.hasAreaMessage(h))return false;if(this.narration.revealed && !this.narrationSpeaking){if(this.narration.descriptionKey)this.readDescriptions[this.narration.descriptionKey]=true;this.narration=null;this.narrationVersion++;return false;}globalThis.window?.dispatchEvent(new CustomEvent('description-area-click',{detail:{key:this.previewId+':'+this.narrationVersion}}));return true;},
+  clickAreaMessage(h){if(this.examineMode||!this.hasAreaMessage(h))return false;if(this.narration.revealed && !this.narrationSpeaking){if(this.narration.descriptionKey)this.readDescriptions[this.narration.descriptionKey]=true;this.narration=null;this.narrationVersion++;return h.action==='examine'&&!h.move_after_examine;}globalThis.window?.dispatchEvent(new CustomEvent('description-area-click',{detail:{key:this.previewId+':'+this.narrationVersion}}));return true;},
   activate(h,point=null){
    if(!this.preview){if(!this.drawing)this.hotspotId=h.id;return;}
    if(this.sceneTransition || this.narrationSpeaking || this.pendingInventoryUse || this.inventoryDrag?.active)return;
@@ -288,14 +299,14 @@ export function gameRuntime(){return {
     if(!h.state_flag || !h.state_asset_id)return;
     this.armedPickup=null;this.narration=null;this.narrationVersion++;this.pendingModal=null;
     const changed=!this.flags[h.state_flag];this.flags[h.state_flag]=changed;
-    if(changed)this.soundPlayer?.action(h,null,this.audioSounds);this.soundPlayer?.channel?.('voice',null);
+    this.soundPlayer?.action(h,null,this.audioSounds);this.soundPlayer?.channel?.('voice',null);
     if(!this.descriptionRead(h))this.showAreaDescription(h);
     return;
    }
    if(h.action==='page'){this.soundPlayer?.action(h,null,this.audioSounds);this.movePreviewPage(h.target_page_id,h.target_scene_id);return;}
-   if(h.action==='complete'){this.soundPlayer?.action(h,null,this.audioSounds);this.showObjectModal({label:'Story complete',text:'You have reached the end of the story.',url:null});return;}
+   if(h.action==='complete'){this.soundPlayer?.action(h,null,this.audioSounds);this.showObjectModal({label:'Story complete',...this.gameplayMessage('complete'),url:null});return;}
    if(h.action==='next_page'){this.nextPreviewPage();return;}
-   if(['inventory','choices'].includes(h.action)){this.soundPlayer?.action(h,null,this.audioSounds);this.applyFlagEffects(h);this.openAreaInteraction(h);return;}
+   if(['inventory','choices'].includes(h.action)){if(h.action==='choices')this.soundPlayer?.action(h,null,this.audioSounds);this.applyFlagEffects(h);this.openAreaInteraction(h);return;}
    if(h.action==='pickup' && !h.overlay_bounds && this.collected.includes(h.id))return;
    if(h.action==='pickup_v2' && this.collectibleEmpty(h)){
     this.inventoryOpen=true;return;

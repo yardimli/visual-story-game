@@ -394,7 +394,7 @@ html.editor-document, .editor-document body { height:100%; overflow:hidden; }
 .extraction-dialog { width:min(1200px,95vw); max-width:95vw; height:90dvh; max-height:90dvh; overflow:hidden; padding:0; }
 .extraction-checker { background-color:#eee; background-image:conic-gradient(#bbb 25%,transparent 0 50%,#bbb 0 75%,transparent 0); background-size:20px 20px; }
 
-.speech-field{display:flex;align-items:flex-start;gap:.5rem;width:100%;min-width:0}.speech-field>textarea{flex:1;min-width:0}.speech-field-buttons{display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
+.speech-field{display:flex;align-items:flex-start;gap:.5rem;width:100%;min-width:0}.speech-field>textarea,.speech-field>input[data-speech-input]{flex:1;min-width:0}.speech-field-buttons{display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
 
 .speech-quill-controls{justify-content:flex-end}.speech-quill-controls>.speech-field-buttons{flex-direction:row}
 
@@ -437,3 +437,9 @@ html.editor-document, .editor-document body { height:100%; overflow:hidden; }
 .preview-stage.scene-narrating .animated-description * { cursor: pointer !important; }
 
 .preview-hotspot { overflow: visible; }
+
+.gameplay-message-row .speech-field-buttons { flex-direction: row; align-items: center; }
+
+.image-render-spinner { display: block; width: 2rem; height: 2rem; border: 3px solid rgb(120 113 108 / .25); border-top-color: #b45309; border-right-color: #b45309; border-radius: 50%; animation: image-render-spin .9s linear infinite; }
+.dark .image-render-spinner { border-color: rgb(214 211 209 / .25); border-top-color: #fcd34d; border-right-color: #fcd34d; }
+@keyframes image-render-spin { to { transform: rotate(360deg); } }

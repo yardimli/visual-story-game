@@ -51,7 +51,7 @@ test('local switch advances completed text and reads each state only once',()=>{
 
 test('examine areas replay descriptions while one-shot examine never picks up an item',()=>{
  const old=globalThis.window;globalThis.window={};const p=gamePlayer(data());p.init();p.begin();const [coin,box]=p.displayed.hotspots;
- p.activate(box);p.descriptionCompleted(p.previewId+':'+p.narrationVersion);assert.equal(p.clickAreaMessage(box),false);p.activate(box);assert.equal(p.narration.text,'A box');
+ p.activate(box);p.descriptionCompleted(p.previewId+':'+p.narrationVersion);assert.equal(p.clickAreaMessage(box),true);assert.equal(p.narration,null);p.activate(box);assert.equal(p.narration.text,'A box');
  p.activate(coin);p.descriptionCompleted(p.previewId+':'+p.narrationVersion);p.examineMode=true;p.activate(coin);assert.equal(p.inventory.length,0);assert.equal(p.examineMode,false);assert.equal(p.narration.text,coin.description);
  p.destroy();globalThis.window=old;
 });
@@ -67,4 +67,59 @@ test('collected placement locations open inventory without describing the missin
  // An initially empty placement location also must not narrate the absent object.
  p.readDescriptions={};assert.equal(p.areaDescription(h),'');assert.equal(p.descriptionStep(h),false);
  }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('placement uses story defaults and timeouts while preserving custom responses',()=>{
+ const old=globalThis.window;globalThis.window={};const p=gamePlayer(data());p.init();p.begin();p.animatePickup=()=>{};
+ try{const h=p.displayed.hotspots[0];Object.assign(h,{placement_enabled:true,initial_empty:true,inventory_rules:[{object_id:'coin-item',allowed:true,response:'You place the item back.'}]});p.inventory=[{id:'coin-item'}];p.gameplayMessages={placed:{text:'Returned to the shelf.',timeout_ms:750},occupied:{text:'No room.',timeout_ms:100},nothing:{text:'No effect.',timeout_ms:500}};
+ p.useInventoryOnArea('coin-item',h);assert.equal(p.narration.text,'Returned to the shelf.');assert.equal(p.narration.hideAfterMs,750);p.completeInventoryUse();assert.equal(p.collectibleEmpty(h),false);
+ p.inventory=[{id:'coin-item'}];p.useInventoryOnArea('coin-item',h);assert.equal(p.narration.text,'No room.');p.cancelInventoryUse();
+ delete p.placedObjects[h.id];h.inventory_rules[0].response='The coins fit perfectly.';p.useInventoryOnArea('coin-item',h);assert.equal(p.narration.text,'The coins fit perfectly.');p.cancelInventoryUse();
+ h.inventory_rules[0].response='';p.gameplayMessages.placed.text='';p.useInventoryOnArea('coin-item',h);assert.equal(p.pendingInventoryUse,null);assert.equal(p.inventory.length,0);
+ }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('inventory action sound waits for item use and local switches sound in both directions',()=>{
+ const old=globalThis.window;globalThis.window={};const p=gamePlayer(data());p.init();p.begin();p.animatePickup=()=>{};
+ try{const calls=[];p.soundPlayer={click:()=>calls.push('click'),action:(area,item)=>calls.push(item?.id||area.id),channel:()=>{},stop:()=>{}};
+ const h=p.displayed.hotspots[1];Object.assign(h,{action:'inventory',description:'',inventory_rules:[{object_id:'coin-item',response:'It fits.'}]});p.inventory=[{id:'coin-item'}];
+ p.activate(h);assert.deepEqual(calls,[]);assert.equal(p.inventoryOpen,true);p.useInventoryOnArea('coin-item',h);assert.deepEqual(calls,[]);p.completeInventoryUse();assert.deepEqual(calls,['coin-item']);
+ Object.assign(h,{action:'state_v2',state_flag:'open',state_asset_id:2,state_description:''});p.activate(h);assert.equal(p.flags.open,true);p.activate(h);assert.equal(p.flags.open,false);assert.deepEqual(calls,['coin-item','box','box']);
+ }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('unlisted placement items always get no-effect and return, including the original item',()=>{
+ const old=globalThis.window;globalThis.window={};const p=gamePlayer(data());p.init();p.begin();const returned=[];p.animatePickup=item=>returned.push(item.id);
+ try{const h=p.displayed.hotspots[0];Object.assign(h,{placement_enabled:true,initial_empty:true,inventory_rules:[],fallback_text:'Incorrect custom fallback'});p.inventory=[{id:'coin-item'},{id:'other'}];p.gameplayMessages={nothing:{text:'That does not work.',timeout_ms:500}};
+ for(const id of ['coin-item','other']){p.useInventoryOnArea(id,h);assert.equal(p.pendingInventoryUse,null);assert.equal(p.narration.text,'That does not work.');p.completeInventoryUse();assert.equal(p.inventory.length,2);assert.equal(p.collectibleEmpty(h),true);}
+ assert.deepEqual(returned,['coin-item','other']);h.inventory_rules=[{object_id:'coin-item',allowed:true,response:''}];p.useInventoryOnArea('coin-item',h);assert.equal(p.pendingInventoryUse,null);assert.equal(p.inventory.length,1);
+ }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('rejected drop restores its visible inventory slot without waiting for message completion',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;globalThis.window={};const p=gamePlayer(data());p.init();p.begin();
+ try{const h=p.displayed.hotspots[0];Object.assign(h,{placement_enabled:true,initial_empty:true,collectible_flag:'empty',inventory_rules:[]});p.flags.empty=true;p.inventory=[{id:'other',asset_id:2}];
+ p.useInventoryOnArea('other',h,{x:.3,y:.3});assert.equal(p.pendingInventoryUse,null);assert.equal(p.pickupFlight.itemId,'other');assert.equal(p.narration.text,'Nothing happens.');
+ t.mock.timers.tick(651);assert.equal(p.pickupFlight,null);assert.equal(p.inventory[0].id,'other');assert.equal(p.placedObjects[h.id],undefined);assert.equal(p.flags.empty,true);
+ p.activate(h);assert.equal(p.inventory.length,1);assert.equal(p.collectibleEmpty(h),true);
+ }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('accepted placement shows its layer before the response finishes',()=>{
+ const old=globalThis.window;globalThis.window={};const p=gamePlayer(data());p.init();p.begin();
+ try{const h=p.displayed.hotspots[0];Object.assign(h,{placement_enabled:true,initial_empty:true,collectible_flag:'empty',overlay:true,overlay_asset_id:2,inventory_rules:[{object_id:'coin-item',allowed:true,response:'You return the coins.'}]});p.flags.empty=true;p.inventory=[{id:'coin-item',asset_id:2}];
+ p.useInventoryOnArea('coin-item',h);assert.equal(p.inventory.length,0);assert.equal(p.flags.empty,false);assert.equal(p.areaImage(h).id,2);assert.equal(p.pendingInventoryUse,null);assert.equal(p.narration.text,'You return the coins.');assert.notEqual(p.narration.revealed,true);
+ }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('scene introductions appear once per scene and reset on a new playthrough',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;globalThis.window={};const input=data();input.pages[0].visuals[0].description='Welcome to the hall.';input.pages[0].visuals.push({id:'garden',kind:'scene',asset_id:1,description:'A quiet garden.',hotspots:[]});
+ const p=gamePlayer(input);p.init();p.begin();
+ try{assert.equal(p.sceneIntroText,'Welcome to the hall.');p.transitionScene('garden');t.mock.timers.tick(500);assert.equal(p.sceneIntroText,'A quiet garden.');p.transitionScene('hall');t.mock.timers.tick(500);assert.equal(p.sceneIntroText,'');p.transitionScene('garden');t.mock.timers.tick(500);assert.equal(p.sceneIntroText,'');p.closePreview();p.begin();assert.equal(p.sceneIntroText,'Welcome to the hall.');}finally{p.destroy();globalThis.window=old;}
 });

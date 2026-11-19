@@ -142,3 +142,11 @@ test('updating a saved plan selects only new areas and uses the accepted backgro
  assert.equal(editor.extractionAreas[0].selected,false);assert.equal(editor.extractionAreas[0].reused,true);
  assert.equal(editor.extractionAreas[1].selected,true);
 });
+
+
+test('plan summaries distinguish untouched crops from completed or pending renders',()=>{
+ const e=sceneExtraction({});const batch={id:4,mode:'switches',outputs:[{type:'switch_off',accepted_asset_id:1,jobs:[]},{type:'switch_on',jobs:[]}]};
+ assert.match(e.extractionPlanLabel(batch),/Unrendered draft/);
+ batch.outputs[1].jobs=[{status:'running'}];assert.match(e.planSummary(batch),/1 in progress/);assert.doesNotMatch(e.planSummary(batch),/Unrendered draft/);
+ batch.outputs[1].jobs=[{status:'completed',asset_ids:[2]}];batch.outputs[1].accepted_asset_id=2;batch.name='Porch door';assert.match(e.extractionPlanLabel(batch),/^Porch door/);assert.match(e.planSummary(batch),/1 rendered · 1 accepted/);
+});

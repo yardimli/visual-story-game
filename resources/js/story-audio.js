@@ -1,5 +1,5 @@
 import {notify} from './toasts.js';
-export const audioActions={examine:'Examine',inspect:'Inspect object',pickup:'Pick up object',pickup_v2:'Pick up local layer',state_v2:'Change local state',transition:'Change scene',inventory:'Use inventory',choices:'Choose an action',page:'Move to page',complete:'Finish story'};
+export const audioActions={examine:'Examine',pickup_v2:'Pick up object — local layer',state_v2:'Change state — local switch',inventory:'Use inventory on area'};
 export {GameAudio,speechText} from './game-audio.js';
 export function storyAudio(url){return {
  editingJob:null,voiceModels:[],batchBusy:false,batchProgress:'',jobBusy:false,

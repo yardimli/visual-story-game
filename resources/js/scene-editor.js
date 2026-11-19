@@ -423,7 +423,7 @@ addFlagRule(target,field){target[field]??=[];const flag=this.flagDefinitions.fin
    }catch(e){this.error=e.message;}finally{this.movingImage=false;}
   },
   useImage(id){this.visual.asset_id=Number(id);this.editingVisual=false;this.changed();},
-  newHotspot(rect={x:0.1,y:0.1,width:0.2,height:0.2}){if(!this.visual||this.visual.kind!=='scene'||this.visual.hotspots.length>=100)return;const h={id:crypto.randomUUID(),label:'Clickable area',description:'',...rect,action:'examine',target_id:null,object_id:null,overlay:false};this.visual.hotspots.push(h);this.hotspotId=h.id;this.drawing=false;this.beginRename(h);this.changed();},
+  newHotspot(rect={x:0.1,y:0.1,width:0.2,height:0.2}){if(!this.visual||this.visual.kind!=='scene'||this.visual.hotspots.length>=100)return;const h={id:crypto.randomUUID(),label:'Clickable area',description:'',animate_hover_text:true,...rect,action:'examine',target_id:null,object_id:null,overlay:false};this.visual.hotspots.push(h);this.hotspotId=h.id;this.drawing=false;this.beginRename(h);this.changed();},
   requestAreaDelete(id){if(this.preview)return;this.hotspotId=id;this.deleteAreaId=id;this.$refs.deleteAreaDialog.showModal();},
   confirmAreaDelete(){
    const visual=this.visual,area=visual?.hotspots.find(h=>h.id===this.deleteAreaId);if(!area)return;

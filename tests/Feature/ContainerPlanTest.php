@@ -115,4 +115,9 @@ class ContainerPlanTest extends TestCase {
   \Illuminate\Support\Facades\Http::assertSent(fn($r)=>$r['model']==='openai/chat-choice'&&array_slice(getimagesizefromstring(base64_decode(explode(',',$r['messages'][1]['content'][1]['image_url']['url'],2)[1])),0,2)===[75,65]);
   $this->assertDatabaseCount('chat_messages',0);$this->assertDatabaseCount('assets',1);
  }
+ public function test_container_plan_name_can_be_updated():void {
+  [$s,$p,$data]=$this->fixture();$plan=app(\App\Services\ContainerPlans::class)->create($s,$p,$data);
+  $this->patchJson(route('containers.rename',[$s,$p,$plan]),['name'=>'Garden stone'])->assertOk();$this->assertSame('Garden stone',$plan->fresh()->name);
+  $this->actingAs(User::factory()->create())->patchJson(route('containers.rename',[$s,$p,$plan]),['name'=>'Wrong owner'])->assertNotFound();
+ }
 }

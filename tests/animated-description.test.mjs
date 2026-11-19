@@ -125,10 +125,16 @@ test('clicked hover text times out and stays suppressed until leaving the area',
 test('unavailable messages honor configured millisecond timeout',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.hideAfterMs=1000;
  d.play('Not yet','top','blocked',false);t.mock.timers.tick(999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);
- d.hideAfterMs=2400;d.play('Not yet','top','blocked2',false);d.skipSpeech();t.mock.timers.tick(2399);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);d.destroy();
+ d.hideAfterMs=2400;d.play('Not yet','top','blocked2',false);t.mock.timers.tick(2399);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);d.destroy();
 });
 test('source-area clicks use the same reveal and dismiss state as text-box clicks',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.play('One two three','top','scene:1');
  d.clickFromArea('scene:2');assert.equal(d.count,1);d.clickFromArea('scene:1');assert.equal(d.count,3);assert.equal(d.visible,true);
  d.skipSpeech();assert.equal(d.visible,false);assert.equal(d.instantHide,true);d.destroy();
+});
+
+
+test('finished examine speech stays visible and the next click dismisses without replay',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;let plays=0;globalThis.window={vsgPlayer:{narrationSpeaking:true,soundPlayer:{speak(){plays++;}}}};
+ const d=animatedDescription({persistent:true});d.play('A quiet room','top','examine',true);t.mock.timers.tick(600);globalThis.window.vsgPlayer.narrationSpeaking=false;t.mock.timers.tick(10000);assert.equal(d.visible,true);d.skipSpeech();assert.equal(d.visible,false);assert.equal(plays,1);d.destroy();globalThis.window=old;
 });

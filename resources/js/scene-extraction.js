@@ -8,6 +8,9 @@ function cropSource(url){
 
 export function sceneExtraction(options){return {
  extractionUpdateId:null, extractionPreview:'composition', extractionReferenceMode:'original_and_annotated', extractionMode:'collectibles', extractionPlanChoice:null, extractionRun:false, extractionSource:null, extractionBatches:[], extractionId:null, extractionAreas:[], extractionBusy:false, extractionPreparing:false, extractionRefreshing:false, extractionProgress:'', extractionError:'', extractionModel:'', extractionBounds:{}, extractionPrompts:{}, extractionHidden:[], extractionInventoryRevision:0, extractionTimer:null,
+ planSummary(batch){const outputs=batch?.outputs||[];const jobs=outputs.flatMap(o=>o.jobs||[]);const rendered=outputs.filter(o=>(o.jobs||[]).some(j=>j.status==='completed'&&j.asset_ids?.length)).length;const accepted=outputs.filter(o=>o.type!=='switch_off'&&o.accepted_asset_id).length;const running=jobs.filter(j=>['queued','running','submitting'].includes(j.status)).length;return `${outputs.length} outputs · ${rendered} rendered · ${accepted} accepted${running?' · '+running+' in progress':''}${!jobs.length&&!accepted?' · Unrendered draft':''}${batch?.applied_at?' · Applied to scene':''}`;},
+ extractionPlanLabel(b){return `${b.name||((b.mode==='switches'?'Switches':'Collectibles')+' #'+b.id)} · ${this.planSummary(b)}`;},
+ async renameExtractionPlan(batch,name){if(!batch||name===batch.name)return;try{const d=await this.request(options.extractionUrl+'/'+batch.id,'PATCH',{name});batch.name=d.name;notify('Plan renamed.');}catch(e){this.extractionError=e.message;notify(e.message,'error');}},
  get extractionBatch(){return this.extractionBatches.find(b=>b.id===Number(this.extractionId));},
  get sceneExtractions(){return this.extractionBatches.filter(b=>b.visual_id===this.selected && (b.mode||'collectibles')===this.extractionMode);},
  get extractionBackground(){return this.extractionBatch?.outputs.find(o=>o.type==='background')?.accepted_asset_id;},

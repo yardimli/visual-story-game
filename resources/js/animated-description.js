@@ -25,7 +25,7 @@ export function animatedDescription(options={}) {
   scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.persistent)this.hideTimer=setTimeout(()=>{if(globalThis.window?.vsgPlayer?.narrationSpeaking)this.scheduleHide();else this.dismiss();},this.hideAfterMs??5000);},
   clickFromArea(key){if(this.visible && this.identity===key)this.skipSpeech();},
   skipSpeech(){
-   if(this.textClicked){this.instantHide=true;this.dismissClickedText();return;}
+   if(this.textClicked || (this.count>=this.words.length && !globalThis.window?.vsgPlayer?.narrationSpeaking)){this.instantHide=true;this.dismissClickedText();return;}
    this.textClicked=true;
    globalThis.window?.vsgPlayer?.soundPlayer?.channel('voice',null);
    this.reveal();globalThis.window?.vsgPlayer?.stopNarration?.();

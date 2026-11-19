@@ -182,14 +182,14 @@ class SceneExtractionService {
     $h['overlay']=true;$h['overlay_always']=true;$h['overlay_asset_id']=$assetId;$h['overlay_bounds']=$output['bounds'];$h['default_bounds']=$output['area_bounds']??array_intersect_key($h,array_flip(['x','y','width','height']));$h['default_overlay_bounds']=$output['bounds'];$h['target_id']=null;
     foreach($flags as &$definition)if($definition['key']===$key)$definition['initial']=(bool)($output['initial_empty']??false);unset($definition);
     $h['collectible_flag']=$key;$h['initial_empty']=(bool)($output['initial_empty']??false);$h['placement_enabled']=$h['placement_enabled']??true;
-    if(!collect($h['inventory_rules']??[])->contains('object_id',$h['object_id']))$h['inventory_rules'][]=['object_id'=>$h['object_id'],'allowed'=>true,'response'=>'You place the item back.','flag_conditions'=>[],'flag_effects'=>[]];
+    if(!collect($h['inventory_rules']??[])->contains('object_id',$h['object_id']))$h['inventory_rules'][]=['object_id'=>$h['object_id'],'allowed'=>true,'response'=>'','flag_conditions'=>[],'flag_effects'=>[]];
     $h['flag_conditions']=array_values(array_filter($h['flag_conditions']??[],fn($f)=>$f['key']!==$key));
     $h['flag_effects']=array_values(array_filter($h['flag_effects']??[],fn($f)=>$f['key']!==$key));$h['flag_effects'][]=['key'=>$key,'value'=>true];unset($h);
    }
    $s->game_flags=app(StoryFlags::class)->validate($flags);
    $doc=app(SceneDocument::class)->validate($s,$doc,$p->id);
    $s->update(['game_flags'=>$s->game_flags,'flags_revision'=>$s->flags_revision+1]+($b->mode==='switches'?[]:['inventory_document'=>$inventory,'inventory_revision'=>$s->inventory_revision+1]));
-   $p->update(['visual_document'=>$doc,'visual_revision'=>$p->visual_revision+1]);
+   $p->update(['visual_document'=>$doc,'visual_revision'=>$p->visual_revision+1]);$b->update(['applied_at'=>now()]);
    $details=[];
    foreach($b->outputs as $output){
     if($output['type']==='background'){$details[]='Clean scene background applied.';continue;}
