@@ -388,8 +388,8 @@ test('test setup lists objects with descriptions and source pages and seeds only
  e.previewPages=[{id:1,position:1,title:'Garden',visuals:[{id:'key',kind:'object',name:'Key',description:'A brass key'}]},{id:2,position:2,title:'Hall',visuals:[]}];
  let opened=false,closed=false;e.$refs={previewInventoryDialog:{showModal(){opened=true;},close(){closed=true;}}};
  e.preparePreview();assert.equal(opened,true);assert.equal(e.preview,false);assert.equal(e.previewInventoryItems.length,2);assert.match(e.previewInventoryItems[0].sourcePage,/Page 1/);assert.equal(e.previewInventoryItems[1].description,'A sealed letter');
- e.previewInventorySelection=['key'];e.confirmPreviewInventory();assert.equal(closed,true);assert.deepEqual(e.inventory.map(i=>i.id),['key']);assert.equal(e.inventory[0].description,'A brass key');e.inventory[0].description='Test only';assert.equal(e.previewPages[0].visuals[0].description,'A brass key');
- e.closePreview();e.preparePreview();assert.deepEqual(e.previewInventorySelection,[]);e.confirmPreviewInventory();assert.deepEqual(e.inventory,[]);e.closePreview();
+ e.previewInventorySelection=['key'];e.startPreview(e.previewInventorySelection);closed=true;assert.equal(closed,true);assert.deepEqual(e.inventory.map(i=>i.id),['key']);assert.equal(e.inventory[0].description,'A brass key');e.inventory[0].description='Test only';assert.equal(e.previewPages[0].visuals[0].description,'A brass key');
+ e.closePreview();e.preparePreview();assert.deepEqual(e.previewInventorySelection,[]);e.startPreview(e.previewInventorySelection);assert.deepEqual(e.inventory,[]);e.closePreview();
 });
 
 
@@ -498,7 +498,7 @@ test('examine clicks carry animation and rectangle placement settings into narra
  const e=sceneEditor({});e.preview=true;e.document={visuals:[]};
  const h={id:'a',action:'examine',description:'Text',description_position:'area_top',x:.2,y:.3,width:.1,height:.2};
  e.activate(h);assert.equal(e.narration.animate,false);assert.equal(e.narration.position,'area_top');assert.equal(e.narration.area.width,.1);
- e.activate(h);assert.equal(e.narration,null);h.animate_hover_text=true;e.activate(h);assert.equal(e.narration.animate,true);
+ e.activate(h);assert.equal(e.narration.text,'Text');h.animate_hover_text=true;e.activate(h);assert.equal(e.narration.animate,true);
 });
 
 test('image selection dialogs exclude archived assets for all pages and uploads',()=>{
@@ -522,7 +522,7 @@ test('pickup with hover disabled describes on first click and collects on second
  const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'scene',kind:'scene',hotspots:[]},{id:'key',kind:'object',description:'A brass key',hotspots:[]}]};e.selected='scene';e.startPreview();
  const h={id:'key-area',action:'pickup',object_id:'key',show_hover_text:false,description:'A brass key'};
  e.activate(h);assert.equal(e.inventory.length,0);assert.equal(e.narration.text,'A brass key');assert.equal(e.pickupReady(h),true);assert.equal(e.collected.length,0);
- e.activate(h);assert.equal(e.inventory.length,1);assert.equal(e.narration,null);assert.equal(e.pickupReady(h),false);
+ e.descriptionCompleted(e.previewId+':'+e.narrationVersion);e.activate(h);assert.equal(e.inventory.length,1);assert.equal(e.narration,null);assert.equal(e.pickupReady(h),false);
  e.startPreview();e.activate({...h,use_item_description:false,description:''});assert.equal(e.inventory.length,1);e.closePreview();
 });
 
@@ -613,10 +613,10 @@ test('inventory clicks still inspect while drops use the area with standard narr
  e.modal=null;e.useInventoryOnArea('letter-slot',area);assert.equal(e.narration.text,'That does not fit.');assert.equal(e.narration.position,'area_top');assert.equal(e.modal,null);e.cancelInventoryUse();
 });
 
-test('repeated examine clicks toggle the same message and a different area replaces it',()=>{
+test('repeated examine clicks replay the same message and a different area replaces it',()=>{
  const e=sceneEditor({});e.preview=true;e.previewId='scene';e.previewPageId=1;
  const a={id:'a',action:'examine',description:'A rose'},b={id:'b',action:'examine',description:'A stone'};
- e.activate(a);assert.equal(e.narration.text,'A rose');e.activate(a);assert.equal(e.narration,null);
+ e.activate(a);assert.equal(e.narration.text,'A rose');e.activate(a);assert.equal(e.narration.text,'A rose');
  e.activate(a);assert.equal(e.narration.text,'A rose');e.activate(b);assert.equal(e.narration.text,'A stone');
  e.narration=null;e.activate(b);assert.equal(e.narration.text,'A stone');
 });
@@ -671,9 +671,9 @@ test('switch changed description appears on activation and closing is immediate 
  const e=sceneEditor({});e.preview=true;e.previewId='room';e.previewPageId=1;e.editorPageId=1;e.document={visuals:[{id:'room',kind:'scene',hotspots:[]}]};e.flags={switch_a:false};e.assets=[{id:2,url:'/on'}];
  const h={id:'switch',action:'state_v2',state_flag:'switch_a',state_asset_id:2,description:'Unpressed button',state_description:'Pressed button',show_hover_text:false};
  e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration.text,'Unpressed button');assert.equal(e.pickupReady(h),true);
- e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration.text,'Pressed button');assert.equal(e.pickupReady(h),false);
- e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration,null);
- h.show_hover_text=true;assert.equal(e.hoverDetails(h).description,'Unpressed button');e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.hoverDetails(h).description,'');assert.equal(e.narration.text,'Pressed button');
+ e.descriptionCompleted(e.previewId+':'+e.narrationVersion);e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.narration.text,'Pressed button');assert.equal(e.pickupReady(h),false);
+ e.descriptionCompleted(e.previewId+':'+e.narrationVersion);e.activate(h);assert.equal(e.flags.switch_a,false);assert.equal(e.narration,null);
+ h.show_hover_text=true;assert.equal(e.hoverDetails(h).description,'');e.activate(h);assert.equal(e.flags.switch_a,true);assert.equal(e.hoverDetails(h).description,'');assert.equal(e.narration,null);
  e.preview=false;assert.equal(e.areaImage(h).id,2);
 });
 

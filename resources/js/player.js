@@ -1,0 +1,10 @@
+import Alpine from 'alpinejs';
+import {gamePlayer} from './game-player.js';
+import {animatedDescription,hoverDescription} from './animated-description.js';
+import {toastCenter} from './toasts.js';
+window.Alpine=Alpine;
+Alpine.data('gamePlayer',gamePlayer);
+Alpine.data('animatedDescription',animatedDescription);
+Alpine.data('hoverDescription',hoverDescription);
+Alpine.data('toastCenter',toastCenter);
+Alpine.start();

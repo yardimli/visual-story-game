@@ -12,7 +12,7 @@ export function animatedDescription(options={}) {
    const signature=JSON.stringify([text,position,key,animate,area]);if(signature===this.signature)return;
    this.signature=signature;this.textClicked=false;this.instantHide=false;this.identity=key;this.completed=false;this.stop();this.placement=['bottom','area_top','area_bottom'].includes(position)?position:'top';this.anchor=area;this.updateBounds();
    this.words=String(text||'').match(/\S+\s*/g)||[];this.count=0;this.height=0;this.measured=false;this.visible=!!this.words.length;
-   this.syncSceneSpace();if(!this.visible)return;if(this.autoSpeak)globalThis.window?.vsgSceneEditor?.soundPlayer?.speak(text,globalThis.window?.vsgSceneEditor?.audioSounds||[]);
+   this.syncSceneSpace();if(!this.visible)return;if(this.autoSpeak)globalThis.window?.vsgPlayer?.soundPlayer?.speak(text,globalThis.window?.vsgPlayer?.audioSounds||[]);
    if(!animate){this.reveal();return;}
    if(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches){this.reveal();return;}
    this.step();
@@ -22,13 +22,13 @@ export function animatedDescription(options={}) {
     const box=this.$refs.box,word=content.querySelectorAll?.('span')[this.count-1];
     if(box && word){const bottom=word.offsetTop+word.offsetHeight;if(bottom>box.scrollTop+box.clientHeight-12)box.scrollTop=bottom-box.clientHeight+12;}
     else if(box && this.height<250)box.scrollTop=0;}});},
-  scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.persistent)this.hideTimer=setTimeout(()=>{if(globalThis.window?.vsgSceneEditor?.narrationSpeaking)this.scheduleHide();else this.dismiss();},this.hideAfterMs??5000);},
+  scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.persistent)this.hideTimer=setTimeout(()=>{if(globalThis.window?.vsgPlayer?.narrationSpeaking)this.scheduleHide();else this.dismiss();},this.hideAfterMs??5000);},
   clickFromArea(key){if(this.visible && this.identity===key)this.skipSpeech();},
   skipSpeech(){
    if(this.textClicked){this.instantHide=true;this.dismissClickedText();return;}
    this.textClicked=true;
-   globalThis.window?.vsgSceneEditor?.soundPlayer?.channel('voice',null);
-   this.reveal();globalThis.window?.vsgSceneEditor?.stopNarration?.();
+   globalThis.window?.vsgPlayer?.soundPlayer?.channel('voice',null);
+   this.reveal();globalThis.window?.vsgPlayer?.stopNarration?.();
    clearTimeout(this.hideTimer);this.hideTimer=setTimeout(()=>this.dismissClickedText(),this.hideAfterMs??3000);
   },
   dismissClickedText(){this.dismiss();},
@@ -52,7 +52,7 @@ export function hoverDescription() {
   },
   seen:new Set(), suppressedHoverKey:null, hoverKey:null, pendingAction:null, clicked:false,
   hoverArea(area,pageId,sceneId){
-   if(this.clicked || globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;
+   if(this.clicked || globalThis.window?.vsgPlayer?.narrationSpeaking)return;
    const text=String(area.description||'').trim();
    if(!text){this.leaveArea();return;}
    this.hoveredArea={x:area.x,y:area.y,width:area.width,height:area.height};this.areaPlacement=area.description_position||'top';this.updateHoverBounds();
@@ -60,23 +60,24 @@ export function hoverDescription() {
    if(this.suppressedHoverKey===key)return;
    if(this.hoverKey===key && this.visible)return;
    this.$dispatch?.('area-hover-start');
-   const instant=this.seen.has(key);this.hoverKey=key;this.signature=null;
+   this.hoveredDescriptionArea=area;const instant=this.seen.has(key);this.hoverKey=key;this.signature=null;
    this.play(text,area.description_position||'top',key);this.seen.add(key);
    if(instant || area.animate_hover_text!==true)this.reveal();
   },
   scheduleHide(){
    clearTimeout(this.hideTimer);
+   const player=globalThis.window?.vsgPlayer;if(player?.readDescriptions && this.hoveredDescriptionArea)player.readDescriptions[player.pickupKey(this.hoveredDescriptionArea)]=true;
    if(this.clicked){const action=this.pendingAction;this.pendingAction=null;this.clicked=false;this.suppressedHoverKey=this.hoverKey;this.dismiss();action?.();}
   },
   dismissClickedText(){this.suppressedHoverKey=this.hoverKey;this.dismiss();},
-  leaveArea(){if(globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;this.suppressedHoverKey=null;if(!this.clicked){this.hoverKey=null;this.dismiss();}},
+  leaveArea(){if(globalThis.window?.vsgPlayer?.narrationSpeaking)return;this.suppressedHoverKey=null;if(!this.clicked){this.hoverKey=null;this.dismiss();}},
   clickArea(area,action){
-   if(this.clicked || globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;
+   if(this.clicked || globalThis.window?.vsgPlayer?.narrationSpeaking)return;
    if(!this.visible){action();return;}
    this.clicked=true;this.pendingAction=area.action==='examine'?null:action;
    if(this.count>=this.words.length)this.scheduleHide();
   },
-  outsideClick(event){if(globalThis.window?.vsgSceneEditor?.narrationSpeaking)return;if(event.target.closest('.preview-hotspot') || event.target.closest('.hover-description') || !this.visible)return;this.clicked=true;this.pendingAction=null;if(this.count>=this.words.length)this.scheduleHide();},
+  outsideClick(event){if(globalThis.window?.vsgPlayer?.narrationSpeaking)return;if(event.target.closest('.preview-hotspot') || event.target.closest('.hover-description') || !this.visible)return;this.clicked=true;this.pendingAction=null;if(this.count>=this.words.length)this.scheduleHide();},
   resetHover(){this.pendingAction=null;this.clicked=false;this.hoverKey=null;this.suppressedHoverKey=null;this.seen.clear();this.signature=null;this.dismiss();},
  };
 }

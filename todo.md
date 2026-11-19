@@ -802,3 +802,6 @@ Generation workspace verification: 85-test regression passed before two new test
 
 - [x] Container padding with linked/independent 0-500px sliders and persisted rendering offsets; keep click targets unchanged.
 - [x] Existing Inventory checklist and editable AI prompt drafting with call logging and final-only chat messages on generation.
+
+- [x] Move game preview to an owner-only standalone tab after inventory/flag selection, with separate playback entrypoint and no editor JavaScript dependencies.
+- [x] Remember inspected pickups per playthrough and collect on the next area click after revealing/stopping narration; retain normal text-box dismissal.

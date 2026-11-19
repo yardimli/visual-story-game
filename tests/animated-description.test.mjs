@@ -100,7 +100,7 @@ test('text completion is emitted only after the final word and once per response
 
 
 test('clicking narration reveals every word and stops speech',t=>{
- t.mock.timers.enable({apis:['setTimeout']});const previous=globalThis.window;let stopped=0;globalThis.window={vsgSceneEditor:{soundPlayer:{speak(){},channel(name,sound){assert.equal(name,'voice');assert.equal(sound,null);stopped++;}},stopNarration(){}}};
+ t.mock.timers.enable({apis:['setTimeout']});const previous=globalThis.window;let stopped=0;globalThis.window={vsgPlayer:{soundPlayer:{speak(){},channel(name,sound){assert.equal(name,'voice');assert.equal(sound,null);stopped++;}},stopNarration(){}}};
  try{const d=animatedDescription();d.play('One two three');assert.equal(d.count,1);d.skipSpeech();assert.equal(d.count,3);assert.equal(stopped,1);d.destroy();}finally{globalThis.window=previous;}
 });
 

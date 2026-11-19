@@ -1,7 +1,7 @@
 import {notify} from './toasts.js';
 import {rememberedModel} from './model-preferences.js';
-export function containerVisible(area,areas,flags){if(!area.container_parent_id)return true;const p=areas.find(p=>p.id===area.container_parent_id);return !!p?.is_container && !!flags[p.state_flag];}
-export function containerGeometry(parent,b){parent=parent.overlay_bounds||parent;return {x:parent.x+b.x*parent.width,y:parent.y+b.y*parent.height,width:b.width*parent.width,height:b.height*parent.height};}
+import {containerVisible,containerGeometry} from './game-geometry.js';
+export {containerVisible,containerGeometry};
 export function containerCropBounds(b,w,h,p){const x=Math.max(0,Math.floor(b.x*w)-(p.left||0)),y=Math.max(0,Math.floor(b.y*h)-(p.top||0));const right=Math.min(w,Math.ceil((b.x+b.width)*w)+(p.right||0)),bottom=Math.min(h,Math.ceil((b.y+b.height)*h)+(p.bottom||0));return {x:x/w,y:y/h,width:(right-x)/w,height:(bottom-y)/h};}
 export function containerPlans(options){return {
  containerReuseState:false,containerRun:false,containerPlans:[],containerArea:'',containerPlanId:'',containerBusy:false,containerError:'',containerName:'',containerPrompt:'',containerItems:[],containerItemIndex:0,containerDraw:null,containerTimer:null,containerModel:'',containerInventoryRevision:0,containerView:'open',containerHidden:[],containerPrompts:{},

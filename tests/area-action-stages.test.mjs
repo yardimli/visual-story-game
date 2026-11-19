@@ -18,15 +18,15 @@ test('examine ignores obsolete object-image settings and shows only the area des
 });
 test('pickup and switches gate actions while changed state describes immediately',()=>{
  for(const action of ['pickup_v2','state_v2']){const [e,h]=setup(action);Object.assign(h,{object_id:'key',state_flag:'on',state_asset_id:2,state_description:'The lid is open.',collectible_flag:'taken'});
- e.activate(h);assert.equal(e.narration.text,h.description);e.activate(h);assert.equal(e.inventory.length,0);assert.equal(e.flags.on,false);assert.equal(e.flags.used,false);
- e.flags.read=true;e.activate(h);if(action==='pickup_v2'){assert.equal(e.inventory.length,1);assert.equal(e.flags.taken,true);}else{assert.equal(e.flags.on,true);assert.equal(e.narration.text,h.state_description);e.activate(h);assert.equal(e.flags.on,false);}}
+ e.activate(h);assert.equal(e.narration.text,h.description);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);e.activate(h);assert.equal(e.inventory.length,0);assert.equal(e.flags.on,false);assert.equal(e.flags.used,false);
+ e.flags.read=true;e.activate(h);if(action==='pickup_v2'){assert.equal(e.inventory.length,1);assert.equal(e.flags.taken,true);}else{assert.equal(e.flags.on,true);assert.equal(e.narration.text,h.state_description);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);e.activate(h);assert.equal(e.flags.on,false);}}
 });
 test('inventory opens on first description click and still blocks drops when requirements fail',()=>{
  const [e,h]=setup('inventory');e.inventory=[{id:'key',inventoryId:'carried'}];h.inventory_rules=[{object_id:'key',consume:true,response:'Unlocked'}];e.activate(h);assert.equal(e.inventoryOpen,true);assert.equal(e.narration.text,h.description);e.activate(h);assert.equal(e.inventoryOpen,true);
  e.useInventoryOnArea('carried',h);assert.equal(e.pendingInventoryUse,null);assert.equal(e.inventory.length,1);e.flags.read=true;e.activate(h);assert.equal(e.inventoryOpen,true);e.useInventoryOnArea('carried',h);assert.equal(e.pendingInventoryUse.rule.consume,true);
 });
 test('required inventory gates only the second action and disabled conditions are ignored',()=>{
- const [e,h]=setup();h.move_after_examine=true;h.flag_conditions=[];h.required_items=['key'];e.activate(h);assert.equal(e.narration.text,h.description);e.activate(h);assert.equal(e.flags.used,false);e.inventory=[{id:'key'}];e.activate(h);assert.equal(e.flags.used,true);
+ const [e,h]=setup();h.move_after_examine=true;h.flag_conditions=[];h.required_items=['key'];e.activate(h);assert.equal(e.narration.text,h.description);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);e.activate(h);assert.equal(e.flags.used,false);e.inventory=[{id:'key'}];e.activate(h);assert.equal(e.flags.used,true);
 });
 
 test('legacy navigation and inspection load as examine options without changing full-scene pickup data',()=>{
@@ -36,12 +36,12 @@ test('legacy navigation and inspection load as examine options without changing 
 
 test('description and action use independent cursors and sounds; blocked actions stay silent',()=>{
  const [e,h]=setup('state_v2');Object.assign(h,{cursor:'help',action_cursor:'crosshair',state_description:'Open.',state_flag:'on',state_asset_id:2});const sounds=[];e.soundPlayer={click:()=>sounds.push('description'),action:()=>sounds.push('action')};
- assert.equal(e.areaCursor(h),'help');e.activate(h);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.deepEqual(sounds,['description']);e.flags.read=true;e.activate(h);assert.deepEqual(sounds,['description','action']);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.equal(e.flags.on,false);assert.equal(e.narration,null);assert.deepEqual(sounds,['description','action']);
+ assert.equal(e.areaCursor(h),'help');e.activate(h);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.deepEqual(sounds,['description']);e.flags.read=true;e.activate(h);assert.deepEqual(sounds,['description','action']);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaCursor(h),'crosshair');e.activate(h);assert.equal(e.flags.on,false);assert.equal(e.narration,null);assert.deepEqual(sounds,['description','action']);
 });
 
 test('cursor tooltips follow the current stage and never advertise blocked actions',()=>{
  const [e,h]=setup('pickup_v2');Object.assign(h,{object_id:'key',cursor:'help',action_cursor:'grab'});e.cursorTooltips={help:'Examine',grab:'Take item'};
- assert.equal(e.areaTooltip(h),'Examine');e.activate(h);assert.equal(e.areaTooltip(h),'');e.flags.read=true;assert.equal(e.areaTooltip(h),'Take item');e.sceneTransition=true;assert.equal(e.areaTooltip(h),'');e.sceneTransition=false;e.cursorTooltips={};assert.equal(e.areaTooltip(h),'');
+ assert.equal(e.areaTooltip(h),'Examine');e.activate(h);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);assert.equal(e.areaTooltip(h),'');e.flags.read=true;assert.equal(e.areaTooltip(h),'Take item');e.sceneTransition=true;assert.equal(e.areaTooltip(h),'');e.sceneTransition=false;e.cursorTooltips={};assert.equal(e.areaTooltip(h),'');
 });
 
 test('inventory item rules link named local states and apply them after the response',()=>{
@@ -104,7 +104,7 @@ test('area messages identify their source and use the story unavailable timeout'
 
 test('narration overrides action cursors and tooltips then restores them after playback',()=>{
  const [e,h]=setup('pickup_v2');h.show_hover_text=true;e.flags.read=true;e.cursorTooltips={grab:'Take item',help:'Inspect'};
- assert.equal(e.areaCursor(h),'grab');assert.equal(e.areaTooltip(h),'Take item');e.soundPlayer={speaking:true};
+ e.readDescriptions[e.pickupKey(h)]=true;assert.equal(e.areaCursor(h),'grab');assert.equal(e.areaTooltip(h),'Take item');e.soundPlayer={speaking:true};
  assert.equal(e.areaCursor(h),'not-allowed');assert.equal(e.areaTooltip(h),'');h.action_cursor='help';assert.equal(e.areaCursor(h),'not-allowed');
  e.soundPlayer.speaking=false;assert.equal(e.areaCursor(h),'help');assert.equal(e.areaTooltip(h),'Inspect');
 });

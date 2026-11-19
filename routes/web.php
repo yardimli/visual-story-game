@@ -22,6 +22,7 @@ Route::get('/', function () {
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/stories/{story}/play',[\App\Http\Controllers\PlayController::class,'show'])->name('stories.play');
     Route::put('/stories/{story}/audio/categories',[\App\Http\Controllers\AudioController::class,'saveCategories']);
     Route::put('/stories/{story}/audio/sounds/{sound}',[\App\Http\Controllers\AudioController::class,'categorize']);
     Route::post('/stories/{story}/audio/jobs/{job}/start',[\App\Http\Controllers\AudioManageController::class,'start']);

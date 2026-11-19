@@ -1,4 +1,4 @@
-<section class="scene-editor-panel" x-show="tab==='visuals'" x-cloak x-data="sceneEditor(@js(['flagsUrl'=>route('flags.show',$story),'audioUrl'=>route('audio.index',$story),'url'=>route('visuals.show',[$story,$page]),'extractionUrl'=>route('extractions.index',[$story,$page]),'containerUrl'=>route('containers.index',[$story,$page]),'writingModel'=>$story->llm_model,'generate'=>route('images.generate',[$story,$page]),'upload'=>route('assets.store',$story),'model'=>$story->image_model]))">
+<section class="scene-editor-panel" x-show="tab==='visuals'" x-cloak x-data="sceneEditor(@js(['playUrl'=>route('stories.play',$story),'flagsUrl'=>route('flags.show',$story),'audioUrl'=>route('audio.index',$story),'url'=>route('visuals.show',[$story,$page]),'extractionUrl'=>route('extractions.index',[$story,$page]),'containerUrl'=>route('containers.index',[$story,$page]),'writingModel'=>$story->llm_model,'generate'=>route('images.generate',[$story,$page]),'upload'=>route('assets.store',$story),'model'=>$story->image_model]))">
 <p x-show="halted" class="text-sm">Copy unsaved changes and reload to load the latest version.</p>
 <div x-show="!loading" class="space-y-3">
 

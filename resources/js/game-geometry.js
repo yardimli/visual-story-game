@@ -1,0 +1,2 @@
+export function containerVisible(area,areas,flags){if(!area.container_parent_id)return true;const p=areas.find(p=>p.id===area.container_parent_id);return !!p?.is_container && !!flags[p.state_flag];}
+export function containerGeometry(parent,b){parent=parent.overlay_bounds||parent;return {x:parent.x+b.x*parent.width,y:parent.y+b.y*parent.height,width:b.width*parent.width,height:b.height*parent.height};}
