@@ -161,3 +161,20 @@ test('initially empty placement area describes before opening inventory',()=>{
  p.examineMode=true;p.activate(h);assert.equal(p.narration.text,h.description);
  }finally{p.destroy();globalThis.window=old;}
 });
+
+
+test('empty slots on later pages initialize even when playtest flags omit their defaults',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;globalThis.window={};const d=data();
+ const slot={id:'socket',action:'pickup_v2',initial_empty:true,collectible_flag:'socket_empty',object_id:'coin-item',overlay:true,overlay_always:true,overlay_asset_id:2,placement_enabled:true,inventory_rules:[{object_id:'coin-item',allowed:true}]};
+ const lock={id:'lock',action:'state_v2',state_flag:'unlocked',auto_state:{enabled:true,placements:[{area_id:'socket',object_id:'coin-item'}]}};
+ d.pages.push({id:2,visuals:[{id:'chest',kind:'scene',asset_id:1,hotspots:[slot,lock]}]});d.flags=[{key:'socket_empty',initial:true},{key:'unlocked',initial:false}];d.start.inventory=['coin-item'];d.start.flags=[];
+ const p=gamePlayer(d);p.init();p.begin();p.animatePickup=()=>{};
+ try{
+ assert.equal(p.flags.socket_empty,true);assert.equal(!!p.flags.unlocked,false);
+ p.movePreviewPage(2,'chest');t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);
+ assert.equal(p.areaImage(slot),null);assert.equal(p.inventory.length,1);assert.equal(p.collectibleEmpty(slot),true);
+ p.useInventoryOnArea(p.inventory[0].inventoryId,slot);assert.equal(p.inventory.length,0);assert.equal(p.flags.socket_empty,false);assert.equal(p.flags.unlocked,true);assert.equal(p.areaImage(slot).url,'/coin.png');
+ p.movePreviewPage(1,'hall');t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);p.movePreviewPage(2,'chest');t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);assert.equal(p.collectibleEmpty(slot),false);
+ p.closePreview();p.begin();assert.equal(p.collectibleEmpty(slot),true);
+ }finally{p.destroy();globalThis.window=old;}
+});
