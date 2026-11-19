@@ -14,7 +14,7 @@ class SceneDocument {
   $stateRules['visuals.*.music_mode']='sometimes|in:keep,replace,stop';
   $stateRules['visuals.*.music_id']=['sometimes','nullable','integer',\Illuminate\Validation\Rule::exists('story_sounds','id')->where('story_id',$story->id)];
   $stateRules['visuals.*.music_loop']='sometimes|boolean';$stateRules['visuals.*.sound_loop']='sometimes|boolean';
-  foreach(['visuals.*.skip_rules.*.flag_conditions','visuals.*.hotspots.*.visible_when','visuals.*.hotspots.*.disabled_when','visuals.*.hotspots.*.flag_conditions','visuals.*.hotspots.*.flag_effects','visuals.*.hotspots.*.inventory_rules.*.flag_conditions','visuals.*.hotspots.*.inventory_rules.*.flag_effects','visuals.*.hotspots.*.choices.*.flag_effects'] as $path){$stateRules[$path]='sometimes|array|max:100';$stateRules[$path.'.*']='array:key,value';$stateRules[$path.'.*.key']=['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))];$stateRules[$path.'.*.value']='required|boolean';}
+  foreach(['visuals.*.skip_rules.*.flag_conditions','visuals.*.hotspots.*.auto_state.flag_conditions','visuals.*.hotspots.*.visible_when','visuals.*.hotspots.*.disabled_when','visuals.*.hotspots.*.flag_conditions','visuals.*.hotspots.*.flag_effects','visuals.*.hotspots.*.inventory_rules.*.flag_conditions','visuals.*.hotspots.*.inventory_rules.*.flag_effects','visuals.*.hotspots.*.choices.*.flag_effects'] as $path){$stateRules[$path]='sometimes|array|max:100';$stateRules[$path.'.*']='array:key,value';$stateRules[$path.'.*.key']=['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))];$stateRules[$path.'.*.value']='required|boolean';}
   foreach(['default_bounds','default_overlay_bounds','container_bounds','image_bounds'] as $field){
    $path='visuals.*.hotspots.*.'.$field;$stateRules[$path]='sometimes|array:x,y,width,height';
    foreach(['x','y','width','height'] as $axis)$stateRules[$path.'.'.$axis]='required_with:'.$path.'|numeric|min:'.(in_array($axis,['width','height'])?'0.005':'0').'|max:1';
@@ -26,6 +26,15 @@ class SceneDocument {
    'visuals.*.dialog_background'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
    'visuals.*.dialog_border'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
    'visuals.*.dialog_footer'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],
+   'visuals.*.hotspots.*.auto_state'=>'sometimes|array:enabled,sticky,flag_conditions,placements,original_target,changed_target',
+   'visuals.*.hotspots.*.auto_state.enabled'=>'sometimes|boolean',
+   'visuals.*.hotspots.*.auto_state.sticky'=>'sometimes|boolean',
+   'visuals.*.hotspots.*.auto_state.placements'=>'sometimes|array|max:100',
+   'visuals.*.hotspots.*.auto_state.placements.*'=>'array:area_id,object_id',
+   'visuals.*.hotspots.*.auto_state.placements.*.area_id'=>'required|uuid',
+   'visuals.*.hotspots.*.auto_state.placements.*.object_id'=>'required|uuid',
+   'visuals.*.hotspots.*.auto_state.original_target'=>'nullable|uuid',
+   'visuals.*.hotspots.*.auto_state.changed_target'=>'nullable|uuid',
    'visuals.*.hotspots.*.move_after_examine'=>'sometimes|boolean',
    'visuals.*.hotspots.*.animate_hover_text'=>'sometimes|boolean',
    'visuals.*.hotspots.*.overlay_always'=>'sometimes|boolean',
@@ -39,7 +48,7 @@ class SceneDocument {
    'visuals.*.skip_rules.*.target_scene_id'=>'nullable|uuid',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
    'visuals.*.hotspots.*.is_container'=>'sometimes|boolean','visuals.*.hotspots.*.container_parent_id'=>'sometimes|uuid','visuals.*.hotspots.*.container_plan_id'=>'sometimes|integer',
-   'visuals.*.hotspots.*'=>'array:visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*'=>'array:auto_state,visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
    'visuals.*.hotspots.*.initial_empty'=>'sometimes|boolean',
    'visuals.*.hotspots.*.placement_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.collectible_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],
@@ -93,6 +102,11 @@ class SceneDocument {
   if($story->assets()->whereIn('id',$assets)->count()!==$assets->count()) $this->invalid('An image does not belong to this story.');
   $pageVisuals=$story->pages()->get()->mapWithKeys(fn($page)=>[$page->id=>$page->id===$pageId?$v['visuals']:($page->visual_document['visuals']??[])]);
   $objects=$pageVisuals->flatten(1)->merge($story->inventory_document['visuals']??[])->merge($v['visuals'])->where('kind','object')->pluck('id')->all();
+  $dependencies=[];
+  foreach($pageVisuals->flatten(1) as $scene)foreach($scene['hotspots']??[] as $area)if(($area['auto_state']['enabled']??false)&&!empty($area['state_flag']))$dependencies[$area['state_flag']]=array_column($area['auto_state']['flag_conditions']??[],'key');
+  $visited=[];$visiting=[];
+  $visit=function($key)use(&$visit,&$visited,&$visiting,$dependencies){if(isset($visiting[$key]))$this->invalid('Automatic switch conditions cannot form a circular dependency.');if(isset($visited[$key]))return;$visiting[$key]=true;foreach($dependencies[$key]??[] as $dependency)if(isset($dependencies[$dependency]))$visit($dependency);unset($visiting[$key]);$visited[$key]=true;};
+  foreach(array_keys($dependencies) as $key)$visit($key);
   // Drafts may have unfinished interaction links; supplied links must still be valid.
   foreach($visuals as $visual) {
    if($visual['kind']!=='scene' && !empty($visual['skip_rules']))$this->invalid('Only scenes can have skip rules.');
@@ -112,6 +126,13 @@ class SceneDocument {
    $ids=[];
    if($visual['kind']==='object' && count($visual['hotspots'])) $this->invalid('Object images cannot contain scene hotspots.');
    foreach($visual['hotspots'] as $h) {
+    foreach($h['auto_state']['placements']??[] as $condition){
+     $location=collect($visual['hotspots'])->firstWhere('id',$condition['area_id']);
+     if(!$location||($location['action']??'')!=='pickup_v2'||!in_array($condition['object_id'],$objects,true))$this->invalid('Automatic state conditions must reference a collectible location in this scene and an inventory item in this story.');
+    }
+    foreach(['original_target','changed_target'] as $field)if(!empty($h['auto_state'][$field])&&!$pageVisuals->flatten(1)->contains(fn($scene)=>($scene['id']??null)===$h['auto_state'][$field]&&($scene['kind']??null)==='scene'))$this->invalid('Automatic state destination must be a scene in this story.');
+    foreach($h['auto_state']['flag_conditions']??[] as $condition)if($condition['key']===($h['state_flag']??null))$this->invalid('An automatic switch cannot depend on its own state flag.');
+
     if(!empty($h['container_parent_id'])){
      $parent=collect($visual['hotspots'])->firstWhere('id',$h['container_parent_id']);$bounds=$h['container_bounds']??null;
      if(!$parent||empty($parent['is_container'])||!empty($parent['container_parent_id'])||$parent['id']===$h['id']||!$bounds)$this->invalid('Container contents must belong to a drawn container on the same scene.');

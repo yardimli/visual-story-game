@@ -1,7 +1,9 @@
+let activeDescription=null;
+
 export function animatedDescription(options={}) {
  return {
   independentScene:!!options.independentScene, persistent:!!options.persistent, autoSpeak:options.autoSpeak!==false, textClicked:false, instantHide:false,
-  sizeObserver:null, hideAfterMs:null,
+  sizeObserver:null, hideAfterMs:null, speechTimer:null, speechAudio:null,
   init(){this.$nextTick?.(()=>{if(typeof ResizeObserver==='undefined'||!this.$refs?.words)return;this.sizeObserver=new ResizeObserver(()=>{if(this.visible)this.measure();});this.sizeObserver.observe(this.$refs.words);});},
   syncSceneSpace(){if(!this.independentScene)return;const stage=this.$refs?.box?.closest?.('.preview-stage');if(!stage)return;for(const side of ['top','bottom'])stage.style.setProperty('--scene-'+side+'-space',this.visible && this.placement===side?(this.height+12)+'px':'0px');},
   completed:false, identity:null, signature:null, measured:false, words:[], count:0, visible:false, placement:'top', height:0, wordTimer:null, hideTimer:null,
@@ -10,9 +12,12 @@ export function animatedDescription(options={}) {
   get boxStyle(){if(!this.anchor || !['area_top','area_bottom'].includes(this.placement))return {height:this.height+'px',visibility:this.measured && !(this.instantHide && !this.visible)?'visible':'hidden'};const b=areaDescriptionBounds(this.anchor,this.boundsWidth,this.boundsHeight,this.height,this.placement);return {visibility:this.measured && !(this.instantHide && !this.visible)?'visible':'hidden',left:b.left+'px',right:'auto',top:b.top+'px',bottom:'auto',width:b.width+'px',height:b.height+'px',maxHeight:this.boundsHeight+'px'};},
   play(text,position='top',key='',animate=true,area=null) {
    const signature=JSON.stringify([text,position,key,animate,area]);if(signature===this.signature)return;
+   if(this.visible)this.dismiss();
+   if(String(text||'').trim()){if(activeDescription && activeDescription!==this){activeDescription.instantHide=true;activeDescription.dismiss();}activeDescription=this;}
    this.signature=signature;this.textClicked=false;this.instantHide=false;this.identity=key;this.completed=false;this.stop();this.placement=['bottom','area_top','area_bottom'].includes(position)?position:'top';this.anchor=area;this.updateBounds();
    this.words=String(text||'').match(/\S+\s*/g)||[];this.count=0;this.height=0;this.measured=false;this.visible=!!this.words.length;
    this.syncSceneSpace();if(!this.visible)return;if(this.autoSpeak)globalThis.window?.vsgPlayer?.soundPlayer?.speak(text,globalThis.window?.vsgPlayer?.audioSounds||[]);
+   this.watchSpeech();
    if(!animate){this.reveal();return;}
    if(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches){this.reveal();return;}
    this.step();
@@ -22,20 +27,29 @@ export function animatedDescription(options={}) {
     const box=this.$refs.box,word=content.querySelectorAll?.('span')[this.count-1];
     if(box && word){const bottom=word.offsetTop+word.offsetHeight;if(bottom>box.scrollTop+box.clientHeight-12)box.scrollTop=bottom-box.clientHeight+12;}
     else if(box && this.height<250)box.scrollTop=0;}});},
-  scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.persistent)this.hideTimer=setTimeout(()=>{if(globalThis.window?.vsgPlayer?.narrationSpeaking)this.scheduleHide();else this.dismiss();},this.hideAfterMs??5000);},
+  watchSpeech(){
+   const player=globalThis.window?.vsgPlayer;
+   this.speechAudio=player?.soundPlayer?.speaking?player.soundPlayer.channels?.voice:null;
+   if(!this.speechAudio)return;
+   const check=()=>{if(!this.visible)return;const sound=globalThis.window?.vsgPlayer?.soundPlayer;
+    if(!sound?.speaking || sound.channels?.voice!==this.speechAudio){this.speechAudio=null;this.reveal();this.dismiss();return;}
+    this.speechTimer=setTimeout(check,50);
+   };this.speechTimer=setTimeout(check,50);
+  },
+  scheduleHide(){if(!this.completed){this.completed=true;this.$dispatch?.('description-complete',{key:this.identity});}clearTimeout(this.hideTimer);if(!this.speechAudio)this.hideTimer=setTimeout(()=>this.dismiss(),10000);},
   clickFromArea(key){if(this.visible && this.identity===key)this.skipSpeech();},
   skipSpeech(){
    if(this.textClicked || (this.count>=this.words.length && !globalThis.window?.vsgPlayer?.narrationSpeaking)){this.instantHide=true;this.dismissClickedText();return;}
-   this.textClicked=true;
+   this.textClicked=true;clearTimeout(this.speechTimer);this.speechAudio=null;
    globalThis.window?.vsgPlayer?.soundPlayer?.channel('voice',null);
    this.reveal();globalThis.window?.vsgPlayer?.stopNarration?.();
    clearTimeout(this.hideTimer);this.hideTimer=setTimeout(()=>this.dismissClickedText(),this.hideAfterMs??3000);
   },
   dismissClickedText(){this.dismiss();},
   reveal(){clearTimeout(this.wordTimer);this.count=this.words.length;this.measure();this.scheduleHide();},
-  dismiss(){const wasVisible=this.visible;this.visible=false;this.stop();this.syncSceneSpace();if(wasVisible)this.$dispatch?.('description-hidden',{key:this.identity});},
-  stop(){clearTimeout(this.wordTimer);clearTimeout(this.hideTimer);},
-  destroy(){this.sizeObserver?.disconnect();this.stop();}
+  dismiss(){const wasVisible=this.visible;const sound=globalThis.window?.vsgPlayer?.soundPlayer;if(this.speechAudio && sound?.channels?.voice===this.speechAudio)sound.channel?.('voice',null);if(activeDescription===this)activeDescription=null;this.pendingAction=null;this.clicked=false;this.visible=false;this.stop();this.syncSceneSpace();if(wasVisible)this.$dispatch?.('description-hidden',{key:this.identity});},
+  stop(){clearTimeout(this.wordTimer);clearTimeout(this.hideTimer);clearTimeout(this.speechTimer);this.speechAudio=null;},
+  destroy(){this.sizeObserver?.disconnect();this.dismiss();}
  };
 }
 
@@ -67,8 +81,9 @@ export function hoverDescription() {
   scheduleHide(){
    clearTimeout(this.hideTimer);
    const player=globalThis.window?.vsgPlayer;if(player?.readDescriptions && this.hoveredDescriptionArea)player.readDescriptions[player.pickupKey(this.hoveredDescriptionArea)]=true;
-   if(this.clicked){const action=this.pendingAction;this.pendingAction=null;this.clicked=false;this.suppressedHoverKey=this.hoverKey;this.dismiss();action?.();}
+   if(this.clicked){const action=this.pendingAction;this.pendingAction=null;this.clicked=false;this.suppressedHoverKey=this.hoverKey;this.dismiss();action?.();}else animatedDescription().scheduleHide.call(this);
   },
+  dismiss(){if(this.visible)this.suppressedHoverKey=this.hoverKey;animatedDescription().dismiss.call(this);},
   dismissClickedText(){this.suppressedHoverKey=this.hoverKey;this.dismiss();},
   leaveArea(){if(globalThis.window?.vsgPlayer?.narrationSpeaking)return;this.suppressedHoverKey=null;if(!this.clicked){this.hoverKey=null;this.dismiss();}},
   clickArea(area,action){

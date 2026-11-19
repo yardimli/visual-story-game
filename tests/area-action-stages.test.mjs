@@ -108,3 +108,13 @@ test('narration overrides action cursors and tooltips then restores them after p
  assert.equal(e.areaCursor(h),'not-allowed');assert.equal(e.areaTooltip(h),'');h.action_cursor='help';assert.equal(e.areaCursor(h),'not-allowed');
  e.soundPlayer.speaking=false;assert.equal(e.areaCursor(h),'help');assert.equal(e.areaTooltip(h),'Inspect');
 });
+
+
+test('gated examine remembers its completed description after other interactions and repeats the explanation',()=>{
+ const [e,h]=setup();Object.assign(h,{move_after_examine:true,target_page_id:2,target_scene_id:'inside'});let destination=null;e.movePreviewPage=(...args)=>destination=args;
+ e.activate(h);assert.equal(e.narration.text,h.description);e.descriptionCompleted(e.previewId+':'+e.narrationVersion);
+ const other={id:'other',action:'examine',description:'Another object.'};e.activate(other);e.armedPickup=null;
+ for(let i=0;i<3;i++){e.activate(h);assert.equal(e.narration.text,h.unavailable_text);assert.equal(destination,null);e.activate(other);e.armedPickup=null;}
+ e.flags.read=true;e.activate(h);assert.deepEqual(destination,[2,'inside']);
+ e.readDescriptions={};e.armedPickup=null;e.flags.read=false;e.activate(h);assert.equal(e.narration.text,h.description);
+});

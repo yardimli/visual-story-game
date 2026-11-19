@@ -162,7 +162,7 @@ textarea {
 .preview-stage, .object-preview-stage { position: relative; width: fit-content; }
 .preview-scene-image { display: block; width: auto; height: auto; max-width: calc(100vw - 2rem); max-height: calc(100dvh - 2rem); }
 .preview-object-image { display: block; width: auto; height: auto; max-width: min(680px, calc(100vw - 3rem)); max-height: 80dvh; }
-.game-description { position: absolute; z-index: 10; left: 12px; right: 12px; max-height: 250px; overflow-y: auto; padding: 10px 12px; border-radius: 6px; background: rgb(0 0 0 / .65); color: #fff; white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
+.game-description { position: absolute; z-index: 40; left: 12px; right: 12px; max-height: 250px; overflow-y: auto; padding: 10px 12px; border-radius: 6px; background: rgb(0 0 0 / .65); color: #fff; white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
 .scene-description { bottom: 68px; }
 .object-description { bottom: 12px; }
 .object-description.has-actions { bottom: 66px; }
@@ -188,7 +188,7 @@ textarea {
 
 .area-interaction-panel { width: min(480px, calc(100vw - 3rem)); max-height: calc(100dvh - 3rem); overflow-y: auto; color: white; background: #171717; }
 
-.animated-description { position:absolute; z-index:15; left:12px; right:12px; max-height:250px; overflow-y:auto; padding:10px 12px; border:2px solid white; border-radius:12px; background:rgb(0 0 0 / .72); color:white; box-shadow:0 3px 12px rgb(0 0 0 / .25); line-height:1.5; font-size:14px; white-space:pre-wrap; transition:opacity 300ms ease; box-sizing:border-box; }
+.animated-description { position:absolute; z-index:40; left:12px; right:12px; max-height:250px; overflow-y:auto; padding:10px 12px; border:2px solid white; border-radius:12px; background:rgb(0 0 0 / .72); color:white; box-shadow:0 3px 12px rgb(0 0 0 / .25); line-height:1.5; font-size:14px; white-space:pre-wrap; transition:opacity 300ms ease; box-sizing:border-box; }
 .animated-description.description-top { top:12px; bottom:auto; }
 .animated-description.description-bottom { bottom:68px; top:auto; }
 .description-word { color:white; opacity:.8; animation:description-word-glow 650ms ease-out; }
@@ -443,3 +443,17 @@ html.editor-document, .editor-document body { height:100%; overflow:hidden; }
 .image-render-spinner { display: block; width: 2rem; height: 2rem; border: 3px solid rgb(120 113 108 / .25); border-top-color: #b45309; border-right-color: #b45309; border-radius: 50%; animation: image-render-spin .9s linear infinite; }
 .dark .image-render-spinner { border-color: rgb(214 211 209 / .25); border-top-color: #fcd34d; border-right-color: #fcd34d; }
 @keyframes image-render-spin { to { transform: rotate(360deg); } }
+
+.scene-loading-overlay { position:fixed; inset:0; z-index:10000; display:grid; place-items:center; background:rgb(0 0 0 / .6); cursor:wait; }
+.scene-loading-spinner { width:3rem; height:3rem; border:3px solid rgb(255 255 255 / .25); border-top-color:white; border-radius:50%; animation:image-render-spin 2.4s linear infinite; }
+@media (prefers-reduced-motion:reduce) { .scene-loading-spinner { animation:none; } }
+
+@keyframes scene-to-black { from { background:rgb(0 0 0 / .6); } to { background:#000; } }
+@keyframes scene-from-black { from { background:#000; } to { background:transparent; } }
+.scene-loading-overlay.scene-transition-out { background:#000; animation:scene-to-black 300ms ease both; }
+.scene-loading-overlay.scene-transition-in { background:transparent; animation:scene-from-black 300ms ease both; }
+@media (prefers-reduced-motion:reduce) { .scene-loading-overlay { animation:none!important; } }
+
+.inventory-item:disabled, .inventory-item:disabled *, .inventory-toggle:disabled, .inventory-toggle:disabled *,
+.game-action:disabled, .game-action:disabled *,
+.object-preview-dialog.scene-narrating .game-object-actions, .object-preview-dialog.scene-narrating .game-object-actions * { cursor:not-allowed!important; }

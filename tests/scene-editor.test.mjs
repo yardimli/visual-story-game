@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sceneEditor} from '../resources/js/scene-editor.js';
+const finishFade=t=>{t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);};
 
 test('note inspection, stone transition and key pickup preview leave authored scene unchanged', t => {
  t.mock.timers.enable({apis:['setTimeout']});
@@ -17,7 +18,7 @@ test('note inspection, stone transition and key pickup preview leave authored sc
  editor.activate({id:'note-area',label:'Note',description:'Lift the lid.',action:'inspect',object_id:'note'});
  assert.equal(editor.modal.url,'/note.png');assert.equal(editor.previewId,'porch');
  editor.activate({id:'stone-area',action:'transition',target_id:'opened'});
- assert.equal(editor.previewId,'opened');t.mock.timers.tick(450);
+ finishFade(t);assert.equal(editor.previewId,'opened');t.mock.timers.tick(250);
  const pickup={id:'key-area',action:'pickup',object_id:'key'};
  editor.activate(pickup);editor.activate(pickup);
  assert.equal(editor.inventory.length,1);assert.equal(editor.currentHotspots.length,0);
@@ -283,14 +284,14 @@ test('scene crossfade waits another 250ms before inspection and closing cancels 
  editor.document={visuals:[{id:'before',kind:'scene'},{id:'after',kind:'scene'},{id:'letter',kind:'object',name:'Letter'}]};
  editor.selected='before';editor.startPreview();
  editor.activate({id:'inspect',action:'inspect',object_id:'letter',target_id:'after'});
- assert.equal(editor.previewId,'after');assert.equal(editor.outgoingScene.id,'before');
+ assert.equal(editor.previewId,'before');assert.equal(editor.transitionPhase,'out');
  assert.equal(editor.sceneTransition,true);assert.equal(editor.modal,null);
- t.mock.timers.tick(200);
+ finishFade(t);
  assert.equal(editor.sceneTransition,false);assert.equal(editor.outgoingScene,null);assert.equal(editor.modal,null);
  t.mock.timers.tick(249);assert.equal(editor.modal,null);
  t.mock.timers.tick(1);assert.equal(editor.modal.label,'Letter');
  editor.startPreview();editor.activate({id:'inspect',action:'inspect',object_id:'letter',target_id:'after'});
- t.mock.timers.tick(200);editor.closePreview();t.mock.timers.tick(250);
+ finishFade(t);editor.closePreview();t.mock.timers.tick(250);
  assert.equal(editor.modal,null);assert.equal(editor.pendingModal,null);assert.equal(editor.sceneTransition,false);
 });
 
@@ -321,7 +322,7 @@ test('inventory areas match carried object states, show fallback, consume keys a
  editor.useInventoryOnArea('slot3',lock);assert.equal(editor.narration.text,'Nothing happens.');editor.completeInventoryUse();
  editor.useInventoryOnArea('slot2',lock);assert.equal(editor.previewId,'porch');assert.equal(editor.inventory.length,3);assert.equal(editor.narration.text,'The door unlocks.');
  editor.finishInventoryText(editor.pendingInventoryUse.key);t.mock.timers.tick(1199);assert.equal(editor.previewId,'porch');t.mock.timers.tick(1);
- assert.equal(editor.previewId,'open');assert.equal(editor.inventory.length,2);assert.equal(JSON.stringify(editor.document),original);
+ finishFade(t);assert.equal(editor.previewId,'open');assert.equal(editor.inventory.length,2);assert.equal(JSON.stringify(editor.document),original);
  editor.closePreview();
 });
 
@@ -330,7 +331,7 @@ test('named area choices transition only after choosing, and dependencies are cl
  const editor=sceneEditor({});editor.changed=()=>{};editor.$refs={deleteVisualDialog:{showModal(){},close(){}}};
  const door={id:'door',label:'Open door',action:'choices',choices:[{label:'Walk into the house',response:'You enter the hall.',target_id:'hall'}],inventory_rules:[{object_id:'key',target_id:'hall'}]};
  editor.document={visuals:[{id:'porch',kind:'scene',hotspots:[door]},{id:'hall',kind:'scene',hotspots:[]},{id:'key',kind:'object',hotspots:[]}]};editor.selected='porch';editor.startPreview();editor.activate(door);
- assert.equal(editor.previewId,'porch');editor.chooseAreaAction(99);assert.equal(editor.previewId,'porch');editor.chooseAreaAction(0);assert.equal(editor.previewId,'hall');t.mock.timers.tick(200);t.mock.timers.tick(250);assert.equal(editor.narration.text,'You enter the hall.');editor.closePreview();
+ assert.equal(editor.previewId,'porch');editor.chooseAreaAction(99);assert.equal(editor.previewId,'porch');editor.chooseAreaAction(0);finishFade(t);assert.equal(editor.previewId,'hall');t.mock.timers.tick(250);assert.equal(editor.narration.text,'You enter the hall.');editor.closePreview();
  editor.choose('hall');editor.requestVisualDelete();assert.equal(editor.dependentAreas,2);editor.confirmVisualDelete();assert.equal(door.choices[0].target_id,null);assert.equal(door.inventory_rules[0].target_id,null);
  editor.choose('key');editor.requestVisualDelete();editor.confirmVisualDelete();assert.equal(door.inventory_rules.length,0);
 });
@@ -364,11 +365,12 @@ test('manual retry creates a new history entry without changing the current imag
 });
 
 
-test('next page preserves inventory and editor document, then completes on last page', () => {
- const e=sceneEditor({});e.editorPageId=1;e.document={visuals:[{id:'outside',kind:'scene',hotspots:[]},{id:'key',kind:'object',actions:[]}]};e.selected='outside';
+test('next page preserves inventory and editor document, then completes on last page', t => {
+ t.mock.timers.enable({apis:['setTimeout']});
+ const e=sceneEditor({});const transition=e.transitionScene.bind(e);e.transitionScene=(...args)=>{const result=transition(...args);finishFade(t);return result;};e.editorPageId=1;e.document={visuals:[{id:'outside',kind:'scene',hotspots:[]},{id:'key',kind:'object',actions:[]}]};e.selected='outside';
  e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,title:'Inside',visuals:[{id:'inside',kind:'scene',hotspots:[]}]}];
  e.startPreview();e.inventory=[{id:'key',inventoryId:'slot'}];const original=JSON.stringify(e.document);
- e.activate({action:'next_page'});assert.equal(e.previewPageId,2);assert.equal(e.displayed.id,'inside');assert.equal(e.outgoingScene.id,'outside');assert.equal(e.inventory.length,1);assert.equal(JSON.stringify(e.document),original);
+ e.activate({action:'next_page'});assert.equal(e.previewPageId,2);assert.equal(e.displayed.id,'inside');assert.equal(e.inventory.length,1);assert.equal(JSON.stringify(e.document),original);
  e.clearSceneTransition();e.activate({action:'next_page'});assert.equal(e.narration.label,'Story complete');
  e.startPreview();assert.equal(e.previewId,'outside');assert.equal(e.previewPageId,1);e.closePreview();
 });
@@ -448,8 +450,9 @@ test('scene skip rules require every selected item, support cross-page jumps, an
  e.document.visuals[0].skip_rules=[rule(2,'missing'),rule(2,'empty',[])];
  assert.deepEqual(e.resolveSceneEntry(1,'full'),{pageId:1,sceneId:'full'});assert.equal(e.skipJumpCount,0);
 });
-test('seeded preview applies scene rules and pickup evaluates destination after inventory changes',()=>{
- const e=sceneEditor({});e.editorPageId=1;e.selected='full';
+test('seeded preview applies scene rules and pickup evaluates destination after inventory changes',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const e=sceneEditor({});const transition=e.transitionScene.bind(e);e.transitionScene=(...args)=>{const result=transition(...args);finishFade(t);return result;};e.editorPageId=1;e.selected='full';
  const r={object_ids:['key'],target_page_id:1,target_scene_id:'empty'};
  e.document={visuals:[{id:'full',kind:'scene',hotspots:[],skip_rules:[r]},{id:'empty',kind:'scene',hotspots:[]},{id:'key',kind:'object'}]};
  e.previewPages=[{id:1,visuals:e.document.visuals}];
@@ -558,8 +561,9 @@ test('examine ignores stale pickup objects and hidden scene transitions',()=>{
  e.closePreview();e.document.visuals[0].hotspots=[h];e.hotspotId=h.id;e.changed=()=>{};e.changeAreaAction('examine');assert.equal(h.target_id,null);
 });
 
-test('world flags survive page revisits and consumption, route open/closed states, and reset for new play',()=>{
- const e=sceneEditor({});e.editorPageId=1;e.selected='wide';
+test('world flags survive page revisits and consumption, route open/closed states, and reset for new play',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const e=sceneEditor({});const transition=e.transitionScene.bind(e);e.transitionScene=(...args)=>{const result=transition(...args);finishFade(t);return result;};e.editorPageId=1;e.selected='wide';
  e.flagDefinitions=[{key:'stone_opened',initial:false},{key:'key_collected',initial:false}];
  const condition=(key,value)=>({key,value});
  const skip=(values,page,scene)=>({object_ids:[],flag_conditions:Object.entries(values).map(([key,value])=>condition(key,value)),target_page_id:page,target_scene_id:scene});
@@ -708,9 +712,8 @@ test('walking through an open door preserves its composed image during transitio
  e.document={visuals:[{id:'porch',kind:'scene',asset_id:1,hotspots:[door,walk]}]};e.editorPageId=1;e.previewPageId=1;e.previewId='porch';e.preview=true;e.flags={door_open:true};
  e.previewPages=[{id:1,visuals:e.document.visuals},{id:2,visuals:[{id:'inside',kind:'scene',asset_id:3,hotspots:[]}]}];e.assets=[{id:1,url:'/closed.jpg'},{id:2,url:'/open-door.png'},{id:3,url:'/inside.jpg'}];
  assert.ok(e.areaLayer(walk)>e.areaLayer(door));e.activate(walk);
- assert.equal(e.previewId,'inside');assert.equal(e.flags.door_open,true);assert.equal(e.outgoingScene.layers.length,1);assert.equal(e.outgoingScene.layers[0].url,'/open-door.png');assert.match(e.outgoingScene.layers[0].style,/left:35%/);
- e.activate(door);assert.equal(e.flags.door_open,true);
- t.mock.timers.tick(200);assert.equal(e.outgoingScene,null);assert.equal(e.sceneTransition,false);e.closePreview();
+ assert.equal(e.previewId,'porch');assert.equal(e.areaImage(door).url,'/open-door.png');assert.equal(e.transitionPhase,'out');
+ e.activate(door);assert.equal(e.flags.door_open,true);finishFade(t);assert.equal(e.previewId,'inside');assert.equal(e.sceneTransition,false);e.closePreview();
 });
 
 
@@ -720,8 +723,7 @@ test('slow destination images keep the open-door scene intact until loaded, then
  e.document={visuals:[{id:'porch',kind:'scene',asset_id:1,hotspots:[door]},{id:'inside',kind:'scene',asset_id:3,hotspots:[]}]};e.editorPageId=1;e.previewPageId=1;e.previewId='porch';e.preview=true;e.flags={open:true};e.assets=[{id:1,url:'/closed'},{id:2,url:'/open'},{id:3,url:'/inside'}];
  let ready;e.preloadScene=()=>new Promise(resolve=>{ready=resolve;});const pending=e.transitionScene('inside');
  t.mock.timers.tick(5000);assert.equal(e.previewId,'porch');assert.equal(e.areaImage(door).url,'/open');assert.equal(e.outgoingScene,null);assert.equal(e.sceneTransition,true);
- ready();await pending;assert.equal(e.previewId,'inside');assert.equal(e.outgoingScene.layers[0].url,'/open');assert.equal(e.flags.open,true);
- t.mock.timers.tick(199);assert.ok(e.outgoingScene);t.mock.timers.tick(1);assert.equal(e.outgoingScene,null);e.closePreview();
+ ready();await pending;assert.equal(e.previewId,'porch');assert.equal(e.transitionPhase,'out');t.mock.timers.tick(299);assert.equal(e.previewId,'porch');t.mock.timers.tick(1);assert.equal(e.previewId,'inside');assert.equal(e.transitionPhase,'out');t.mock.timers.tick(50);assert.equal(e.transitionPhase,'in');assert.equal(e.flags.open,true);t.mock.timers.tick(300);assert.equal(e.sceneTransition,false);e.closePreview();
 });
 test('closing preview cancels a destination image load without reopening or navigating',async()=>{
  const e=sceneEditor({});e.document={visuals:[{id:'a',kind:'scene',hotspots:[]},{id:'b',kind:'scene',hotspots:[]}]};e.preview=true;e.previewId='a';e.editorPageId=1;e.previewPageId=1;
@@ -730,8 +732,8 @@ test('closing preview cancels a destination image load without reopening or navi
 });
 test('scene preloading waits for image decode, including local layer references',async()=>{
  const Original=globalThis.Image;const images=[];globalThis.Image=class{constructor(){images.push(this);}decode(){return new Promise(resolve=>{this.decoded=resolve;});}};
- try{const e=sceneEditor({});e.assets=[{id:1,url:'/scene'},{id:2,url:'/layer'}];const loading=e.preloadScene({asset_id:1,hotspots:[{state_asset_id:2,overlay_asset_id:2}]});let done=false;loading.then(()=>done=true);
- assert.equal(images.length,2);for(const image of images)image.onload();await Promise.resolve();assert.equal(done,false);for(const image of images)image.decoded();await loading;assert.equal(done,true);
+ try{const e=sceneEditor({});e.assets=[{id:1,url:'/scene'},{id:2,url:'/layer'},{id:3,url:'/placed'}];e.inventoryItems=[{id:'key',kind:'object',asset_id:3}];e.placedObjects={slot:'key'};const loading=e.preloadScene({asset_id:1,hotspots:[{id:'slot',state_asset_id:2,overlay_asset_id:2}]});let done=false;loading.then(()=>done=true);
+ assert.equal(images.length,3);for(const image of images)image.onload();await Promise.resolve();assert.equal(done,false);images[0].decoded();images[1].decoded();await Promise.resolve();assert.equal(done,false);images[2].decoded();await loading;assert.equal(done,true);
  }finally{globalThis.Image=Original;}
 });
 

@@ -25,6 +25,7 @@ class StoryFlags {
   $uses=[];
   $walk=function(array $node,string $path)use(&$walk,&$uses,$flag,$remove):array {
    if(isset($node['name']))$path.=' / '.$node['name'];elseif(isset($node['label']))$path.=' / '.$node['label'];
+   if($remove&&isset($node['auto_state'])&&(($node['state_flag']??null)===$flag||in_array($flag,array_column($node['auto_state']['flag_conditions']??[],'key'),true)))$node['auto_state']['enabled']=false;
    foreach($node as $key=>$value){
     if(in_array($key,['state_flag','collectible_flag'],true)&&$value===$flag){$uses[]=['location'=>$path,'type'=>$key==='state_flag'?'Local switch state':'Collected item state'];if($remove)$node[$key]=null;}
     elseif(in_array($key,['flag_conditions','flag_effects','disabled_when','visible_when'],true)&&is_array($value)){

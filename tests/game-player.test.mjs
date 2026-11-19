@@ -121,5 +121,43 @@ test('accepted placement shows its layer before the response finishes',()=>{
 test('scene introductions appear once per scene and reset on a new playthrough',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;globalThis.window={};const input=data();input.pages[0].visuals[0].description='Welcome to the hall.';input.pages[0].visuals.push({id:'garden',kind:'scene',asset_id:1,description:'A quiet garden.',hotspots:[]});
  const p=gamePlayer(input);p.init();p.begin();
- try{assert.equal(p.sceneIntroText,'Welcome to the hall.');p.transitionScene('garden');t.mock.timers.tick(500);assert.equal(p.sceneIntroText,'A quiet garden.');p.transitionScene('hall');t.mock.timers.tick(500);assert.equal(p.sceneIntroText,'');p.transitionScene('garden');t.mock.timers.tick(500);assert.equal(p.sceneIntroText,'');p.closePreview();p.begin();assert.equal(p.sceneIntroText,'Welcome to the hall.');}finally{p.destroy();globalThis.window=old;}
+ try{assert.equal(p.sceneIntroText,'Welcome to the hall.');p.transitionScene('garden');t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);assert.equal(p.sceneIntroText,'A quiet garden.');p.transitionScene('hall');t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);assert.equal(p.sceneIntroText,'');p.transitionScene('garden');t.mock.timers.tick(300);t.mock.timers.tick(50);t.mock.timers.tick(300);assert.equal(p.sceneIntroText,'');p.closePreview();p.begin();assert.equal(p.sceneIntroText,'Welcome to the hall.');}finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('automatic chest switch requires both placed items, reverses on pickup and supports sticky unlock',()=>{
+ const old=globalThis.window;globalThis.window={};const d=data();const areas=d.pages[0].visuals[0].hotspots;
+ Object.assign(areas[0],{initial_empty:true,collectible_flag:'empty1',placement_enabled:true,inventory_rules:[{object_id:'coin-item',allowed:true}]});
+ areas.push({...areas[0],id:'second',collectible_flag:'empty2'});
+ Object.assign(areas[1],{action:'state_v2',state_flag:'unlocked',state_asset_id:2,auto_state:{enabled:true,placements:[{area_id:'coins',object_id:'coin-item'},{area_id:'second',object_id:'coin-item'}],changed_target:'inside'}});
+ d.flags=[{key:'empty1'},{key:'empty2'}];d.start.flags=['empty1','empty2'];const p=gamePlayer(d);p.init();p.begin();p.animatePickup=()=>{};
+ try{
+ assert.equal(!!p.flags.unlocked,false);
+ p.placedObjects.coins='coin-item';p.flags.empty1=false;p.syncAutomaticStates();assert.equal(!!p.flags.unlocked,false);
+ p.placedObjects.second='coin-item';p.flags.empty2=false;p.syncAutomaticStates();assert.equal(p.flags.unlocked,true);
+ assert.equal(p.automaticDestination(areas[1]),'inside');
+ const coin=p.displayed.hotspots[0];coin.description='';p.activate(coin);assert.equal(p.flags.unlocked,false);
+ areas[1].auto_state.sticky=true;p.flags.empty1=false;p.syncAutomaticStates();assert.equal(p.flags.unlocked,true);
+ p.flags.empty1=true;p.syncAutomaticStates();assert.equal(p.flags.unlocked,true);
+ }finally{p.destroy();globalThis.window=old;}
+});
+test('automatic switch clicks examine or navigate without toggling the image',()=>{
+ const old=globalThis.window;globalThis.window={};const d=data();const h=d.pages[0].visuals[0].hotspots[1];Object.assign(h,{action:'state_v2',state_flag:'open',auto_state:{enabled:true,flag_conditions:[{key:'ready',value:true}],changed_target:'inside'},state_description:''});
+ d.flags=[{key:'ready'}];const p=gamePlayer(d);p.init();p.begin();try{
+ p.activate(h);assert.equal(p.narration.text,'A box');assert.equal(!!p.flags.open,false);
+ p.descriptionCompleted(p.previewId+':'+p.narrationVersion);assert.equal(p.clickAreaMessage(h),true);
+ p.applyFlagEffects({flag_effects:[{key:'ready',value:true}]});assert.equal(p.flags.open,true);
+ d.pages[0].visuals.push({id:'inside',kind:'scene',hotspots:[]});let destination;p.movePreviewPage=(page,scene)=>destination=scene;p.activate(h);assert.equal(destination,'inside');assert.equal(p.flags.open,true);
+ }finally{p.destroy();globalThis.window=old;}
+});
+
+
+test('initially empty placement area describes before opening inventory',()=>{
+ const old=globalThis.window;globalThis.window={};const d=data();
+ const h=d.pages[0].visuals[0].hotspots[0];Object.assign(h,{initial_empty:true,placement_enabled:true,description:'A circular indentation.'});
+ const p=gamePlayer(d);p.init();p.begin();try{
+ assert.equal(p.areaCursor(h),'help');p.activate(h);assert.equal(p.narration.text,h.description);assert.equal(p.inventoryOpen,false);
+ p.descriptionCompleted(p.previewId+':'+p.narrationVersion);assert.equal(p.clickAreaMessage(h),false);p.activate(h);assert.equal(p.inventoryOpen,true);assert.equal(p.narration,null);
+ p.examineMode=true;p.activate(h);assert.equal(p.narration.text,h.description);
+ }finally{p.destroy();globalThis.window=old;}
 });

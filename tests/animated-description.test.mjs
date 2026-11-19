@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {animatedDescription, hoverDescription, areaDescriptionBounds} from '../resources/js/animated-description.js';
 
-test('words reveal progressively, click reveals all, then fade after five seconds', t=>{
- t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.play('One two three','bottom','scene');assert.equal(d.count,1);assert.equal(d.placement,'bottom');t.mock.timers.tick(110);assert.equal(d.count,2);d.reveal();assert.equal(d.count,3);t.mock.timers.tick(4999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);
+test('words reveal progressively, click reveals all, then fade after ten seconds', t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.play('One two three','bottom','scene');assert.equal(d.count,1);assert.equal(d.placement,'bottom');t.mock.timers.tick(110);assert.equal(d.count,2);d.reveal();assert.equal(d.count,3);t.mock.timers.tick(9999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);
 });
 test('outside dismissal cancels typing and new messages restart, capped at 250px',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.$nextTick=fn=>fn();d.$refs={words:{scrollHeight:500},box:{scrollHeight:500,scrollTop:0}};d.play('One two three');assert.equal(d.height,250);d.dismiss();t.mock.timers.tick(1000);assert.equal(d.count,1);d.play('New message',undefined,'next');assert.equal(d.placement,'top');assert.equal(d.visible,true);d.destroy();t.mock.timers.tick(1000);assert.equal(d.count,1);
@@ -52,10 +52,17 @@ test('click narration respects disabled animation and area-relative positioning'
  assert.equal(d.count,3);assert.equal(d.boxStyle.left,'400px');assert.equal(d.boxStyle.top,'320px');d.destroy();
 });
 
-test('scene narration keeps typing independently while item descriptions are replaced',t=>{
+test('new descriptions replace scene text and cancel its animation immediately',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const scene=animatedDescription({independentScene:true}),item=hoverDescription();
- scene.play('The house stands silent','top','scene');item.hoverArea({id:'one',description:'First item'},1,'scene');t.mock.timers.tick(110);assert.equal(scene.count,2);
- item.hoverArea({id:'two',description:'Second item'},1,'scene');assert.equal(item.words.join(''),'Second item');assert.equal(scene.visible,true);t.mock.timers.tick(110);assert.equal(scene.count,3);scene.destroy();item.destroy();
+ scene.play('The house stands silent','top','scene');item.hoverArea({id:'one',description:'First item'},1,'scene');assert.equal(scene.visible,false);assert.equal(scene.instantHide,true);t.mock.timers.tick(110);assert.equal(scene.count,1);
+ item.hoverArea({id:'two',description:'Second item'},1,'scene');assert.equal(item.words.join(''),'Second item');assert.equal(scene.visible,false);scene.destroy();item.destroy();
+});
+
+test('replacing a speaking box with silent text stops only the old voice and cancels pending work',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const previous=globalThis.window;const voice={};let stopped=0;
+ const sound={speaking:false,channels:{voice:null},speak(text){this.channels.voice=text==='Spoken words here'?voice:null;this.speaking=!!this.channels.voice;},channel(){stopped++;this.speaking=false;this.channels.voice=null;}};
+ globalThis.window={vsgPlayer:{soundPlayer:sound}};
+ try{const first=animatedDescription(),next=animatedDescription({persistent:true});first.play('Spoken words here');next.play('Silent message','top','new',false);assert.equal(first.visible,false);assert.equal(next.visible,true);assert.equal(stopped,1);assert.equal(sound.speaking,false);t.mock.timers.tick(500);assert.equal(first.count,1);first.destroy();assert.equal(next.visible,true);next.destroy();}finally{globalThis.window=previous;}
 });
 
 test('full-text layout fixes height before words finish and keeps upward anchor steady',t=>{
@@ -73,10 +80,10 @@ test('description remeasures when a closed dialog opens and disconnects its obse
  }finally{globalThis.ResizeObserver=original;}
 });
 
-test('inventory response remains visible until replaced or dialog closes',t=>{
+test('inventory responses also expire after ten seconds without audio',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription({persistent:true});
- d.play('Try a key','top','intro',false);t.mock.timers.tick(30000);assert.equal(d.visible,true);
- d.play('Nothing happens','top','attempt-1',false);t.mock.timers.tick(30000);assert.equal(d.visible,true);assert.equal(d.words.join(''),'Nothing happens');
+ d.play('Try a key','top','intro',false);t.mock.timers.tick(10000);assert.equal(d.visible,false);
+ d.play('Nothing happens','top','attempt-1',false);t.mock.timers.tick(10000);assert.equal(d.visible,false);assert.equal(d.words.join(''),'Nothing happens');
  d.destroy();
 });
 
@@ -89,7 +96,7 @@ test('dismissed hover text stays hidden on movement until pointer leaves',()=>{
 test('description dismissal reports its identity so expired click narration can be cleared',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();let hidden;
  d.$dispatch=(event,detail)=>{if(event==='description-hidden')hidden=detail.key;};
- d.play('A rose','top','scene:2',false);t.mock.timers.tick(5000);assert.equal(hidden,'scene:2');
+ d.play('A rose','top','scene:2',false);t.mock.timers.tick(10000);assert.equal(hidden,'scene:2');
 });
 
 test('text completion is emitted only after the final word and once per response',t=>{
@@ -122,11 +129,11 @@ test('clicked hover text times out and stays suppressed until leaving the area',
 });
 
 
-test('unavailable messages honor configured millisecond timeout',t=>{
+test('all silent messages use ten seconds even with a legacy timeout override',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.hideAfterMs=1000;
- d.play('Not yet','top','blocked',false);t.mock.timers.tick(999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);
- d.hideAfterMs=2400;d.play('Not yet','top','blocked2',false);t.mock.timers.tick(2399);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);d.destroy();
+ d.play('Not yet','top','blocked',false);t.mock.timers.tick(9999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);d.destroy();
 });
+
 test('source-area clicks use the same reveal and dismiss state as text-box clicks',t=>{
  t.mock.timers.enable({apis:['setTimeout']});const d=animatedDescription();d.play('One two three','top','scene:1');
  d.clickFromArea('scene:2');assert.equal(d.count,1);d.clickFromArea('scene:1');assert.equal(d.count,3);assert.equal(d.visible,true);
@@ -134,7 +141,16 @@ test('source-area clicks use the same reveal and dismiss state as text-box click
 });
 
 
-test('finished examine speech stays visible and the next click dismisses without replay',t=>{
- t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;let plays=0;globalThis.window={vsgPlayer:{narrationSpeaking:true,soundPlayer:{speak(){plays++;}}}};
- const d=animatedDescription({persistent:true});d.play('A quiet room','top','examine',true);t.mock.timers.tick(600);globalThis.window.vsgPlayer.narrationSpeaking=false;t.mock.timers.tick(10000);assert.equal(d.visible,true);d.skipSpeech();assert.equal(d.visible,false);assert.equal(plays,1);d.destroy();globalThis.window=old;
+test('speech completion hides text including persistent scenes and marks unfinished animation read',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;const audio={};const sound={speaking:true,channels:{voice:audio},speak(){}};
+ globalThis.window={vsgPlayer:{soundPlayer:sound}};
+ try{for(const options of [{persistent:true},{independentScene:true},{}]){
+ sound.speaking=true;const d=animatedDescription(options);let completed=false;d.$dispatch=e=>{if(e==='description-complete')completed=true;};
+ d.play('One two three four five','top','spoken');assert.equal(d.visible,true);sound.speaking=false;t.mock.timers.tick(50);assert.equal(d.visible,false);assert.equal(completed,true);d.destroy();
+ }}finally{globalThis.window=old;}
+});
+test('long speech outlasts silent timeout and manual reveal keeps its three second grace period',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const old=globalThis.window;const sound={speaking:true,channels:{voice:{}},speak(){},channel(){this.speaking=false;this.channels.voice=null;}};
+ globalThis.window={vsgPlayer:{soundPlayer:sound,narrationSpeaking:true}};
+ try{const d=animatedDescription();d.play('Long speech','top','long',false);t.mock.timers.tick(20000);assert.equal(d.visible,true);d.skipSpeech();t.mock.timers.tick(2999);assert.equal(d.visible,true);t.mock.timers.tick(1);assert.equal(d.visible,false);d.destroy();}finally{globalThis.window=old;}
 });

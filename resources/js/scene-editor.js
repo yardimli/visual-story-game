@@ -428,6 +428,7 @@ addFlagRule(target,field){target[field]??=[];const flag=this.flagDefinitions.fin
   confirmAreaDelete(){
    const visual=this.visual,area=visual?.hotspots.find(h=>h.id===this.deleteAreaId);if(!area)return;
    visual.hotspots=visual.hotspots.filter(h=>h.id!==area.id&&h.container_parent_id!==area.id);
+   for(const h of visual.hotspots){const c=h.auto_state;if(c?.placements?.some(r=>!visual.hotspots.some(a=>a.id===r.area_id))){c.placements=c.placements.filter(r=>visual.hotspots.some(a=>a.id===r.area_id));c.enabled=false;}}
    this.hotspotId='';this.deleteAreaId='';this.renamingId='';this.areaDrag=null;this.changed();this.$refs.deleteAreaDialog.close();
   },
   beginRename(h){if(this.preview)return;this.hotspotId=h.id;this.renamingId=h.id;this.labelDraft=h.label;},

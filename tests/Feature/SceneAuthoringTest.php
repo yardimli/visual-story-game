@@ -9,6 +9,19 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class SceneAuthoringTest extends TestCase {
  use RefreshDatabase;
+ public function test_automatic_switch_conditions_and_cross_page_destination_are_saved():void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $s->update(['game_flags'=>[['key'=>'open','name'=>'Open','initial'=>false]]]);
+  $location=$doc['visuals'][0]['hotspots'][0];$location['action']='pickup_v2';
+  $switch=$location;$switch['id']=(string)Str::uuid();$switch['action']='state_v2';$switch['state_flag']='open';
+  $destination=(string)Str::uuid();$s->pages()->create(['position'=>2,'title'=>'Inside','visual_document'=>['visuals'=>[['id'=>$destination,'kind'=>'scene','name'=>'Inside','hotspots'=>[]]]]]);
+  $switch['auto_state']=['enabled'=>true,'sticky'=>false,'placements'=>[['area_id'=>$location['id'],'object_id'=>$location['object_id']]],'flag_conditions'=>[],'original_target'=>null,'changed_target'=>$destination];
+  $doc['visuals'][0]['hotspots']=[$location,$switch];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $this->assertSame($destination,$p->fresh()->visual_document['visuals'][0]['hotspots'][1]['auto_state']['changed_target']);
+  $doc['visuals'][0]['hotspots'][1]['auto_state']['placements'][0]['area_id']=(string)Str::uuid();
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+ }
  private function setupScene(): array {
   $u=User::factory()->create();$u->forceFill(['openrouter_key'=>'test-personal'])->save();$this->actingAs($u);
   $s=Story::create(['user_id'=>$u->id,'title'=>'Silent House','premise'=>'Find the key.']);$p=$s->pages()->create(['position'=>1,'title'=>'Porch']);

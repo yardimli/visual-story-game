@@ -59,6 +59,8 @@ class SceneController extends Controller {
    if($p->visual_revision!==(int)$data['revision']) throw ValidationException::withMessages(['revision'=>'Scene artwork changed in another tab. Reload before editing.']);
    $removed=collect($p->visual_document['visuals']??[])->where('kind','scene')->pluck('id')->diff(collect($data['document']['visuals']??[])->pluck('id'))->all();
    $doc=$this->clearDeletedDestinations($data['document'],$removed);
+   $oldAreas=collect($p->visual_document['visuals']??[])->flatMap(fn($v)=>$v['hotspots']??[])->pluck('id')->all();
+   foreach($doc['visuals'] as &$scene){$ids=array_column($scene['hotspots']??[],'id');foreach($scene['hotspots'] as &$area)if(isset($area['auto_state'])){$rows=$area['auto_state']['placements']??[];$kept=array_values(array_filter($rows,fn($r)=>!in_array($r['area_id']??null,$oldAreas,true)||in_array($r['area_id']??null,$ids,true)));if(count($kept)!==count($rows)){$area['auto_state']['placements']=$kept;$area['auto_state']['enabled']=false;}}unset($area);}unset($scene);
    $doc=$validator->validate($s,$doc,$p->id);
    if($removed)foreach($s->pages()->where('id','!=',$p->id)->lockForUpdate()->get() as $other){
     $clean=$this->clearDeletedDestinations($other->visual_document??['visuals'=>[]],$removed);
@@ -84,6 +86,7 @@ class SceneController extends Controller {
     }
     if(in_array($area['target_id']??null,$removed,true)){$area['target_id']=null;if($area['action']==='transition')$area['action']='examine';}
     foreach(['inventory_rules','choices'] as $key)foreach($area[$key]??[] as $k=>$rule)if(in_array($rule['target_id']??null,$removed,true))$area[$key][$k]['target_id']=null;
+    foreach(['original_target','changed_target'] as $field)if(in_array($area['auto_state'][$field]??null,$removed,true))$area['auto_state'][$field]=null;
     $doc['visuals'][$i]['hotspots'][$j]=$area;
    }
   }
