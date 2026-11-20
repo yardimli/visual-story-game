@@ -81,7 +81,11 @@
                     type="button"
                     class="btn-primary"
                     @click="confirmPreviewInventory()"
-                >Start test</button>
+                >Start test</button><button
+                    type="button"
+                    class="btn-secondary"
+                    @click="confirmPreviewInventory(true)"
+                >Start test (skip first video)</button>
             </footer>
         </div>
     </dialog>

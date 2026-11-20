@@ -2,7 +2,7 @@
     class="scene-editor-panel"
     x-show="tab==='visuals'"
     x-cloak
-    x-data="sceneEditor(@js(['playUrl' => route('stories.play', $story), 'flagsUrl' => route('flags.show', $story), 'audioUrl' => route('audio.index', $story), 'url' => route('visuals.show', [$story, $page]), 'extractionUrl' => route('extractions.index', [$story, $page]), 'containerUrl' => route('containers.index', [$story, $page]), 'writingModel' => $story->llm_model, 'generate' => route('images.generate', [$story, $page]), 'upload' => route('assets.store', $story), 'model' => $story->image_model]))"
+    x-data="sceneEditor(@js(['videoUrl' => route('videos.index', $story), 'playUrl' => route('stories.play', $story), 'flagsUrl' => route('flags.show', $story), 'audioUrl' => route('audio.index', $story), 'url' => route('visuals.show', [$story, $page]), 'extractionUrl' => route('extractions.index', [$story, $page]), 'containerUrl' => route('containers.index', [$story, $page]), 'writingModel' => $story->llm_model, 'generate' => route('images.generate', [$story, $page]), 'upload' => route('assets.store', $story), 'model' => $story->image_model]))"
 >
     <p
         x-show="halted"
@@ -441,7 +441,7 @@
                                 ></button></div>
                         </div>
                         <div class="space-y-3">
-                            <div class="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3"><label
+                            <div class="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-4"><label
                                     class="field min-w-0">Visual name<input
                                         x-model="visual.name"
                                         @input="changed()"
@@ -460,7 +460,20 @@
                                         ><span
                                             class="truncate"
                                             x-text="asset(visual.asset_id)?.name || 'Choose image'"
-                                        ></span></button></div><label class="field min-w-0">Scene entry sound<div
+                                        ></span></button></div>
+                                <div class="field min-w-0"><span>Scene intro video</span>
+                                    <button
+                                        type="button"
+                                        class="btn-secondary min-w-0 justify-between"
+                                        aria-haspopup="dialog"
+                                        @click="openIntroVideoPicker()"
+                                    >
+                                        <span
+                                            class="truncate"
+                                            x-text="introVideos.find(v=>v.id===visual.intro_video_id)?.name || (visual.intro_video_id ? 'Selected video' : 'No intro video')"
+                                        ></span><span aria-hidden="true">▾</span>
+                                    </button>
+                                </div><label class="field min-w-0">Scene entry sound<div
                                         class="audio-select-row"
                                         x-data="audioPreview('scenes')"
                                         x-effect="setSound(audioSounds.find(s=>s.id===Number(visual.sound_id)))"
@@ -1568,4 +1581,64 @@
         </div>
     </dialog>
     @include('studio.containers')
+
+    <template x-teleport="body">
+        <dialog
+            x-ref="introVideoPicker"
+            class="image-picker-dialog reference-dialog rounded-2xl bg-white p-5 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+            aria-label="Choose scene intro video"
+            @click="if($event.target===$el)$el.close()"
+        >
+            <header class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="font-serif text-xl">Scene intro video</h2><button
+                    type="button"
+                    class="btn-secondary"
+                    @click="$refs.introVideoPicker.close()"
+                >Close</button>
+            </header>
+            <button
+                type="button"
+                class="btn-secondary mb-4"
+                @click="selectIntroVideo(null)"
+            >No intro video</button>
+            <p x-show="introVideosLoading">Loading videos…</p>
+            <p
+                x-show="introVideosError"
+                x-text="introVideosError"
+                role="alert"
+            ></p>
+            <p x-show="!introVideosLoading && !introVideosError && !introVideos.length">Generate a video in the Video
+                tab first. Completed videos appear here.</p>
+            <div class="max-h-[65vh] space-y-4 overflow-y-auto">
+                <template
+                    x-for="video in introVideos"
+                    :key="video.id"
+                >
+                    <button
+                        type="button"
+                        class="block w-full rounded-xl border border-stone-300 p-4 text-left dark:border-stone-600"
+                        @click="selectIntroVideo(video.id)"
+                        :aria-pressed="visual?.intro_video_id === video.id"
+                    >
+                        <strong
+                            class="mb-3 block"
+                            x-text="video.name"
+                        ></strong>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><span class="mb-1 block text-sm">First frame</span><img
+                                    :src="video.first_frame_url"
+                                    alt="First frame"
+                                    class="h-40 w-full object-contain"
+                                ></div>
+                            <div x-show="video.last_frame_url"><span class="mb-1 block text-sm">Last frame</span><img
+                                    :src="video.last_frame_url || null"
+                                    alt="Last frame"
+                                    class="h-40 w-full object-contain"
+                                ></div>
+                        </div>
+                    </button>
+                </template>
+            </div>
+        </dialog>
+    </template>
 </section>

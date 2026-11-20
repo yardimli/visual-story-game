@@ -6,7 +6,7 @@
         'storyId' => $story?->id,
         'endpoint' => $story ? route('chat.store', $story) : route('companion.store'),
         'changesBase' => $story ? url('/stories/' . $story->id . '/messages') : null,
-        'history' => $story ? null : route('companion.history'),
+        'history' => $story ? route('chat.history', $story) : route('companion.history'),
         'messages' => $initial,
         'model' => $story?->llm_model ?? '',
         'pageId' => $page?->id,
@@ -65,6 +65,12 @@
                     >
                         <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />
                     </svg></button>
+                <p
+                    x-show="item.response_error"
+                    x-text="item.response_error"
+                    class="mb-2 text-xs text-red-700 dark:text-red-400"
+                    role="alert"
+                ></p>
                 <p class="break-words text-sm leading-6"><span
                         class="whitespace-pre-wrap"
                         x-text="(item.streaming?streamingMessage(item.content).text:displayMessage(item)).trimEnd()"
@@ -231,8 +237,8 @@
                     </template>
                 </select></div><button
                 class="btn-primary companion-send"
-                :disabled="sending"
-                x-text="sending ? 'Writing…' : 'Send ↑'"
+                :disabled="sending || !historyReady"
+                x-text="!historyReady ? 'Connecting…' : sending ? 'Writing…' : 'Send ↑'"
             ></button>
         </div>
         <div class="flex items-center gap-3 text-[10px] text-stone-500 dark:text-stone-400"><a

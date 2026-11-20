@@ -125,7 +125,35 @@ export function sceneEditor(options) {
                 const seconds = Math.max(0, Math.floor((this.renderClock - start) / 1000));
                 return Math.floor(seconds / 60) + 'm ' + String(seconds % 60).padStart(2, '0') + 's';
             },
+            introVideos: [],
+            introVideosLoading: false,
+            introVideosError: '',
+            async loadIntroVideos() {
+                if (!options.videoUrl) return;
+                this.introVideosLoading = true;
+                this.introVideosError = '';
+                try {
+                    const response = await fetch(options.videoUrl, { headers: { Accept: 'application/json' } });
+                    if (!response.ok) throw new Error('Could not load scene videos. Try again.');
+                    const data = await response.json();
+                    this.introVideos = data.jobs.filter((job) => job.status === 'completed' && job.url);
+                } catch (error) {
+                    this.introVideosError = error.message;
+                } finally {
+                    this.introVideosLoading = false;
+                }
+            },
+            openIntroVideoPicker() {
+                this.$refs.introVideoPicker.showModal();
+                this.loadIntroVideos();
+            },
+            selectIntroVideo(id) {
+                this.visual.intro_video_id = id;
+                this.changed();
+                this.$refs.introVideoPicker.close();
+            },
             async init() {
+                this.loadIntroVideos();
                 if (this.generationMode)
                     this.renderClockTimer = setInterval(() => {
                         this.renderClock = Date.now();
@@ -2048,7 +2076,7 @@ export function sceneEditor(options) {
                 this.previewFlags = this.flagDefinitions.filter((f) => f.initial).map((f) => f.key);
                 this.$refs.previewInventoryDialog.showModal();
             },
-            async confirmPreviewInventory() {
+            async confirmPreviewInventory(skipFirstVideo = false) {
                 const tab = window.open('about:blank', '_blank');
                 if (!tab) {
                     notify('Allow popups to open the game preview.', 'error');
@@ -2074,6 +2102,7 @@ export function sceneEditor(options) {
                     }
                     const start = this.pageSceneDestinations.find((d) => d.key === this.previewStartKey),
                         url = new URL(options.playUrl, window.location.origin);
+                    if (skipFirstVideo) url.searchParams.set('skip_first_video', '1');
                     url.searchParams.set('page', start?.pageId ?? this.editorPageId);
                     if (start?.sceneId) url.searchParams.set('scene', start.sceneId);
                     this.previewInventorySelection.forEach((id) => url.searchParams.append('inventory[]', id));

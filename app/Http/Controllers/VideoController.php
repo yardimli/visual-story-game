@@ -71,11 +71,33 @@ class VideoController extends Controller
         DB::transaction(function () use ($video) {
             $job = VideoGeneration::whereKey($video->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($job->status, ['draft', 'completed', 'failed']), 409, 'Wait for this job to finish before deleting it.');
+            foreach (\App\Models\StoryPage::where('story_id', $job->story_id)->lockForUpdate()->get() as $page) {
+                $document = $page->visual_document;
+                $changed = false;
+                foreach ($document['visuals'] ?? [] as $index => $visual) {
+                    if (($visual['intro_video_id'] ?? null) === $job->id) {
+                        $document['visuals'][$index]['intro_video_id'] = null;
+                        $changed = true;
+                    }
+                }
+                if ($changed) $page->update(['visual_document' => $document, 'visual_revision' => $page->visual_revision + 1]);
+            }
             $job->delete();
             Storage::disk('local')->deleteDirectory('videos/'.$job->id);
         });
 
         return response()->noContent();
+    }
+
+    public function frame(Request $request, Story $story, VideoGeneration $video, string $frame)
+    {
+        $this->owner($request, $story, $video);
+        abort_unless(in_array($frame, ['first', 'last']), 404);
+        $path = $frame === 'first' ? $video->first_path : $video->last_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+        return response()->file(Storage::disk('local')->path($path), [
+            'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, max-age=3600',
+        ]);
     }
 
     public function file(Request $request, Story $story, VideoGeneration $video)

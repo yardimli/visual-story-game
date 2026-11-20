@@ -11,6 +11,7 @@ class SceneDocument {
    foreach(['sound_id','action_sound_id'] as $field)$stateRules[$path.'.'.$field]=['sometimes','nullable',function($a,$v,$fail)use($story){if($v!=='silent' && (!is_numeric($v)||!\App\Models\StorySound::where('story_id',$story->id)->whereKey($v)->exists()))$fail('Choose a sound in this story, default, or silent.');}];
    $stateRules[$path.'.sound_volume']='sometimes|numeric|min:0|max:1';
   }
+  $stateRules['visuals.*.intro_video_id']=['sometimes','nullable','uuid',\Illuminate\Validation\Rule::exists('video_generations','id')->where('story_id',$story->id)->where('status','completed')];
   $stateRules['visuals.*.music_mode']='sometimes|in:keep,replace,stop';
   $stateRules['visuals.*.music_id']=['sometimes','nullable','integer',\Illuminate\Validation\Rule::exists('story_sounds','id')->where('story_id',$story->id)];
   $stateRules['visuals.*.music_loop']='sometimes|boolean';$stateRules['visuals.*.sound_loop']='sometimes|boolean';
@@ -20,7 +21,7 @@ class SceneDocument {
    foreach(['x','y','width','height'] as $axis)$stateRules[$path.'.'.$axis]='required_with:'.$path.'|numeric|min:'.(in_array($axis,['width','height'])?'0.005':'0').'|max:1';
   }
   $v=Validator::make($document,$stateRules+[
-   'visuals'=>'present|array|max:100', 'visuals.*'=>'array:id,name,kind,music_mode,music_id,music_loop,action_sound_id,sound_id,sound_volume,sound_loop,asset_id,prompt,video_prompt,hotspots,actions,description,description_position,skip_rules,dialog_background,dialog_border,dialog_footer',
+   'visuals'=>'present|array|max:100', 'visuals.*'=>'array:id,name,kind,intro_video_id,music_mode,music_id,music_loop,action_sound_id,sound_id,sound_volume,sound_loop,asset_id,prompt,video_prompt,hotspots,actions,description,description_position,skip_rules,dialog_background,dialog_border,dialog_footer',
    'visuals.*.id'=>'required|uuid|distinct','visuals.*.name'=>'required|string|max:160','visuals.*.kind'=>'required|in:scene,object',
    'visuals.*.description'=>'sometimes|nullable|string|max:3000','visuals.*.asset_id'=>'nullable|integer','visuals.*.video_prompt'=>'sometimes|nullable|string|max:5000','visuals.*.prompt'=>'nullable|string|max:10000','visuals.*.hotspots'=>'present|array|max:100',
    'visuals.*.dialog_background'=>['sometimes','regex:/^#[0-9a-fA-F]{6}$/'],

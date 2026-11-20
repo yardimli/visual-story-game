@@ -5,6 +5,50 @@ import { notify } from './toasts.js';
 // Shared playback rules. No editor, generation or authoring dependencies.
 export function gameRuntime() {
     return {
+        videos: [],
+        introVideo: null,
+        introVideoBlocked: false,
+        introVideoFailed: false,
+        pausedVideoAudio: [],
+        beginScenePresentation(skipVideo = false) {
+            const video = !skipVideo && this.videos.find((v) => v.id === this.displayed?.intro_video_id);
+            if (!video?.url) {
+                this.prepareSceneIntro();
+                this.soundPlayer?.enter(this.displayed, this.audioSounds);
+                return;
+            }
+            this.sceneIntroText = '';
+            this.introVideoBlocked = false;
+            this.introVideoFailed = false;
+            this.pausedVideoAudio = Object.values(this.soundPlayer?.channels || {}).filter(
+                (audio) => audio && !audio.paused,
+            );
+            this.pausedVideoAudio.forEach((audio) => audio.pause());
+            this.introVideo = video;
+        },
+        async playIntroVideo(element) {
+            if (!this.introVideo) return;
+            element.muted = !!this.audioMuted;
+            try {
+                await element.play();
+                this.introVideoBlocked = false;
+            } catch (_) {
+                if (this.introVideo) this.introVideoBlocked = true;
+            }
+        },
+        finishIntroVideo() {
+            if (!this.introVideo) return;
+            this.$refs?.introVideoPlayer?.pause();
+            this.introVideo = null;
+            this.pausedVideoAudio.forEach((audio) => {
+                audio.play()?.catch(() => {});
+            });
+            this.pausedVideoAudio = [];
+            this.prepareSceneIntro();
+            this.soundPlayer?.enter(this.displayed, this.audioSounds);
+            if (this.pendingModal) this.deliverPreviewMessage(this.pendingModal);
+            this.pendingModal = null;
+        },
         previewPages: [],
         editorPageId: null,
         document: { visuals: [] },
@@ -841,7 +885,7 @@ export function gameRuntime() {
                     : this.previewPages.find((p) => p.id === nextPageId)?.visuals || []
             ).find((v) => v.kind === 'scene' && v.id === id);
             if (!target || (id === this.previewId && nextPageId === this.previewPageId)) return;
-            if (this.sceneTransition) return;
+            if (this.sceneTransition || this.introVideo) return;
             this.armedPickup = null;
             this.clearSceneTransition();
             const request = this.transitionRequest;
@@ -857,8 +901,7 @@ export function gameRuntime() {
                     this.narrationVersion++;
                     this.previewPageId = nextPageId;
                     this.previewId = id;
-                    this.prepareSceneIntro();
-                    this.soundPlayer?.enter(this.displayed, this.audioSounds);
+                    this.beginScenePresentation();
                     // Keep black over the DOM swap for a frame before revealing the new scene.
                     this.transitionTimer = setTimeout(() => {
                         this.transitionPhase = 'in';
@@ -868,8 +911,11 @@ export function gameRuntime() {
                             this.transitionTimer = null;
                             this.modalTimer = setTimeout(() => {
                                 this.modalTimer = null;
-                                if (this.preview && this.pendingModal) this.deliverPreviewMessage(this.pendingModal);
-                                this.pendingModal = null;
+                                if (!this.introVideo) {
+                                    if (this.preview && this.pendingModal)
+                                        this.deliverPreviewMessage(this.pendingModal);
+                                    this.pendingModal = null;
+                                }
                             }, 250);
                         }, 300);
                     }, 50);
@@ -941,7 +987,7 @@ export function gameRuntime() {
                 ),
             ].filter((v, index, all) => all.findIndex((i) => i.id === v.id) === index);
         },
-        startPreview(initialItems = [], startKey = null, initialFlags = null) {
+        startPreview(initialItems = [], startKey = null, initialFlags = null, skipFirstVideo = false) {
             this.seenSceneIntros = {};
             this.sceneIntroText = '';
             this.readyPickups = {};
@@ -992,8 +1038,7 @@ export function gameRuntime() {
             this.previewPageId = entry.pageId;
             this.previewId = entry.sceneId;
             this.soundPlayer?.start(this.audioSettings, this.audioSounds);
-            this.prepareSceneIntro();
-            this.soundPlayer?.enter(this.displayed, this.audioSounds);
+            this.beginScenePresentation(skipFirstVideo);
             this.inventoryOpen = false;
             this.collected = [];
             this.modal = null;
@@ -1001,6 +1046,9 @@ export function gameRuntime() {
             if (this.preview && !this.$refs?.previewDialog?.open) this.$refs?.previewDialog?.showModal();
         },
         closePreview() {
+            this.$refs?.introVideoPlayer?.pause();
+            this.introVideo = null;
+            this.pausedVideoAudio = [];
             this.seenSceneIntros = {};
             this.sceneIntroText = '';
             this.readyPickups = {};

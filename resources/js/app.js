@@ -1,3 +1,4 @@
+import { recoverChatMessages } from './chat-history';
 import { storyVideo } from './story-video.js';
 import { audioSettings, storySpeech, audioPreview } from './audio-settings';
 import { storyAudio } from './story-audio.js';
@@ -111,6 +112,10 @@ Alpine.data('creativeCompanion', (options) => ({
     error: '',
     notice: '',
     sending: false,
+    requestInFlight: false,
+    historyReady: false,
+    historyLoading: false,
+    historyDestroyed: false,
     waitingForResponse: false,
     applying: false,
     catalogError: false,
@@ -160,20 +165,61 @@ Alpine.data('creativeCompanion', (options) => ({
         watchNotices(this, { notice: 'success', error: 'error' });
         this.model = rememberedModel('vsg-writing-model', options.model);
         this.loadModels();
-        if (options.history) {
-            try {
-                const response = await fetch(options.history, { headers: { Accept: 'application/json' } });
-                if (!response.ok) throw new Error();
-                this.messages = (await response.json()).messages;
-            } catch (_) {
-                this.error = 'Conversation history could not load. Reload before sending.';
-            }
-        }
+        this.historyListener = () => {
+            if (!document.hidden) this.refreshHistory();
+        };
+        window.addEventListener('focus', this.historyListener);
+        document.addEventListener('visibilitychange', this.historyListener);
+        this.historyTimer = setInterval(this.historyListener, 3000);
+        await this.refreshHistory();
         this.scroll();
     },
     destroy() {
+        this.historyDestroyed = true;
+        clearInterval(this.historyTimer);
+        window.removeEventListener('focus', this.historyListener);
+        document.removeEventListener('visibilitychange', this.historyListener);
         this.destroyDrafts();
         window.removeEventListener('vsg-chat-message', this.chatMessageListener);
+    },
+    async refreshHistory() {
+        if (!options.history) {
+            this.historyReady = true;
+            return;
+        }
+        if (
+            this.historyDestroyed ||
+            this.historyLoading ||
+            this.requestInFlight ||
+            this.applying ||
+            this.deletingMessage
+        )
+            return;
+        this.historyLoading = true;
+        try {
+            const response = await fetch(options.history, {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+            });
+            if (!response.ok) throw new Error();
+            const data = await response.json();
+            if (this.historyDestroyed || this.requestInFlight || this.applying || this.deletingMessage) return;
+            const history = this.$refs.history;
+            const follow = !this.historyReady || history.scrollHeight - history.scrollTop - history.clientHeight < 80;
+            const messages = recoverChatMessages(this.messages, data);
+            if (JSON.stringify(messages) !== JSON.stringify(this.messages)) {
+                this.messages = messages;
+                if (follow) this.scroll();
+            }
+            this.sending = data.pending.length > 0;
+            this.remaining = data.remaining;
+            this.historyReady = true;
+            if (this.error === 'Conversation history could not load. Reconnecting before sending.') this.error = '';
+        } catch (_) {
+            if (!this.historyReady) this.error = 'Conversation history could not load. Reconnecting before sending.';
+        } finally {
+            this.historyLoading = false;
+        }
     },
     remember() {
         rememberModel('vsg-writing-model', this.model);
@@ -208,7 +254,8 @@ Alpine.data('creativeCompanion', (options) => ({
             : {};
     },
     async send() {
-        if (this.sending || !this.prompt.trim() || !this.model) return;
+        if (!this.historyReady || this.sending || !this.prompt.trim() || !this.model) return;
+        this.requestInFlight = true;
         this.sending = true;
         this.waitingForResponse = true;
         this.error = '';
@@ -306,8 +353,10 @@ Alpine.data('creativeCompanion', (options) => ({
             }
             this.error = e.message || 'Connection interrupted. Check your allowance before trying again.';
         } finally {
+            this.requestInFlight = false;
             this.sending = false;
             this.waitingForResponse = false;
+            await this.refreshHistory();
         }
     },
     async applyReviewed(item, chosen) {

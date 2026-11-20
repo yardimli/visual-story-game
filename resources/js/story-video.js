@@ -131,7 +131,12 @@ export function storyVideo(url, uploadUrl) {
             });
         },
         remove(job) {
-            if (!confirm(`Delete “${job.name}”${job.status === 'completed' ? ' and its video' : ''}?`)) return;
+            if (
+                !confirm(
+                    `Delete “${job.name}”${job.status === 'completed' ? ' and its video? Scenes using it will have no intro video' : ''}?`,
+                )
+            )
+                return;
             return this.perform(async () => {
                 await this.request(`/${job.id}`, 'DELETE');
                 if (this.editing === job.id) this.reset();

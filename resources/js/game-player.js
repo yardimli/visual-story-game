@@ -9,6 +9,7 @@ export function gamePlayer(game) {
         Object.getOwnPropertyDescriptors({
             audioMuted: false,
             init() {
+                this.videos = game.videos || [];
                 this.previewPages = game.pages;
                 this.editorPageId = game.start.pageId;
                 this.document = { visuals: game.pages.find((p) => p.id === this.editorPageId)?.visuals || [] };
@@ -26,7 +27,12 @@ export function gamePlayer(game) {
                 window.vsgPlayer = this;
             },
             begin() {
-                this.startPreview(game.start.inventory, game.start.pageId + ':' + game.start.sceneId, game.start.flags);
+                this.startPreview(
+                    game.start.inventory,
+                    game.start.pageId + ':' + game.start.sceneId,
+                    game.start.flags,
+                    game.start.skipFirstVideo,
+                );
             },
             destroy() {
                 this.closePreview();

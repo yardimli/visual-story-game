@@ -54,6 +54,9 @@ def build_workflow(engine, job, first, last, object_info):
             schema = object_info.get(node_type, {}).get("input", {})
             definition = {**schema.get("required", {}), **schema.get("optional", {})}.get(parameter["input"], [])
             choices = definition[0] if definition and isinstance(definition[0], list) else []
+            if (len(definition) > 1 and definition[0] == "COMBO"
+                    and isinstance(definition[1], dict)):
+                choices = definition[1].get("options", [])
             if choices and value not in choices:
                 # ResolutionSelector versions differ in their descriptive suffixes.
                 matches = [choice for choice in choices if choice.split(" ")[0] == job["parameters"][key]]

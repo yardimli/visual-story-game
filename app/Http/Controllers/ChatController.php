@@ -28,13 +28,19 @@ class ChatController extends Controller {
         return $this->respond($request, null, $router, $budget);
     }
     public function history(Request $request) {
-        return response()->json(['messages'=>CompanionMessage::where('user_id',$request->user()->id)->latest('id')->limit(40)->get()->reverse()->values()]);
+        return response()->json(app(\App\Services\ChatHistory::class)->snapshot(CompanionMessage::where('user_id',$request->user()->id),$request->user()));
+    }
+    public function storyHistory(Request $request, Story $story) {
+        abort_unless($story->user_id === $request->user()->id,404);
+        return response()->json(app(\App\Services\ChatHistory::class)->snapshot($story->messages(),$request->user()));
     }
     public function store(Request $request,Story $story,OpenRouter $router,LlmBudget $budget) {
         abort_unless($story->user_id===$request->user()->id,404);
         return $this->respond($request, $story, $router, $budget);
     }
     private function respond(Request $request, ?Story $story, OpenRouter $router, LlmBudget $budget) {
+        // Navigation must not cancel an accepted chat request.
+        ignore_user_abort(true);
         $data=$request->validate(['include_scene_image'=>'sometimes|boolean','stream'=>'sometimes|boolean','message'=>'required|string|max:8000','model'=>'required|string|max:200','request_key'=>'required|uuid','page_id'=>'nullable|integer','image_visual_id'=>'nullable|uuid','active_tab'=>'nullable|in:page,story,visuals,inventory,assets,history,images,audio,video','image_settings'=>'nullable|array:quality,resolution,aspect_ratio,background','image_settings.*'=>'nullable|string|max:50','reference_ids'=>'nullable|array|max:16','reference_ids.*'=>'integer','visual_id'=>'nullable|uuid','hotspot_id'=>'nullable|uuid','image_draft'=>'nullable|array:name,prompt,video_prompt,model,references,settings','image_draft.name'=>'nullable|string|max:160','image_draft.prompt'=>'nullable|string|max:10000','image_draft.video_prompt'=>'nullable|string|max:5000','image_draft.model'=>'nullable|string|max:200','image_draft.references'=>'nullable|array|max:16','image_draft.references.*'=>'integer','image_draft.settings'=>'nullable|array:quality,resolution,aspect_ratio,background','image_draft.settings.*'=>'nullable|string|max:50','form'=>'nullable|array:title,premise,genre,page_count','form.title'=>'nullable|string|max:160','form.premise'=>'nullable|string|max:5000','form.genre'=>'nullable|string|max:80','form.page_count'=>'nullable|integer|min:1|max:100']);
         $selected = $story && isset($data['page_id']) ? $story->pages()->findOrFail($data['page_id'])->position : null;
         $imageVisual=null;$imageRevision=null;
@@ -113,10 +119,19 @@ class ChatController extends Controller {
         $callPayload=['model'=>$data['model'],'messages'=>$messages,'max_tokens'=>config('story.max_output_tokens'),'provider'=>$provider];
         if($request->boolean('stream'))$callPayload+=['stream'=>true,'stream_options'=>['include_usage'=>true]];
         $ledger->update(['pricing_snapshot'=>$model['pricing'] ?? [],'request_content'=>\App\Services\AiCallContents::clean($callPayload)]);
-        $userMessage=(clone $conversation)->create(array_merge(['role'=>'user','content'=>$data['message']],$story ? ['revision'=>$story->revision] : ['user_id'=>$user->id]));
+        $userMessage=(clone $conversation)->create(array_merge(['role'=>'user','content'=>$data['message'],'response_status'=>'running'],$story ? ['revision'=>$story->revision] : ['user_id'=>$user->id]));
         $run=function(?callable $emit=null)use($request,$router,$key,$callPayload,$ledger,$budget,$conversation,$story,$user,$data,$interactionArea,$interactionPage,$interactionVisual,$imageVisual,$imageRevision,$pages,$userMessage){
         try {
-            $response=$emit?$router->completeStream($key,$callPayload,fn($text)=>$emit('delta',['text'=>$text])):$router->complete($key,$callPayload);
+            $partial='';$lastSave=0;
+            $onText=function($text)use($emit,$userMessage,&$partial,&$lastSave){
+                $partial.=$text;
+                if(microtime(true)-$lastSave>=1){
+                    $userMessage->update(['response_partial'=>$partial]);
+                    $lastSave=microtime(true);
+                }
+                if($emit)$emit('delta',['text'=>$text]);
+            };
+            $response=$emit?$router->completeStream($key,$callPayload,$onText):$router->complete($key,$callPayload);
         } catch (\Throwable $e) {
             $ledger->update(['response_content'=>['error'=>'Provider connection interrupted; no response received.']]);
             $budget->settle($ledger,null,'uncertain');
@@ -167,17 +182,29 @@ class ChatController extends Controller {
             try {$proposal['_review']=app(\App\Services\CompanionChanges::class)->prepare($story,$proposal,$pages);}
             catch(ValidationException $e){$proposal['_review']=['revision'=>$story->revision,'items'=>[],'error'=>implode("\n",\Illuminate\Support\Arr::flatten($e->errors())),'errors'=>$e->errors()];}
         }
-        $answer=(clone $conversation)->create(array_merge(['role'=>'assistant','content'=>$content,'model'=>$data['model'],'proposal'=>$proposal],$story ? ['revision'=>$story->revision] : ['user_id'=>$user->id]));
+        $answer=\Illuminate\Support\Facades\DB::transaction(function()use($conversation,$content,$data,$proposal,$story,$user,$userMessage){
+            $answer=(clone $conversation)->create(array_merge(['role'=>'assistant','content'=>$content,'model'=>$data['model'],'proposal'=>$proposal],$story ? ['revision'=>$story->revision] : ['user_id'=>$user->id]));
+            $userMessage->update(['response_status'=>'completed','response_partial'=>null,'response_error'=>null]);
+            return $answer;
+        });
         if ($request->expectsJson() || $request->boolean('stream')) return response()->json(['message'=>$answer,'user_message'=>$userMessage,'remaining'=>$user->fresh()->availableCredit()/1000000]);
         return back()->with('status','Assistant response ready. Review any proposed changes before applying.');
         };
-        if(!$request->boolean('stream'))return $run();
-        return response()->stream(function()use($run){
+        $execute=function(?callable $emit=null)use($run,$userMessage){
+            try{return $run($emit);}
+            catch(\Throwable $e){
+                $message=$e instanceof ValidationException?collect($e->errors())->flatten()->implode(' '):'The response could not be completed. Check chat history and AI settings before sending again; no automatic retry was made.';
+                $userMessage->update(['response_status'=>'failed','response_error'=>$message]);
+                throw $e;
+            }
+        };
+        if(!$request->boolean('stream'))return $execute();
+        return response()->stream(function()use($execute){
             // Finish accounting even if the browser disconnects; never auto-retry paid work.
             ignore_user_abort(true);@set_time_limit(260);
             $emit=function($event,$data){echo 'event: '.$event."\n".'data: '.json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";if(!app()->runningUnitTests()){if(ob_get_level())@ob_flush();flush();}};
             $emit('start',[]);
-            try {$result=$run($emit);$emit('complete',$result->getData(true));}
+            try {$result=$execute($emit);$emit('complete',$result->getData(true));}
             catch(ValidationException $e){$emit('error',['message'=>collect($e->errors())->flatten()->implode(' ')]);}
             catch(\Throwable $e){report($e);$emit('error',['message'=>'The response could not be completed. Check chat history and AI settings before sending again; no automatic retry was made.']);}
         },200,['Content-Type'=>'text/event-stream','Cache-Control'=>'no-cache, no-transform','X-Accel-Buffering'=>'no']);

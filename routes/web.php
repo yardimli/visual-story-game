@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'update']);
     Route::delete('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'destroy']);
     Route::post('/stories/{story}/videos/{video}/queue', [\App\Http\Controllers\VideoController::class, 'queue']);
+    Route::get('/stories/{story}/videos/{video}/frame/{frame}', [\App\Http\Controllers\VideoController::class, 'frame'])->whereIn('frame', ['first','last'])->name('videos.frame');
     Route::get('/stories/{story}/videos/{video}/file', [\App\Http\Controllers\VideoController::class, 'file'])->name('videos.file');
 
     Route::get('/stories/{story}/play',[\App\Http\Controllers\PlayController::class,'show'])->name('stories.play');
@@ -91,6 +92,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/stories/{story}/assets',[AssetController::class,'store'])->name('assets.store');
     Route::patch('/assets/{asset}',[AssetController::class,'update'])->name('assets.update');
     Route::get('/assets/{asset}',[AssetController::class,'show'])->name('assets.show');
+    Route::get('/stories/{story}/chat', [ChatController::class, 'storyHistory'])->name('chat.history');
     Route::post('/stories/{story}/chat',[ChatController::class,'store'])->middleware('throttle:10,1,ai-chat:')->name('chat.store');
     Route::get('/ai/image-endpoints',[ChatController::class,'imageEndpoints'])->middleware('throttle:120,1,image-catalog:')->name('ai.image-endpoints');
     Route::get('/ai/models',[ChatController::class,'models'])->middleware('throttle:30,1,model-catalog:')->name('ai.models');

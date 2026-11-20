@@ -31,6 +31,8 @@ class VideoGeneration extends Model
     public function presentation(): array
     {
         return $this->toArray() + [
+            'first_frame_url' => $this->story_id && $this->first_path ? route('videos.frame', [$this->story_id, $this, 'first']) : null,
+            'last_frame_url' => $this->story_id && $this->last_path ? route('videos.frame', [$this->story_id, $this, 'last']) : null,
             'has_last_frame' => (bool) $this->last_path,
             'worker_offline' => in_array($this->status, ['claimed', 'submitting', 'running', 'uploading'])
                 && $this->heartbeat_at?->lt(now()->subMinutes(2)),

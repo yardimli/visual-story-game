@@ -710,3 +710,46 @@ test('empty slots on later pages initialize even when playtest flags omit their 
         globalThis.window = old;
     }
 });
+
+test('scene video delays narration and scene audio until ended or skipped', () => {
+    const original = globalThis.window;
+    globalThis.window = {};
+    const game = data();
+    game.pages[0].visuals[0].intro_video_id = 'video';
+    game.pages[0].visuals[0].description = 'Welcome to the hall';
+    game.videos = [{ id: 'video', name: 'Arrival', url: '/video.mp4' }];
+    const p = gamePlayer(game);
+    p.init();
+    let entries = 0;
+    p.soundPlayer.enter = () => entries++;
+    p.begin();
+    assert.equal(p.introVideo.id, 'video');
+    assert.equal(p.sceneIntroText, '');
+    assert.equal(entries, 0);
+    p.finishIntroVideo();
+    assert.equal(p.introVideo, null);
+    assert.equal(p.sceneIntroText, 'Welcome to the hall');
+    assert.equal(entries, 1);
+    p.finishIntroVideo();
+    assert.equal(entries, 1);
+    p.destroy();
+    globalThis.window = original;
+});
+
+test('skip first video does not disable subsequent scene videos', () => {
+    const original = globalThis.window;
+    globalThis.window = {};
+    const game = data();
+    game.pages[0].visuals[0].intro_video_id = 'video';
+    game.videos = [{ id: 'video', url: '/video.mp4' }];
+    game.start.skipFirstVideo = true;
+    const p = gamePlayer(game);
+    p.init();
+    p.begin();
+    assert.equal(p.introVideo, null);
+    p.beginScenePresentation();
+    assert.equal(p.introVideo.id, 'video');
+    p.destroy();
+    assert.equal(p.introVideo, null);
+    globalThis.window = original;
+});

@@ -12,10 +12,10 @@
                 "default": "1:1",
                 "options": {
                     "1:1": "1:1 (Square)",
-                    "16:9": "16:9 (Landscape)",
-                    "9:16": "9:16 (Portrait)",
-                    "4:3": "4:3 (Landscape)",
-                    "3:4": "3:4 (Portrait)"
+                    "16:9": "16:9 (Widescreen)",
+                    "9:16": "9:16 (Portrait Widescreen)",
+                    "4:3": "4:3 (Standard)",
+                    "3:4": "3:4 (Portrait Standard)"
                 },
                 "node": "143",
                 "input": "aspect_ratio"

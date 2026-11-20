@@ -27,6 +27,29 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(graph["105:104"]["inputs"]["last_frame"], ["150", 0])
         self.assertEqual(graph["150"]["inputs"]["image"], "last.png")
 
+    def test_aspect_ratios_match_resolution_selector(self):
+        choices = ["1:1 (Square)", "16:9 (Widescreen)", "9:16 (Portrait Widescreen)",
+                   "4:3 (Standard)", "3:4 (Portrait Standard)"]
+        for ratio, expected in zip(self.engine["parameters"]["aspect_ratio"]["options"], choices):
+            with self.subTest(ratio=ratio):
+                self.job["parameters"]["aspect_ratio"] = ratio
+                graph = build_workflow(self.engine, self.job, "first.png", None, self.info)
+                self.assertEqual(graph["143"]["inputs"]["aspect_ratio"], expected)
+
+    def test_aspect_ratio_adapts_to_legacy_and_combo_schemas(self):
+        for definition in [[["16:9 (Landscape)"]],
+                           ["COMBO", {"options": ["16:9 (Landscape)"]}]]:
+            with self.subTest(definition=definition):
+                self.info["ResolutionSelector"] = {"input": {"required": {"aspect_ratio": definition}}}
+                graph = build_workflow(self.engine, self.job, "first.png", None, self.info)
+                self.assertEqual(graph["143"]["inputs"]["aspect_ratio"], "16:9 (Landscape)")
+
+    def test_unsupported_combo_ratio_fails_before_submission(self):
+        self.info["ResolutionSelector"] = {"input": {"required": {
+            "aspect_ratio": ["COMBO", {"options": ["1:1 (Square)"]}]}}}
+        with self.assertRaisesRegex(WorkflowError, "Unsupported aspect_ratio"):
+            build_workflow(self.engine, self.job, "first.png", None, self.info)
+
     def test_missing_nodes_fail_before_submission(self):
         with self.assertRaises(WorkflowError):
             build_workflow(self.engine, self.job, "first.png", None, {})

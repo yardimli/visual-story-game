@@ -11,6 +11,49 @@
         @close="closePreview()"
         @cancel="if(modal){$event.preventDefault();modal=null;}"
     >
+        <template x-if="introVideo">
+            <div
+                class="fixed inset-0 z-[100] flex items-center justify-center bg-black"
+                @click.stop
+                @pointerdown.stop
+            >
+                <video
+                    x-ref="introVideoPlayer"
+                    :src="introVideo.url"
+                    :aria-label="introVideo.name"
+                    class="h-full w-full object-contain"
+                    playsinline
+                    preload="auto"
+                    x-effect="$el.muted=audioMuted;if(!sceneTransition)$nextTick(()=>playIntroVideo($el))"
+                    @ended="finishIntroVideo()"
+                    x-on:error="introVideoFailed=true"
+                ></video>
+                <div class="absolute right-4 top-4 flex gap-3">
+                    <button
+                        type="button"
+                        class="btn-secondary"
+                        @click="audioMuted=soundPlayer.toggleMute()"
+                        x-text="audioMuted?'Unmute':'Mute all'"
+                    ></button>
+                    <button
+                        type="button"
+                        class="btn-primary"
+                        @click="finishIntroVideo()"
+                    >Skip video</button>
+                </div>
+                <button
+                    x-show="introVideoBlocked && !introVideoFailed"
+                    type="button"
+                    class="btn-primary absolute"
+                    @click="playIntroVideo($refs.introVideoPlayer)"
+                >Play video</button>
+                <p
+                    x-show="introVideoFailed"
+                    role="alert"
+                    class="absolute rounded bg-black/80 p-4 text-white"
+                >Video could not load. Use Skip video to continue.</p>
+            </div>
+        </template>
         <div
             x-cloak
             x-show="sceneTransition"
@@ -40,7 +83,7 @@
             @pointerdown="outsideClick($event)"
             x-effect="if(!preview)resetHover();if(inventoryDrag?.active || pendingInventoryUse)dismiss()"
         >
-            <template x-if="preview && asset(displayed?.asset_id)">
+            <template x-if="preview && !introVideo && asset(displayed?.asset_id)">
                 <div
                     class="preview-stage"
                     :style="examineMode ? 'cursor:help' : null"

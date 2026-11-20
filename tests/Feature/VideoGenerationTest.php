@@ -39,6 +39,41 @@ class VideoGenerationTest extends TestCase
             'parameters' => ['aspect_ratio' => '16:9', 'seconds' => 5, 'megapixels' => 0.4], 'first_asset_id' => $asset->id];
     }
 
+    public function test_scene_video_selection_playback_payload_frames_and_delete_cleanup(): void
+    {
+        $video = $this->queued();
+        $video->update(['status' => 'completed', 'output_path' => 'videos/'.$video->id.'/result.mp4']);
+        $visual = ['id' => (string) Str::uuid(), 'kind' => 'scene', 'name' => 'Hall', 'asset_id' => null,
+            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id];
+        $document = app(\App\Services\SceneDocument::class)->validate($this->story, ['visuals' => [$visual]]);
+        $page = $this->story->pages()->create(['position' => 1, 'title' => 'Hall', 'visual_document' => $document]);
+        $this->get(route('stories.play', [$this->story, 'page' => $page->id, 'skip_first_video' => 1]))
+            ->assertOk()->assertViewHas('game', fn ($game) => $game['start']['skipFirstVideo'] === true
+                && $game['videos']->first()['id'] === $video->id);
+        $this->get(route('videos.frame', [$this->story, $video, 'first']))->assertOk();
+        $this->get(route('videos.frame', [$this->story, $video, 'last']))->assertNotFound();
+        $this->deleteJson('/stories/'.$this->story->id.'/videos/'.$video->id)->assertNoContent();
+        $this->assertNull($page->fresh()->visual_document['visuals'][0]['intro_video_id']);
+    }
+
+    public function test_scene_rejects_unfinished_and_foreign_videos(): void
+    {
+        $video = $this->queued();
+        $visual = ['id' => (string) Str::uuid(), 'kind' => 'scene', 'name' => 'Hall', 'asset_id' => null,
+            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id];
+        foreach (['queued', 'foreign'] as $case) {
+            if ($case === 'foreign') $video->update(['status' => 'completed', 'story_id' => Story::create([
+                'user_id' => $this->story->user_id, 'title' => 'Other', 'premise' => 'Other'])->id]);
+            try {
+                app(\App\Services\SceneDocument::class)->validate($this->story, ['visuals' => [$visual]]);
+                $this->fail('Invalid video was accepted');
+            } catch (\Illuminate\Validation\ValidationException $error) {
+                $this->assertArrayHasKey('visuals.0.intro_video_id', $error->errors());
+            }
+        }
+        $this->get(route('videos.frame', [$this->story, $video, 'first']))->assertNotFound();
+    }
+
     private function token(string $role, string $plain): int
     {
         return DB::table('video_access_tokens')->insertGetId(['role' => $role, 'name' => $plain, 'token_hash' => hash('sha256', $plain), 'created_at' => now(), 'updated_at' => now()]);

@@ -128,7 +128,9 @@ class CompanionTest extends TestCase {
         Http::swap(new \Illuminate\Http\Client\Factory());
         Http::fake(['*/chat/completions'=>Http::response($wire,200,['Content-Type'=>'text/event-stream'])]);
         $response=$this->actingAs($u)->postJson(route('chat.store',$story),$this->payload()+['stream'=>true])->assertOk()->assertHeader('Content-Type','text/event-stream; charset=UTF-8');
+        $this->getJson(route('chat.history',$story))->assertOk()->assertJsonCount(1,'pending')->assertJsonPath('messages.0.response_status','running');
         $stream=$response->streamedContent();$this->assertStringContainsString('event: delta',$stream);$this->assertStringContainsString('event: complete',$stream);
+        $this->getJson(route('chat.history',$story))->assertOk()->assertJsonCount(0,'pending')->assertJsonCount(2,'messages')->assertJsonPath('messages.0.response_status','completed');
         $answer=$story->messages()->where('role','assistant')->first();$this->assertSame($text,$answer->content);$this->assertSame('Updated',$answer->proposal['_review']['items'][0]['after']);
         $this->assertSame('Original',$story->fresh()->premise);$this->assertSame(2000,$u->fresh()->llm_spent);$this->assertSame('completed',LlmRequest::first()->status);
         Http::assertSent(fn($r)=>$r['stream']===true && $r['stream_options']['include_usage']===true);Http::assertSentCount(1);
@@ -139,6 +141,19 @@ class CompanionTest extends TestCase {
         Http::fake(['*/chat/completions'=>Http::response('data: {"choices":[{"delta":{"content":"Partial reply"}}]}'."\n\n",200,['Content-Type'=>'text/event-stream'])]);
         $response=$this->actingAs($u)->postJson(route('companion.store'),$this->payload()+['stream'=>true])->assertOk();
         $stream=$response->streamedContent();$this->assertStringContainsString('event: error',$stream);$this->assertStringNotContainsString('event: complete',$stream);
+        $this->getJson(route('companion.history'))->assertJsonCount(0,'pending')->assertJsonPath('messages.0.response_status','failed');
         $this->assertSame(0,CompanionMessage::where('role','assistant')->count());$this->assertSame('uncertain',LlmRequest::first()->status);Http::assertSentCount(1);
+    }
+    public function test_history_recovers_partial_reply_and_reports_stale_requests_without_retrying(): void {
+        Http::fake();
+        $user=User::factory()->create();
+        $story=Story::create(['user_id'=>$user->id,'title'=>'Draft','premise'=>'Original']);
+        $message=$story->messages()->create(['role'=>'user','content'=>'Help','response_status'=>'running','response_partial'=>'Working']);
+        $this->actingAs($user)->getJson(route('chat.history',$story))->assertOk()->assertJsonPath('pending.0.content','Working');
+        $this->travel(6)->minutes();
+        $this->getJson(route('chat.history',$story))->assertJsonCount(0,'pending')->assertJsonPath('messages.0.response_status','failed');
+        $this->assertNotEmpty($message->fresh()->response_error);
+        $this->actingAs(User::factory()->create())->getJson(route('chat.history',$story))->assertNotFound();
+        Http::assertNothingSent();
     }
 }
