@@ -22,6 +22,13 @@ Route::get('/', function () {
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/stories/{story}/videos', [\App\Http\Controllers\VideoController::class, 'index'])->name('videos.index');
+    Route::post('/stories/{story}/videos', [\App\Http\Controllers\VideoController::class, 'store']);
+    Route::patch('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'update']);
+    Route::delete('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'destroy']);
+    Route::post('/stories/{story}/videos/{video}/queue', [\App\Http\Controllers\VideoController::class, 'queue']);
+    Route::get('/stories/{story}/videos/{video}/file', [\App\Http\Controllers\VideoController::class, 'file'])->name('videos.file');
+
     Route::get('/stories/{story}/play',[\App\Http\Controllers\PlayController::class,'show'])->name('stories.play');
     Route::put('/stories/{story}/audio/categories',[\App\Http\Controllers\AudioController::class,'saveCategories']);
     Route::put('/stories/{story}/audio/sounds/{sound}',[\App\Http\Controllers\AudioController::class,'categorize']);

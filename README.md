@@ -128,3 +128,7 @@ Grant an additional $5:
 php artisan ai:grant-credit demo@demo.com 5 --description="Testing credit"
 ```
 Optional `--reference=unique-grant-id` prevents duplicate grants when repeating an admin operation. Only trusted server administrators should run this command. AI settings lists the account's grants; there is no user-accessible credit-grant endpoint.
+
+## Video generation
+
+See [Video generation setup](docs/video-generation.md) for the Windows ComfyUI worker, hub/localhost relay configuration, and extensible workflow registry.

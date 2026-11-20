@@ -22,3 +22,6 @@ yarn-error.log
 /.scaffold/
 /worker/.env
 /worker/state/
+
+/worker/__pycache__/
+/worker/.venv/

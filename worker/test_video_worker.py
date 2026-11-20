@@ -1,0 +1,67 @@
+import json
+import unittest
+from unittest.mock import Mock, patch
+
+from video_worker import ROOT, Worker, WorkflowError, build_workflow, find_prompt, output_video
+
+
+class WorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = json.loads((ROOT / "comfyui/engines.json").read_text())["fastvideo_h3"]
+        graph = json.loads((ROOT / "comfyui" / self.engine["workflow"]).read_text())
+        self.info = {node["class_type"]: {} for node in graph.values()}
+        self.job = {"id": "test-job", "prompt": "Open the door", "seed": 123,
+                    "parameters": {"aspect_ratio": "16:9", "seconds": 15, "megapixels": 0.8}}
+
+    def test_first_only_preserves_sampler_and_duration_formula(self):
+        graph = build_workflow(self.engine, self.job, "first.png", None, self.info)
+        self.assertNotIn("last_frame", graph["105:104"]["inputs"])
+        self.assertEqual(graph["149"]["inputs"]["image"], "first.png")
+        self.assertEqual(graph["105:111"]["inputs"]["value"], 15)
+        self.assertIn("% 17", graph["105:107"]["inputs"]["expression"])
+        self.assertEqual(graph["105:15"]["inputs"]["noise_seed"], 123)
+        self.assertEqual(graph["92"]["inputs"]["format"], "mp4")
+
+    def test_last_frame_uses_supplied_example(self):
+        graph = build_workflow(self.engine, self.job, "first.png", "last.png", self.info)
+        self.assertEqual(graph["105:104"]["inputs"]["last_frame"], ["150", 0])
+        self.assertEqual(graph["150"]["inputs"]["image"], "last.png")
+
+    def test_missing_nodes_fail_before_submission(self):
+        with self.assertRaises(WorkflowError):
+            build_workflow(self.engine, self.job, "first.png", None, {})
+
+    def test_reconcile_submission_from_queue_and_history(self):
+        entry = [1, "prompt-id", {}, {"vsg_job_id": "test-job"}, []]
+        self.assertEqual(find_prompt("test-job", {"queue_pending": [entry]}, {}), "prompt-id")
+        self.assertEqual(find_prompt("test-job", {}, {"prompt-id": {"prompt": entry}}), "prompt-id")
+        self.assertIsNone(find_prompt("other-job", {}, {"prompt-id": {"prompt": entry}}))
+
+    def test_output_is_only_taken_from_registered_node(self):
+        history = {"outputs": {"92": {"images": [{"filename": "result.mp4", "subfolder": "video", "type": "output"}]}}}
+        self.assertEqual(output_video(history, "92")["filename"], "result.mp4")
+        self.assertIsNone(output_video(history, "other"))
+
+    def test_restart_reconciles_unknown_submission_without_posting_again(self):
+        worker = Worker.__new__(Worker)
+        worker.state = {"job": self.job, "submission_attempted": True}
+        worker.save = Mock()
+        entry = [1, "existing-prompt", {}, {"vsg_job_id": "test-job"}, []]
+        worker.comfy_get = lambda path: {"queue_pending": [entry]} if path == "/queue" else {}
+        with patch("video_worker.requests.post") as post:
+            worker.submit()
+            post.assert_not_called()
+        self.assertEqual(worker.state["prompt_id"], "existing-prompt")
+
+    def test_lost_history_fails_uncertain_job_without_resubmitting(self):
+        worker = Worker.__new__(Worker)
+        worker.state = {"job": self.job, "submission_attempted": True}
+        worker.comfy_get = lambda path: {}
+        with patch("video_worker.requests.post") as post:
+            with self.assertRaisesRegex(WorkflowError, "outcome is unknown"):
+                worker.submit()
+            post.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

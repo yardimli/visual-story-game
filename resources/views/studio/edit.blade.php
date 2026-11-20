@@ -209,6 +209,7 @@
                     @include('studio.visuals')
                     @include('studio.inventory')
                     @include('studio.audio')
+                    @include('studio.video')
                     @include('studio.speech')
 
                 </main>

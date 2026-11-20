@@ -49,6 +49,10 @@ class CompanionChanges {
     }else foreach($fields as $field=>$value)if(($shared[$field]??null)!==$value)$items[]=['id'=>count($items),'scope'=>'inventory','item_id'=>$shared['id'],'field'=>$field,'title'=>'Inventory / '.$shared['name'].' / '.ucfirst($field),'before'=>$shared[$field]??null,'after'=>$value];
     continue;
    }
+   if($scope==='video'){
+    $fields=app(VideoDrafts::class)->validate($story,$request['fields']??[]);
+    $items[]=['id'=>count($items),'scope'=>'video','title'=>'Prepare video / '.$fields['name'],'before'=>null,'after'=>$fields];continue;
+   }
    if(in_array($scope,['audio','missing_audio'])){
     $drafts=app(AudioDrafts::class);$fields=$scope==='missing_audio'?$drafts->missing($story):[$drafts->validate($request['fields']??[])];
     foreach($fields as $audio)$items[]=['id'=>count($items),'scope'=>'audio','title'=>'Prepare audio / '.$audio['name'],'before'=>null,'after'=>$audio];continue;
@@ -150,6 +154,7 @@ class CompanionChanges {
     $scope=$item['scope'];if($scope==='story'){$storyFields[$item['field']]=$item['after'];continue;}
     if($scope==='create_inventory'){$inventory[$item['after']['id']]=$item['after'];$inventoryDirty=true;continue;}
     if($scope==='inventory'){if(!$inventory->has($item['item_id']))$this->invalid('Inventory item no longer exists.');$v=$inventory[$item['item_id']];$v[$item['field']]=$item['after'];$inventory[$v['id']]=$v;$inventoryDirty=true;continue;}
+    if($scope==='video'){app(VideoDrafts::class)->save($s,$item['after']);$navigate=route('stories.edit',['story'=>$s,'tab'=>'video']);continue;}
     if($scope==='audio'){app(AudioDrafts::class)->save($s,$item['after']);$navigate=route('stories.edit',['story'=>$s,'tab'=>'audio']);continue;}
     if($scope==='create_page'){$newPages[]=$item;continue;}
     $page=$pages->get($item['page_id']);if(!$page)$this->invalid('A proposed page no longer exists.');

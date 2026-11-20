@@ -19,7 +19,7 @@ export function studioAutosave(initialRevision, options = {}) {
                 window.dispatchEvent(new CustomEvent('vsg-story-revision', { detail: { revision } })),
             );
             if (options.tabs) {
-                const allowed = ['page', 'story', 'visuals', 'inventory', 'audio'];
+                const allowed = ['page', 'story', 'visuals', 'inventory', 'audio', 'video'];
                 const current = new URL(window.location.href).searchParams.get('tab');
                 this.tab = allowed.includes(current) ? current : 'page';
                 const sync = (tab) => {

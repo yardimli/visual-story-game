@@ -1,3 +1,4 @@
+import { storyVideo } from './story-video.js';
 import { audioSettings, storySpeech, audioPreview } from './audio-settings';
 import { storyAudio } from './story-audio.js';
 import { chatDrafts } from './chat-drafts';
@@ -451,6 +452,7 @@ Alpine.data('modelCatalogReload', () => ({
     },
 }));
 Alpine.data('storyAudio', storyAudio);
+Alpine.data('storyVideo', storyVideo);
 Alpine.data('audioSettings', audioSettings);
 Alpine.data('storySpeech', storySpeech);
 Alpine.data('audioPreview', audioPreview);

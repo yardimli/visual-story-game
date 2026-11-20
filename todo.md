@@ -805,3 +805,12 @@ Generation workspace verification: 85-test regression passed before two new test
 
 - [x] Move game preview to an owner-only standalone tab after inventory/flag selection, with separate playback entrypoint and no editor JavaScript dependencies.
 - [x] Remember inspected pickups per playthrough and collect on the next area click after revealing/stopping narration; retain normal text-box dismissal.
+
+## Video generation
+
+- [x] Engine registry and separate first-frame / first-and-last-frame workflows with configurable parameters.
+- [x] Video tab, frame upload/selection, editable drafts, queue status, playback/download, and LLM draft proposals.
+- [x] Scoped hub APIs, exclusive GPU claims, restart-safe Python worker, and checksum-verified MP4 uploads.
+- [x] Local-to-hub relay, idempotent imports, scheduled sync, and private result downloads.
+- [ ] Verify a real GPU render after hub deployment and worker credentials are configured.
+- [ ] Integrate generated videos into gameplay (deferred).

@@ -1,0 +1,74 @@
+{
+    "fastvideo_h3": {
+        "label": "FastVideo MiniMax H3",
+        "version": 1,
+        "workflow": "video_fastvideo_fasth3_t2v_api.json",
+        "last_frame_workflow": "video_fastvideo_fasth3_t2v_firstframe_lastframe.json",
+        "supports_last_frame": true,
+        "parameters": {
+            "aspect_ratio": {
+                "label": "Aspect ratio",
+                "type": "select",
+                "default": "1:1",
+                "options": {
+                    "1:1": "1:1 (Square)",
+                    "16:9": "16:9 (Landscape)",
+                    "9:16": "9:16 (Portrait)",
+                    "4:3": "4:3 (Landscape)",
+                    "3:4": "3:4 (Portrait)"
+                },
+                "node": "143",
+                "input": "aspect_ratio"
+            },
+            "seconds": {
+                "label": "Duration (seconds)",
+                "type": "integer",
+                "default": 5,
+                "min": 5,
+                "max": 15,
+                "step": 1,
+                "node": "105:111",
+                "input": "value"
+            },
+            "megapixels": {
+                "label": "Megapixels",
+                "type": "number",
+                "default": 0.4,
+                "min": 0.1,
+                "max": 2,
+                "step": 0.1,
+                "node": "143",
+                "input": "megapixels"
+            }
+        },
+        "bindings": {
+            "prompt": {
+                "node": "105:104",
+                "input": "prompt"
+            },
+            "first_frame": {
+                "node": "149",
+                "input": "image"
+            },
+            "last_frame": {
+                "node": "150",
+                "input": "image"
+            },
+            "seed": {
+                "node": "105:15",
+                "input": "noise_seed"
+            },
+            "output": {
+                "node": "92",
+                "input": "filename_prefix"
+            }
+        },
+        "overrides": {
+            "92": {
+                "format": "mp4",
+                "format.codec": "h264",
+                "codec": "h264"
+            }
+        }
+    }
+}
