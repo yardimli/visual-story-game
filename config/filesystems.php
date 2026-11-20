@@ -33,6 +33,14 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app'),
+            // Apache and queue workers share the storage group on Linux.
+            // Setgid directories inherit that group instead of the worker's group.
+            'visibility' => 'private',
+            'directory_visibility' => 'private',
+            'permissions' => [
+                'file' => ['public' => 0644, 'private' => 0660],
+                'dir' => ['public' => 02755, 'private' => 02770],
+            ],
             'throw' => false,
         ],
 
