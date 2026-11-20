@@ -29,13 +29,18 @@ Then run `php artisan config:cache`. A hub never forwards video jobs. The Window
 worker polls its API, so a Laravel `queue:work` process is not needed for video
 rendering. Existing image/audio workers remain unchanged.
 
-Create two different credentials on the hub, replacing the example email with
-an existing application user's email. Each command prints its secret once:
+Create two installation credentials on the hub. No user account or email is
+required. Each command prints its secret once:
 
 ```bash
-php artisan videos:token worker owner@example.com windows-gpu
-php artisan videos:token relay owner@example.com local-development
+php artisan videos:token worker windows-gpu
+php artisan videos:token relay local-development
 ```
+
+Any signed-in user can create videos for their own stories. Online jobs queue
+directly on the hub; local jobs relay to the hub and download back to localhost.
+Credentials identify installations, not the users creating videos. Existing
+credentials remain valid after running the migration.
 
 The worker credential is trusted to process all queued videos on this server.
 The relay credential can only read jobs imported using that credential. Imported
@@ -43,7 +48,7 @@ jobs do not attach to a hub story by a potentially conflicting local numeric ID.
 They appear in the originating localhost story, while hub-created videos appear
 in their hub story. Keep one relay credential per independent local database.
 
-Reissuing the same role/email/name rotates a credential without losing its jobs.
+Reissuing the same role/name rotates a credential without losing its jobs.
 Add `--revoke` to disable it. Do not put credentials in Git or browser JavaScript.
 
 Allow MP4 uploads in both PHP and your reverse proxy. For example:

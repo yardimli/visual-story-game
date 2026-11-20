@@ -41,8 +41,7 @@ class VideoGenerationTest extends TestCase
 
     private function token(string $role, string $plain): int
     {
-        return DB::table('video_access_tokens')->insertGetId(['user_id' => $this->story->user_id,
-            'role' => $role, 'name' => $plain, 'token_hash' => hash('sha256', $plain), 'created_at' => now(), 'updated_at' => now()]);
+        return DB::table('video_access_tokens')->insertGetId(['role' => $role, 'name' => $plain, 'token_hash' => hash('sha256', $plain), 'created_at' => now(), 'updated_at' => now()]);
     }
 
     private function queued(): VideoGeneration
@@ -51,6 +50,34 @@ class VideoGenerationTest extends TestCase
         app(VideoDrafts::class)->queue($job);
 
         return $job->fresh();
+    }
+
+    public function test_credentials_can_be_issued_and_rotated_without_any_user_account(): void
+    {
+        User::query()->delete();
+        $this->artisan('videos:token worker windows-gpu')->assertSuccessful();
+        $record = DB::table('video_access_tokens')->sole();
+        $this->assertNull($record->user_id);
+        $this->artisan('videos:token worker windows-gpu')->assertSuccessful();
+        $rotated = DB::table('video_access_tokens')->sole();
+        $this->assertSame($record->id, $rotated->id);
+        $this->assertNotSame($record->token_hash, $rotated->token_hash);
+        $this->artisan('videos:token relay local-development')->assertSuccessful();
+        $this->assertDatabaseCount('video_access_tokens', 2);
+    }
+
+    public function test_migration_preserves_existing_credentials_and_imported_jobs_without_account_dependency(): void
+    {
+        $tokenId = $this->token('relay', 'legacy-relay');
+        DB::table('video_access_tokens')->where('id', $tokenId)->update(['user_id' => $this->story->user_id]);
+        $job = $this->queued();
+        $job->update(['story_id' => null, 'origin_token_id' => $tokenId, 'origin_job_id' => (string) Str::uuid()]);
+        $migration = require database_path('migrations/2026_11_20_000002_make_video_credentials_installation_scoped.php');
+        $migration->up();
+        User::whereKey($this->story->user_id)->delete();
+        $this->assertNull($job->fresh()->user_id);
+        $this->assertDatabaseHas('video_access_tokens', ['id' => $tokenId, 'token_hash' => hash('sha256', 'legacy-relay'), 'user_id' => null]);
+        $this->getJson('/api/video/relay/'.$job->id, ['Authorization' => 'Bearer legacy-relay'])->assertOk();
     }
 
     public function test_drafts_validate_ownership_and_queue_snapshots_once(): void

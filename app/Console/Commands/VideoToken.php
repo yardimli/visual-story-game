@@ -2,14 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class VideoToken extends Command
 {
-    protected $signature = 'videos:token {role : worker or relay} {user : Owner email} {name : Unique credential name} {--revoke}';
+    protected $signature = 'videos:token {role : worker or relay} {name : Unique credential name} {--revoke}';
 
     protected $description = 'Issue or revoke a scoped video API credential on the hub';
 
@@ -20,9 +19,12 @@ class VideoToken extends Command
 
             return self::FAILURE;
         }
-        $user = User::where('email', $this->argument('user'))->firstOrFail();
-        $query = DB::table('video_access_tokens')->where('user_id', $user->id)
-            ->where('role', $this->argument('role'))->where('name', $this->argument('name'));
+        $query = DB::table('video_access_tokens')->where('role', $this->argument('role'))->where('name', $this->argument('name'));
+        if ($query->count() > 1) {
+            $this->error('Multiple legacy credentials have this role and name. Use a new unique name.');
+
+            return self::FAILURE;
+        }
         if ($this->option('revoke')) {
             // Preserve ownership of imported jobs; replace the hash so the credential no longer works.
             $query->update(['token_hash' => hash('sha256', Str::random(80)), 'updated_at' => now()]);
@@ -34,7 +36,7 @@ class VideoToken extends Command
         if ($query->exists()) {
             $query->update(['token_hash' => hash('sha256', $token), 'updated_at' => now()]);
         } else {
-            DB::table('video_access_tokens')->insert(['user_id' => $user->id, 'role' => $this->argument('role'),
+            DB::table('video_access_tokens')->insert(['role' => $this->argument('role'),
                 'name' => $this->argument('name'), 'token_hash' => hash('sha256', $token), 'created_at' => now(), 'updated_at' => now()]);
         }
         $this->line($token);

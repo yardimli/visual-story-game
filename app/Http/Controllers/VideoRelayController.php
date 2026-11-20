@@ -33,7 +33,7 @@ class VideoRelayController extends Controller
                 return response()->json($existing->presentation());
             }
             $job = VideoGeneration::create($fields + $requestSeed + [
-                'user_id' => $token->user_id, 'origin_token_id' => $token->id, 'origin_job_id' => $data['job_id'],
+                'origin_token_id' => $token->id, 'origin_job_id' => $data['job_id'],
                 'status' => 'queued', 'queued_at' => now(),
             ]);
             foreach (['first', 'last'] as $frame) {
