@@ -21,7 +21,7 @@ Set the application's `.env`:
 
 ```dotenv
 VIDEO_MODE=hub
-VIDEO_HUB_URL=https://vgs.playground.computer
+VIDEO_HUB_URL=https://vsg.playground.computer
 VIDEO_RELAY_TOKEN=
 ```
 
@@ -43,7 +43,7 @@ Credentials identify installations, not the users creating videos. Existing
 credentials remain valid after running the migration.
 
 The worker credential is trusted to process all queued videos on this server.
-The relay credential can only read jobs imported using that credential. Imported
+The relay credentwial can only read jobs imported using that credential. Imported
 jobs do not attach to a hub story by a potentially conflicting local numeric ID.
 They appear in the originating localhost story, while hub-created videos appear
 in their hub story. Keep one relay credential per independent local database.
@@ -81,12 +81,19 @@ copy worker\.env.example worker\.env
 Edit **worker/.env** (separate from Laravel's `.env`):
 
 ```dotenv
-VIDEO_SERVER_URL=https://vgs.playground.computer
+VIDEO_SERVER_URL=https://vsg.playground.computer
 VIDEO_WORKER_TOKEN=the-worker-credential-printed-on-the-server
 VIDEO_WORKER_ID=windows-gpu-1
+VIDEO_WORKER_USER_AGENT=VisualStoryGame-VideoWorker/1.0
 COMFYUI_URL=http://127.0.0.1:8188
 VIDEO_POLL_SECONDS=10
 ```
+
+The worker uses `VisualStoryGame-VideoWorker/1.0` instead of the default
+`python-requests` User-Agent for all hub requests, including uploads. Allow this
+value through any User-Agent filter on the server, or set
+`VIDEO_WORKER_USER_AGENT` to your preferred allowed value. Token authentication
+is still required. Restart the worker after changing this setting.
 
 Start the worker yourself:
 
@@ -117,7 +124,7 @@ Run `php artisan migrate` and rebuild assets. Set the Laravel `.env`:
 
 ```dotenv
 VIDEO_MODE=relay
-VIDEO_HUB_URL=https://vgs.playground.computer
+VIDEO_HUB_URL=https://vsg.playground.computer
 VIDEO_RELAY_TOKEN=the-relay-credential-printed-on-the-server
 ```
 

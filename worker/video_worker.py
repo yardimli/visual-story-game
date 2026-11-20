@@ -98,7 +98,12 @@ class Worker:
         self.comfy = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
         self.worker_id = os.environ["VIDEO_WORKER_ID"]
         self.session = requests.Session()
-        self.session.headers.update({"Authorization": "Bearer " + os.environ["VIDEO_WORKER_TOKEN"], "Accept": "application/json"})
+        self.session.headers.update({
+            "Authorization": "Bearer " + os.environ["VIDEO_WORKER_TOKEN"],
+            "Accept": "application/json",
+            "User-Agent": os.getenv("VIDEO_WORKER_USER_AGENT", "VisualStoryGame-VideoWorker/1.0").strip()
+                or "VisualStoryGame-VideoWorker/1.0",
+        })
         self.engines = json.loads((ROOT / "comfyui" / "engines.json").read_text(encoding="utf-8"))
         STATE.mkdir(parents=True, exist_ok=True)
         self.journal = STATE / "active.json"
