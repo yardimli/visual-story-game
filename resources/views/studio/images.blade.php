@@ -341,9 +341,9 @@
                                 </template>
                                 <button
                                     type="button"
-                                    class="text-xs underline"
+                                    :class="job.status==='draft' ? 'btn-primary' : 'text-xs underline'"
                                     @click="openImageForm(job)"
-                                    x-text="job.composition?'View combined image':'Open image form'"
+                                    x-text="job.composition?'View combined image':job.status==='draft'?'Generate':'Open image form'"
                                 ></button>
                                 <div>
                                     <div class="flex flex-wrap items-center justify-between gap-2">
