@@ -28,13 +28,33 @@ class StudioTest extends TestCase {
         $this->assertDatabaseCount('image_generations',0);
         $this->actingAs(User::factory()->create())->postJson(route('assets.store',$s),['images'=>[UploadedFile::fake()->image('other.png')],'role'=>'reference'])->assertNotFound();
     }
-    public function test_creates_single_short_and_novel_drafts(): void {
-        $u=User::factory()->create();$this->actingAs($u);
-        foreach([1,3,50] as $count) {
-            $this->post(route('stories.store'),['title'=>'New story','premise'=>'A mystery','genre'=>'Mystery','page_count'=>$count])->assertRedirect();
-            $this->assertSame($count,Story::latest('id')->first()->pages()->count());
+    public function test_new_stories_need_only_title_and_start_with_one_blank_page(): void {
+        $this->actingAs(User::factory()->create());
+        foreach ([['title'=>'New story'], ['title'=>'Another','page_count'=>50,'premise'=>'Ignored','genre'=>'Ignored']] as $input) {
+            $this->post(route('stories.store'),$input)->assertRedirect();
+            $story=Story::latest('id')->first();
+            $this->assertSame('', $story->premise);
+            $this->assertSame('', $story->genre);
+            $this->assertSame(1,$story->pages()->count());
+            $this->assertEmpty($story->pages()->first()->narrative);
+            $this->putJson(route('stories.update',$story),['revision'=>$story->revision,'title'=>'Renamed','premise'=>'','genre'=>'','language'=>'English'])->assertOk();
         }
-        $this->post(route('stories.store'),['title'=>'Bad','premise'=>'X','genre'=>'Mystery','page_count'=>0])->assertSessionHasErrors('page_count');
+        $this->post(route('stories.store'),['title'=>''])->assertSessionHasErrors('title');
+    }
+    public function test_story_cover_is_scoped_to_project_and_shown_on_dashboard(): void {
+        $u=User::factory()->create(); $s=$this->story($u);
+        $asset=$s->assets()->create(['name'=>'Cover','path'=>'cover.png','mime'=>'image/png','bytes'=>10,'role'=>'generated']);
+        $data=['revision'=>0,'title'=>$s->title,'premise'=>$s->premise,'genre'=>'','language'=>'English','cover_asset_id'=>$asset->id];
+        $data['revision']=$s->fresh()->revision;
+        $this->actingAs($u)->putJson(route('stories.update',$s),$data)->assertOk();
+        $this->assertSame($asset->id,$s->fresh()->cover_asset_id);
+        $this->get(route('dashboard'))->assertSee(route('assets.show',$asset));
+        $other=$this->story($u);
+        $data['revision']=$other->fresh()->revision;
+        $this->putJson(route('stories.update',$other),$data)->assertUnprocessable()->assertJsonValidationErrors('cover_asset_id');
+        $data['revision']=$s->fresh()->revision; $data['cover_asset_id']=null;
+        $this->putJson(route('stories.update',$s),$data)->assertOk();
+        $this->assertNull($s->fresh()->cover_asset_id);
     }
     public function test_editor_and_settings_render(): void {
         $u=User::factory()->create();$s=$this->story($u);

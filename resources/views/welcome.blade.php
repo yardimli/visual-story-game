@@ -60,7 +60,7 @@
                         href="#features"
                         class="btn-secondary"
                     >Explore the features</a></div>
-                <p class="mt-4 text-xs text-stone-400">$1 of AI credit for writing and images included · Bring your own
+                <p class="mt-4 text-xs text-stone-400">$5 of AI credit for writing and images included · Bring your own
                     key to keep creating</p>
             </div>
             <div class="relative">
@@ -128,7 +128,7 @@
         ['01', 'An AI writing companion', 'Brainstorm, write, rewrite, and plan with your choice of OpenRouter language model. Keep the conversation alongside your story and review proposed edits before applying them.', 'Plan · Write · Refine'],
         ['02', 'A storyboard with a purpose', 'Give every page its narrative, scene prompt, video direction, interaction plan, and completion rule. Keep characters, settings, and the ending consistent in your story bible.', 'Page plans · Story bible · Flexible workflow'],
         ['03', 'References that belong together', 'Upload one or more images for characters, environments, props, and visual style. Keep a private reference library beside the scenes they will inspire.', 'Private uploads · Reference roles'],
-        ['04', 'Freedom to try another direction', 'Save new revisions as you edit and restore earlier drafts when an idea changes. Start with included writing and image credit, then connect an encrypted personal OpenRouter key.', 'Revision history · $1 shared allowance · Personal keys'],
+        ['04', 'Freedom to try another direction', 'Save new revisions as you edit and restore earlier drafts when an idea changes. Start with included writing and image credit, then connect an encrypted personal OpenRouter key.', 'Revision history · $5 shared allowance · Personal keys'],
     ] as [$number, $title, $copy, $tags])
                     <article class="feature-card"><span
                             class="font-mono text-xs text-amber-700 dark:text-amber-300">{{ $number }} /</span>
@@ -199,7 +199,7 @@
                 <p class="eyebrow">THE FIRST PAGE IS YOURS</p>
                 <h2 class="mt-4 font-serif text-4xl sm:text-5xl">What’s waiting in your imagination?</h2>
                 <p class="mx-auto mt-5 max-w-xl text-sm leading-7 text-stone-500 dark:text-stone-400">Start small, or
-                    plan something extraordinary. Your account includes $1 of lifetime AI credit for writing and images.
+                    plan something extraordinary. Your account includes $5 of lifetime AI credit for writing and images.
                     Continue with your own OpenRouter key whenever you’re ready.</p><a
                     href="{{ auth()->check() ? route('dashboard') : route('register') }}"
                     class="btn-primary mt-7"

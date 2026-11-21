@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\Validator;
 class StudioController extends Controller {
     public function index(Request $request) {
         $historyStory=$request->filled('history')?Story::where('user_id',$request->user()->id)->findOrFail($request->integer('history')):null;
-        return view('studio.index',['historyStory'=>$historyStory,'revisions'=>$historyStory?->revisions()->latest()->limit(20)->get(),'stories'=>Story::where('user_id',$request->user()->id)->withCount(['pages','pages as ready_pages_count'=>function($q) { foreach(['narrative','interaction_plan'] as $field) $q->whereNotNull($field)->whereRaw('TRIM('.$field.') <> ?', ['']); }])->latest('updated_at')->get()]);
+        return view('studio.index',['historyStory'=>$historyStory,'revisions'=>$historyStory?->revisions()->latest()->limit(20)->get(),'stories'=>Story::where('user_id',$request->user()->id)->with('coverImage')->withCount(['pages','pages as ready_pages_count'=>function($q) { foreach(['narrative','interaction_plan'] as $field) $q->whereNotNull($field)->whereRaw('TRIM('.$field.') <> ?', ['']); }])->latest('updated_at')->get()]);
     }
     public function store(Request $request) {
-        $data=$request->validate(['title'=>'required|string|max:160','premise'=>'required|string|max:5000','page_count'=>'required|integer|min:1|max:100','genre'=>'required|string|max:80']);
+        $data=$request->validate(['title'=>'required|string|max:160']);
         $story=DB::transaction(function () use ($request,$data) {
-            $story=Story::create(['user_id'=>$request->user()->id,'title'=>$data['title'],'premise'=>$data['premise'],'genre'=>$data['genre']]);
-            for($i=1;$i<=$data['page_count'];$i++) $story->pages()->create(['position'=>$i,'title'=>'Page '.$i]);
+            $story=Story::create(['user_id'=>$request->user()->id,'title'=>$data['title'],'premise'=>'','genre'=>'']);
+            $story->pages()->create(['position'=>1,'title'=>'Page 1']);
             return $story;
         });
         return redirect()->route('stories.edit',$story);
@@ -29,7 +29,8 @@ class StudioController extends Controller {
     }
     public function update(Request $request,Story $story,StoryDraft $draft) {
         $this->owner($request,$story);
-        $data=$request->validate(['revision'=>'required|integer','title'=>'required|string|max:160','premise'=>'required|string|max:5000','genre'=>'required|string|max:80','language'=>'required|string|max:80','style'=>'nullable|string|max:5000','bible'=>'nullable|string|max:40000','llm_model'=>'nullable|string|max:200','image_model'=>'nullable|string|max:200','unavailable_timeout_ms'=>'sometimes|required|integer|min:0|max:60000','unavailable_text'=>'nullable|string|max:3000','gameplay_messages'=>'sometimes|array:placed,occupied,placement_denied,nothing,complete,scene_load_error,no_scenes,missing_pages,next_scene_missing,destination_page_missing,destination_scene_missing','gameplay_messages.*'=>'array:text,timeout_ms','gameplay_messages.*.text'=>'nullable|string|max:3000','gameplay_messages.*.timeout_ms'=>'required|integer|min:0|max:60000','cursor_tooltips'=>'sometimes|array:pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default','cursor_tooltips.*'=>'nullable|string|max:200']);
+        $data=$request->validate(['revision'=>'required|integer','title'=>'required|string|max:160','premise'=>'nullable|string|max:5000','genre'=>'nullable|string|max:80','cover_asset_id'=>['nullable','integer',\Illuminate\Validation\Rule::exists('assets','id')->where(fn($query)=>$query->where('story_id',$story->id)->where('mime','like','image/%'))],'language'=>'required|string|max:80','style'=>'nullable|string|max:5000','bible'=>'nullable|string|max:40000','llm_model'=>'nullable|string|max:200','image_model'=>'nullable|string|max:200','unavailable_timeout_ms'=>'sometimes|required|integer|min:0|max:60000','unavailable_text'=>'nullable|string|max:3000','gameplay_messages'=>'sometimes|array:placed,occupied,placement_denied,nothing,complete,scene_load_error,no_scenes,missing_pages,next_scene_missing,destination_page_missing,destination_scene_missing','gameplay_messages.*'=>'array:text,timeout_ms','gameplay_messages.*.text'=>'nullable|string|max:3000','gameplay_messages.*.timeout_ms'=>'required|integer|min:0|max:60000','cursor_tooltips'=>'sometimes|array:pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default','cursor_tooltips.*'=>'nullable|string|max:200']);
+        $data['premise']=$data['premise']??''; $data['genre']=$data['genre']??'';
         $revision=$data['revision'];unset($data['revision']);
         $draft->change($story,$revision,'Project details',fn($s)=>$s->update($data));
         if ($request->expectsJson()) return response()->json(['revision'=>(int)$revision+1,'unavailable_timeout_ms'=>(int)($story->fresh()->unavailable_timeout_ms??1000),'unavailable_text'=>$story->fresh()->unavailable_text,'cursor_tooltips'=>$story->fresh()->cursor_tooltips??[]]);

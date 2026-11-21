@@ -102,7 +102,7 @@ class CompanionTest extends TestCase {
         $this->assertNull($u->fresh()->openrouter_key);
     }
     public function test_exhausted_account_companion_does_not_call_provider(): void {
-        $u=$this->userAndProvider('Hi');$u->forceFill(['llm_spent'=>1000000])->save();
+        $u=$this->userAndProvider('Hi');$u->forceFill(['llm_spent'=>5000000])->save();
         $this->actingAs($u)->postJson(route('companion.store'),$this->payload())->assertUnprocessable();
         Http::assertNothingSent();
     }

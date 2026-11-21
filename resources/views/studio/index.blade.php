@@ -16,56 +16,40 @@
                 class="btn-primary"
             >+ Create a story</button>
         </div>
-        <section
-            x-show="create"
-            x-cloak
-            class="mb-10 rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 p-6"
+        <dialog
+            x-ref="createDialog"
+            class="image-form-dialog rounded-2xl p-6"
+            aria-labelledby="create-story-title"
+            @close="create=false"
+            x-effect="if(create) $refs.createDialog.showModal(); else $refs.createDialog.close()"
         >
+            <h2
+                id="create-story-title"
+                class="mb-5 font-serif text-2xl"
+            >Create a story</h2>
             <form
-                data-companion-form="create"
                 action="{{ route('stories.store') }}"
                 method="POST"
-                class="grid gap-5 md:grid-cols-2"
-            >@csrf
-                <label class="field">Story title<input
+                class="space-y-5"
+            >
+                @csrf
+                <label class="field">Title<input
                         name="title"
                         required
                         maxlength="160"
                         value="{{ old('title') }}"
-                        placeholder="The last light in the harbour"
+                        autofocus
                     ></label>
-                <label class="field">Length<select name="page_count">
-                        <option value="1">Single-page story · 1 page</option>
-                        @foreach (range(2, 100) as $n)
-                            <option
-                                value="{{ $n }}"
-                                @selected(old('page_count') == $n)
-                            >{{ $n }} pages{{ $n <= 5 ? ' · short story' : ' · novel' }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <label class="field md:col-span-2">Premise
-                    <textarea
-                        name="premise"
-                        rows="3"
-                        required
-                        maxlength="5000"
-                        placeholder="Who is here, what do they want, and what stands in their way?"
-                    >{{ old('premise') }}</textarea>
-                </label>
-                <label class="field">Genre<select name="genre">
-                        @foreach (['Mystery', 'Fantasy', 'Science fiction', 'Adventure', 'Horror', 'Drama'] as $genre)
-                            <option>{{ $genre }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <div class="flex items-end gap-3"><button class="btn-primary">Create draft →</button><button
+                @error('title')
+                    <p class="text-sm text-red-600">{{ $message }}</p>
+                @enderror
+                <div class="flex gap-3"><button class="btn-primary">Create story</button><button
                         type="button"
-                        @click="create=false"
                         class="btn-secondary"
+                        @click="create=false"
                     >Cancel</button></div>
             </form>
-        </section>
+        </dialog>
         <div class="mb-5 flex items-center justify-between">
             <h2 class="text-sm font-semibold">Your projects <span
                     class="ml-2 text-stone-400">{{ $stories->count() }}</span></h2><span
@@ -76,11 +60,14 @@
                 <article
                     class="group overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 transition hover:-translate-y-1 hover:shadow-lg"
                 >
-                    <div class="story-cover flex h-44 items-end justify-between p-6"><span
-                            class="font-serif text-5xl text-white/80"
-                        >{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</span><span
-                            class="rounded-full bg-white/15 px-3 py-1 text-xs text-white backdrop-blur"
-                        >{{ $story->genre }}</span></div>
+                    @if ($story->coverImage)
+                        <a href="{{ route('stories.edit', $story) }}"><img
+                                src="{{ route('assets.show', $story->coverImage) }}"
+                                alt="{{ $story->title }}"
+                                class="h-44 w-full object-cover"
+                                loading="lazy"
+                            ></a>
+                    @endif
                     <div class="p-6">
                         <div class="mb-3 flex items-center justify-between"><span
                                 class="eyebrow">{{ $story->pages_count === 1 ? 'SINGLE PAGE' : ($story->pages_count <= 5 ? 'SHORT STORY' : 'NOVEL') }}</span><span

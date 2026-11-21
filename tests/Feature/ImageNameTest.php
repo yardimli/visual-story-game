@@ -25,13 +25,13 @@ class ImageNameTest extends TestCase {
  }
  public function test_naming_checks_ownership_and_exhausted_credit_before_calling_provider(): void {
   [$u,$s,$payload]=$this->setupNaming();Http::fake();
-  $u->forceFill(['llm_spent'=>1000000])->save();$this->postJson(route('images.name',$s),$payload)->assertUnprocessable();
+  $u->forceFill(['llm_spent'=>5000000])->save();$this->postJson(route('images.name',$s),$payload)->assertUnprocessable();
   $this->actingAs(User::factory()->create())->postJson(route('images.name',$s),$payload)->assertNotFound();Http::assertNothingSent();
  }
  public function test_personal_naming_does_not_spend_trial_and_provider_failure_does_not_queue_image(): void {
-  [$u,$s,$payload]=$this->setupNaming();$u->forceFill(['openrouter_key'=>'personal-test','llm_spent'=>1000000])->save();
+  [$u,$s,$payload]=$this->setupNaming();$u->forceFill(['openrouter_key'=>'personal-test','llm_spent'=>5000000])->save();
   Http::fake(['*/chat/completions'=>Http::response(['error'=>['message'=>'Rejected']],400)]);
   $this->postJson(route('images.name',$s),$payload)->assertUnprocessable();
-  $this->assertSame('personal',LlmRequest::first()->funding);$this->assertSame('failed',LlmRequest::first()->status);$this->assertSame(1000000,$u->fresh()->llm_spent);$this->assertDatabaseCount('image_generations',0);Http::assertSentCount(1);
+  $this->assertSame('personal',LlmRequest::first()->funding);$this->assertSame('failed',LlmRequest::first()->status);$this->assertSame(5000000,$u->fresh()->llm_spent);$this->assertDatabaseCount('image_generations',0);Http::assertSentCount(1);
  }
 }

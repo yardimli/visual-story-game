@@ -1,7 +1,7 @@
 <x-guest-layout>
     <p class="eyebrow">YOUR FIRST CHAPTER</p>
     <h2 class="mt-3 font-serif text-3xl">Make room for an idea.</h2>
-    <p class="mb-7 mt-3 text-sm leading-6 text-stone-500 dark:text-stone-400">Create your free account. Start with $1 of
+    <p class="mb-7 mt-3 text-sm leading-6 text-stone-500 dark:text-stone-400">Create your free account. Start with $5 of
         included AI credit for writing and images.</p>
     <form
         method="POST"

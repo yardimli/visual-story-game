@@ -12,7 +12,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
     protected static function booted(): void {
-        static::created(fn(User $user)=>$user->tokenCredits()->firstOrCreate(['grant_key'=>'signup'],['amount'=>1000000,'source'=>'signup','description'=>'Welcome credit']));
+        static::created(fn(User $user)=>$user->tokenCredits()->firstOrCreate(['grant_key'=>'signup'],['amount'=>5000000,'source'=>'signup','description'=>'Welcome credit']));
     }
     public function tokenCredits(){return $this->hasMany(TokenCredit::class);}
     public function creditTotal(): int {return (int)$this->tokenCredits()->sum('amount');}

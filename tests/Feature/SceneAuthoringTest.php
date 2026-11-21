@@ -317,7 +317,7 @@ class SceneAuthoringTest extends TestCase {
  public function test_exhausted_credit_requires_personal_key_and_capabilities_are_validated(): void {
   Queue::fake();[$u,$s,$p]=$this->setupScene();$payload=$this->payload($p);$payload['settings']['quality']='unsupported';
   $this->postJson(route('images.generate',[$s,$p]),$payload)->assertUnprocessable();
-  $u->forceFill(['openrouter_key'=>null,'llm_spent'=>1000000])->save();$this->actingAs($u);
+  $u->forceFill(['openrouter_key'=>null,'llm_spent'=>5000000])->save();$this->actingAs($u);
   $this->postJson(route('images.generate',[$s,$p]),$this->payload($p))->assertUnprocessable()->assertJsonValidationErrors('key');
   Queue::assertNothingPushed();
  }
@@ -366,7 +366,7 @@ class SceneAuthoringTest extends TestCase {
  }
  public function test_trial_images_share_chat_balance_and_settle_catalog_price_even_when_byok_cost_is_zero(): void {
   Storage::fake('local');Queue::fake();[$u,$s,$p]=$this->setupScene();
-  $u->forceFill(['openrouter_key'=>null,'llm_spent'=>900000])->save();$this->actingAs($u);
+  $u->forceFill(['openrouter_key'=>null,'llm_spent'=>4900000])->save();$this->actingAs($u);
   $payload=$this->payload($p);$this->postJson(route('images.generate',[$s,$p]),$payload)->assertAccepted();
   $this->assertSame(52500,$u->fresh()->llm_reserved);
   $this->postJson(route('images.generate',[$s,$p]),$this->payload($p))->assertUnprocessable();
@@ -379,7 +379,7 @@ class SceneAuthoringTest extends TestCase {
   (new GenerateSceneImage($job->id))->handle(app(OpenRouter::class));
   (new GenerateSceneImage($job->id))->handle(app(OpenRouter::class));
   $this->assertSame('completed',$job->fresh()->status);
-  $this->assertSame(950000,$u->fresh()->llm_spent);$this->assertSame(0,$u->fresh()->llm_reserved);
+  $this->assertSame(4950000,$u->fresh()->llm_spent);$this->assertSame(0,$u->fresh()->llm_reserved);
   Http::assertSentCount(1);Http::assertSent(fn($r)=>$r->hasHeader('Authorization','Bearer '.config('story.openrouter_key')));
  }
  public function test_unsubmitted_failure_releases_credit_but_provider_failure_retains_it(): void {

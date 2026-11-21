@@ -5,7 +5,7 @@
     <main class="mx-auto max-w-4xl px-5 py-12">
         <p class="eyebrow">YOUR CREATIVE TOOLKIT</p>
         <h1 class="mt-3 font-serif text-4xl">AI & usage</h1>
-        <p class="mt-4 text-stone-500 dark:text-stone-400">Start with $1 of shared credit for writing and images. Connect
+        <p class="mt-4 text-stone-500 dark:text-stone-400">Start with $5 of shared credit for writing and images. Connect
             your own OpenRouter key to keep creating.</p>
         <div class="my-8 grid gap-4 md:grid-cols-3">
             @foreach (['Spent' => $user->llm_spent, 'Reserved' => $user->llm_reserved, 'Available' => $user->availableCredit()] as $label => $value)
@@ -116,7 +116,7 @@
                         <summary class="cursor-pointer px-3 py-2 text-xs"><span
                                 class="inline-flex max-w-[90%] flex-wrap items-center gap-x-3 gap-y-1 align-middle"
                             ><span class="font-medium">{{ $call->model }}</span><span
-                                    class="text-stone-500">{{ $call->imageGeneration ? 'Image · ' . $call->imageGeneration->name : ($call->audioGeneration ? 'Audio · ' . $call->audioGeneration->name : ($call->story_id ? 'Story companion' : 'Companion')) }}</span><span>{{ $call->cost === null ? 'Cost pending' : '$' . number_format($call->cost / 1000000, 6) }}</span><span
+                                    class="text-stone-500">{{ $call->imageGeneration ? 'Image · ' . $call->imageGeneration->name : ($call->audioGeneration ? 'Audio · ' . $call->audioGeneration->name : ($call->videoGeneration ? 'Video · ' . $call->videoGeneration->name : ($call->story_id ? 'Story companion' : 'Companion'))) }}</span><span>{{ $call->cost === null ? 'Cost pending' : '$' . number_format($call->cost / 1000000, 6) }}</span><span
                                     class="text-stone-500"
                                 >{{ $call->imageGeneration?->status ?? $call->status }} ·
                                     {{ $call->created_at->format('M j, H:i') }}</span></span></summary>

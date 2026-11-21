@@ -18,9 +18,9 @@ class LlmBudgetTest extends TestCase {
     }
     public function test_reservations_prevent_a_second_request_spending_same_allowance(): void {
         [$u,$s]=$this->setupStory();$b=app(LlmBudget::class);
-        $b->reserve($u,$s,(string)Str::uuid(),'test/model',700000);
+        $b->reserve($u,$s,(string)Str::uuid(),'test/model',4700000);
         try { $b->reserve($u,$s,(string)Str::uuid(),'test/model',400000);$this->fail('Overspend accepted'); }
-        catch(ValidationException $e) { $this->assertSame(700000,$u->fresh()->llm_reserved); }
+        catch(ValidationException $e) { $this->assertSame(4700000,$u->fresh()->llm_reserved); }
     }
     public function test_settlement_is_idempotent_and_reconciles_unknown_cost(): void {
         [$u,$s]=$this->setupStory();$b=app(LlmBudget::class);$r=$b->reserve($u,$s,(string)Str::uuid(),'test/model',500000);
@@ -39,16 +39,16 @@ class LlmBudgetTest extends TestCase {
         Http::assertSentCount(1);
     }
     public function test_exhausted_allowance_never_calls_provider(): void {
-        [$u,$s]=$this->setupStory();$u->forceFill(['llm_spent'=>1000000])->save();Http::fake();
+        [$u,$s]=$this->setupStory();$u->forceFill(['llm_spent'=>5000000])->save();Http::fake();
         $this->actingAs($u)->post(route('chat.store',$s),['message'=>'Hi','model'=>'test/model','request_key'=>(string)Str::uuid()])->assertSessionHasErrors('message');
         Http::assertNothingSent();
     }
     public function test_personal_key_bypasses_allowance_without_platform_fallback(): void {
-        [$u,$s]=$this->setupStory();$u->forceFill(['openrouter_key'=>'sk-or-v1-own-key','llm_spent'=>1000000])->save();
+        [$u,$s]=$this->setupStory();$u->forceFill(['openrouter_key'=>'sk-or-v1-own-key','llm_spent'=>5000000])->save();
         Http::fake(['*/chat/completions'=>Http::response(['usage'=>['cost'=>0,'prompt_tokens'=>1000,'completion_tokens'=>500],'choices'=>[['message'=>['content'=>'Hello']]]])]);
         $this->actingAs($u)->post(route('chat.store',$s),['message'=>'Hi','model'=>'test/model','request_key'=>(string)Str::uuid()])->assertSessionHasNoErrors();
         Http::assertSent(fn($r)=>$r->hasHeader('Authorization','Bearer sk-or-v1-own-key'));
-        $this->assertSame(1000000,$u->fresh()->llm_spent);$this->assertSame('personal',LlmRequest::first()->funding);
+        $this->assertSame(5000000,$u->fresh()->llm_spent);$this->assertSame('personal',LlmRequest::first()->funding);
     }
     public function test_unknown_cost_keeps_reservation_and_records_response(): void {
         [$u,$s]=$this->setupStory();
@@ -85,9 +85,9 @@ class LlmBudgetTest extends TestCase {
     }
     public function test_personal_key_prompt_only_when_credit_is_spent(): void {
         [$u,$story]=$this->setupStory(); $budget=app(LlmBudget::class);
-        try { $budget->reserve($u,$story,(string)Str::uuid(),'test/model',1000001); $this->fail('Overspend accepted'); }
+        try { $budget->reserve($u,$story,(string)Str::uuid(),'test/model',5000001); $this->fail('Overspend accepted'); }
         catch (ValidationException $e) { $this->assertStringNotContainsString('own OpenRouter key',$e->getMessage()); }
-        $u->forceFill(['llm_spent'=>1000000])->save();
+        $u->forceFill(['llm_spent'=>5000000])->save();
         try { $budget->reserve($u,$story,(string)Str::uuid(),'test/model',0); $this->fail('Exhausted allowance accepted'); }
         catch (ValidationException $e) { $this->assertStringContainsString('Your AI credits have been used',$e->getMessage()); }
     }

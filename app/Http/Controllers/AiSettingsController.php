@@ -7,7 +7,7 @@ class AiSettingsController extends Controller {
     public function edit(Request $request) {
         $calls=LlmRequest::where('user_id',$request->user()->id)
             ->select(['id','user_id','story_id','model','funding','status','cost','reserved','created_at'])
-            ->with(['audioGeneration','imageGeneration'=>fn($q)=>$q->select(['id','llm_request_id','name','kind','status'])])
+            ->with(['videoGeneration','audioGeneration','imageGeneration'=>fn($q)=>$q->select(['id','llm_request_id','name','kind','status'])])
             ->latest('id')->paginate(50)->withQueryString()->fragment('ai-call-history');
         return view('studio.settings',['user'=>$request->user(),'calls'=>$calls,'credits'=>$request->user()->tokenCredits()->latest('id')->paginate(25,['*'],'credits_page')->withQueryString()]);
     }

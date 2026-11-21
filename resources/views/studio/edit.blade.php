@@ -62,10 +62,11 @@
                                 x-show="bibleTab==='story'"
                                 class="space-y-5"
                             >
+                                @include('studio.story-cover')
                                 @foreach (['title' => 'Title', 'genre' => 'Genre', 'language' => 'Language'] as $field => $label)
                                     <label class="field">{{ $label }}<input
                                             name="{{ $field }}"
-                                            required
+                                            @required($field !== 'genre')
                                             value="{{ $story->$field }}"
                                         ></label>
                                 @endforeach

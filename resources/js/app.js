@@ -1,3 +1,4 @@
+import { storyCover } from './story-cover';
 import { recoverChatMessages } from './chat-history';
 import { storyVideo } from './story-video.js';
 import { audioSettings, storySpeech, audioPreview } from './audio-settings';
@@ -23,6 +24,7 @@ import { proposalTargets, displayMessage } from './companion-proposals';
 import { selectableModels, rememberedModel, rememberModel, modelLabel, imagePriceLabel } from './model-preferences';
 
 window.Alpine = Alpine;
+Alpine.data('storyCover', storyCover);
 Alpine.data('storyFlags', storyFlags);
 Alpine.data('inventoryLibrary', inventoryLibrary);
 Alpine.data('aiCallHistory', aiCallHistory);

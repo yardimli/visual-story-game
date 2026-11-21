@@ -39,6 +39,24 @@ class VideoGenerationTest extends TestCase
             'parameters' => ['aspect_ratio' => '16:9', 'seconds' => 5, 'megapixels' => 0.4], 'first_asset_id' => $asset->id];
     }
 
+    public function test_completed_videos_bill_duration_once_and_relay_hub_copy_is_not_billed(): void
+    {
+        foreach ([5, 15] as $seconds) {
+            $fields=$this->fields; $fields['parameters']['seconds']=$seconds;
+            $job=app(VideoDrafts::class)->save($this->story,$fields);
+            $job->update(['status'=>'running','remote_id'=>(string) Str::uuid()]);
+            $file=UploadedFile::fake()->createWithContent('video.mp4',pack('N',24).'ftypisom'.str_repeat("x",32));
+            app(\App\Services\VideoFiles::class)->complete($job,$file->getPathname());
+            app(\App\Services\VideoFiles::class)->complete($job,$file->getPathname());
+            $this->assertDatabaseHas('llm_requests',['request_key'=>$job->id,'cost'=>$seconds*50000]);
+        }
+        $this->assertSame(1000000,User::find($this->story->user_id)->llm_spent);
+        $hub=VideoGeneration::create(['name'=>'Relay copy','engine'=>'fastvideo_h3','engine_version'=>1,'prompt'=>'Test','parameters'=>['seconds'=>5],'seed'=>1,'status'=>'running']);
+        app(\App\Services\VideoFiles::class)->complete($hub,$file->getPathname());
+        $this->assertDatabaseCount('llm_requests',2);
+        $this->assertNull($hub->fresh()->llm_request_id);
+    }
+
     public function test_pending_video_cards_include_source_frame_urls(): void
     {
         $fields = $this->fields + ['last_asset_id' => $this->fields['first_asset_id']];
@@ -235,6 +253,11 @@ class VideoGenerationTest extends TestCase
         $file = UploadedFile::fake()->createWithContent('result.mp4', $bytes);
         $this->post($base.'/complete', ['video' => $file, 'sha256' => hash('sha256', $bytes)], $headers)->assertOk()->assertJsonPath('status', 'completed');
         $this->post($base.'/complete', [], $headers)->assertOk();
+        $this->assertSame(250000, User::find($job->user_id)->llm_spent);
+        $this->assertDatabaseCount('llm_requests', 1);
+        $this->assertDatabaseHas('llm_requests', ['id'=>$job->fresh()->llm_request_id, 'cost'=>250000, 'funding'=>'platform']);
+        $this->get(route('ai.edit'))->assertOk()->assertSee('Video · Door opens');
+
         $this->get(route('videos.file', [$this->story, $job]))->assertOk()->assertHeader('Content-Type', 'video/mp4');
         $this->postJson($base.'/heartbeat', ['status' => 'failed', 'error' => 'late callback'], $headers)->assertJsonPath('status', 'completed');
     }
