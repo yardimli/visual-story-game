@@ -161,7 +161,7 @@
                                         >
                                             <figure>
                                                 <div class="relative"><img
-                                                        :src="image.url"
+                                                        :src="$thumbnail(image.url)"
                                                         :alt="image.name"
                                                         loading="lazy"
                                                         class="aspect-video w-full rounded object-contain"

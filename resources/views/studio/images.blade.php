@@ -38,7 +38,9 @@
                             class="text-sm"
                             x-text="compositionText(selectedComposition)"
                         ></p><img
-                            :src="asset(jobs.find(j => j.id === selectedImageId)?.asset_ids?.[0])?.url"
+                            loading="lazy"
+                            decoding="async"
+                            :src="$thumbnail(asset(jobs.find(j => j.id === selectedImageId)?.asset_ids?.[0])?.url)"
                             class="max-h-[60vh] w-full object-contain"
                             alt="Scene with changed state applied"
                         >
@@ -301,7 +303,7 @@
                                                 x-show="unusedImage(id)"
                                                 class="absolute right-1 top-1 z-10 rounded bg-red-700 px-2 py-1 text-xs text-white"
                                             >Unused in scenes</span><img
-                                                :src="asset(id)?.url"
+                                                :src="$thumbnail(asset(id)?.url)"
                                                 :alt="asset(id)?.name"
                                                 loading="lazy"
                                                 class="max-h-60 w-full rounded-lg object-contain"
@@ -470,7 +472,7 @@
                                         'border-stone-200 dark:border-stone-700'"
                                 >
                                     <div class="relative"><img
-                                            :src="a.url"
+                                            :src="$thumbnail(a.url)"
                                             :alt="a.name"
                                             loading="lazy"
                                             class="aspect-square w-full object-contain"

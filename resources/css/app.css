@@ -1912,3 +1912,41 @@ html.editor-document,
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+.create-story-dialog {
+    width: min(800px, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+    max-height: 90dvh;
+    margin: auto;
+    overflow-y: auto;
+}
+.create-story-dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+}
+
+/* Stable audio workspaces: content scrolls without changing modal dimensions. */
+.audio-workspace-dialog {
+    width: min(1100px, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+    height: 88dvh;
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    overflow: hidden;
+}
+.audio-workspace-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+.audio-workspace-dialog > header {
+    flex-shrink: 0;
+}
+.audio-dialog-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.audio-workspace-dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+}

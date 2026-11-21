@@ -163,8 +163,10 @@
                                 ></canvas></div>
                         </div>
                         <img
+                            loading="lazy"
+                            decoding="async"
                             x-show="containerReuseState"
-                            :src="asset(containerAreas.find(a => a.id === containerArea)?.state_asset_id)?.url"
+                            :src="$thumbnail(asset(containerAreas.find(a => a.id === containerArea)?.state_asset_id)?.url)"
                             alt="Changed state to extract from"
                             class="max-h-80 max-w-full mx-auto"
                         >
@@ -189,8 +191,10 @@
                                                 item.id)"
                                             @change="toggleContainerItem(item,$event.target.checked)"
                                         ><img
+                                            loading="lazy"
+                                            decoding="async"
                                             x-show="asset(item.asset_id)"
-                                            :src="asset(item.asset_id)?.url"
+                                            :src="$thumbnail(asset(item.asset_id)?.url)"
                                             alt=""
                                             class="h-12 w-14 object-contain"
                                         ><span x-text="item.name"></span></label></template>
@@ -280,7 +284,9 @@
                                     @pointercancel="endContainerDraw(true)"
                                     @lostpointercapture="endContainerDraw(true)"
                                 ><img
-                                        :src="asset(containerPreviewAsset)?.url"
+                                        loading="lazy"
+                                        decoding="async"
+                                        :src="$thumbnail(asset(containerPreviewAsset)?.url)"
                                         alt="Open container preview"
                                         class="block w-full"
                                         draggable="false"
@@ -335,17 +341,22 @@
                                                 x-model="containerHidden"
                                             ><span x-text="'Collected: '+c.name"></span></label></template></div>
                                 <div class="relative"><img
-                                        :src="asset(containerView === 'closed' ? containerPlan.source_asset_id : (
-                                            containerOutputs.find(o => o.type === 'switch_on')
-                                            ?.accepted_asset_id || containerPreviewAsset))?.url"
+                                        loading="lazy"
+                                        decoding="async"
+                                        :src="$thumbnail(asset(containerView === 'closed' ? containerPlan.source_asset_id :
+                                            (
+                                                containerOutputs.find(o => o.type === 'switch_on')
+                                                ?.accepted_asset_id || containerPreviewAsset))?.url)"
                                         class="block w-full"
                                         alt="Container composition"
                                     ><template
                                         x-for="o in containerOutputs.filter(o=>o.type==='layer'&&o.accepted_asset_id)"
                                         :key="o.id"
                                     ><img
+                                            loading="lazy"
+                                            decoding="async"
                                             x-show="containerView==='open'&&!containerHidden.includes(o.area_id)"
-                                            :src="asset(o.accepted_asset_id)?.url"
+                                            :src="$thumbnail(asset(o.accepted_asset_id)?.url)"
                                             :style="style(o.bounds)"
                                             class="pointer-events-none absolute"
                                             alt="Content layer"
@@ -382,8 +393,10 @@
                                         x-text="containerPending(o)?'Rendering…':o.accepted_asset_id?'Accepted':'Needs generation'"
                                     ></span>
                                 </div><img
+                                    loading="lazy"
+                                    decoding="async"
                                     x-show="o.accepted_asset_id"
-                                    :src="asset(o.accepted_asset_id)?.url"
+                                    :src="$thumbnail(asset(o.accepted_asset_id)?.url)"
                                     class="max-h-52 max-w-full object-contain"
                                     :alt="o.name"
                                 ><template
@@ -431,7 +444,9 @@
                                                     .stage !== 'preview')"
                                                 @click="containerOutputAction(o,'accept',id)"
                                             ><img
-                                                    :src="asset(id)?.url"
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    :src="$thumbnail(asset(id)?.url)"
                                                     class="h-16 w-20 object-contain"
                                                     alt="Generated version"
                                                 >Use version</button></template>

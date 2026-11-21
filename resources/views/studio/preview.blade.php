@@ -59,8 +59,10 @@
                             x-model="previewInventorySelection"
                         >
                         <img
+                            loading="lazy"
+                            decoding="async"
                             x-show="asset(item.asset_id)"
-                            :src="asset(item.asset_id)?.url"
+                            :src="$thumbnail(asset(item.asset_id)?.url)"
                             alt=""
                             class="h-16 w-20 shrink-0 rounded object-contain"
                         >

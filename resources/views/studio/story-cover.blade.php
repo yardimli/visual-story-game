@@ -19,7 +19,9 @@
     >
     <p class="text-sm font-semibold">Story graphic</p>
     <template x-if="selected"><img
-            :src="selected.url"
+            loading="lazy"
+            decoding="async"
+            :src="$thumbnail(selected.url)"
             :alt="selected.name"
             class="max-h-48 max-w-full rounded-lg object-contain"
         ></template>
@@ -86,7 +88,7 @@
                     @click="choose(image)"
                 >
                     <img
-                        :src="image.url"
+                        :src="$thumbnail(image.url)"
                         :alt="image.name"
                         class="h-36 w-full object-contain"
                         loading="lazy"

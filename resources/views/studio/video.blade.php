@@ -106,7 +106,9 @@
                             class="block w-full"
                             :aria-label="'Enlarge ' + frame + ' frame'"
                         ><img
-                                :src="asset(form[frame + '_asset_id'])?.url"
+                                loading="lazy"
+                                decoding="async"
+                                :src="$thumbnail(asset(form[frame + '_asset_id'])?.url)"
                                 :alt="frame + ' frame'"
                                 class="h-40 w-full object-contain"
                             ></button>
@@ -216,7 +218,7 @@
                                     :aria-label="'Enlarge ' + frame + ' frame of ' + job.name"
                                 >
                                     <img
-                                        :src="job[frame + '_frame_url']"
+                                        :src="$thumbnail(job[frame + '_frame_url'])"
                                         :alt="frame + ' frame of ' + job.name"
                                         loading="lazy"
                                         class="h-32 w-full rounded-lg object-contain"
@@ -350,7 +352,7 @@
                             :class="form[framePicker + '_asset_id'] == image.id ? 'ring-2 ring-amber-500' : ''"
                         >
                             <img
-                                :src="image.url"
+                                :src="$thumbnail(image.url)"
                                 :alt="image.name"
                                 loading="lazy"
                                 class="h-40 w-full object-contain"
@@ -382,6 +384,8 @@
             @click="zoom=null"
             class="absolute right-5 top-5 btn-secondary"
         >Close</button><img
+            loading="lazy"
+            decoding="async"
             :src="zoom"
             alt="Video frame preview"
             class="max-h-full max-w-full object-contain"

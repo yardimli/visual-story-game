@@ -44,10 +44,11 @@ class AudioController extends Controller {
   return $this->queue($r,$story,$d,$catalog->reservation($model,$d['prompt'],$d['settings']['instructions']??''),$model['pricing'],false);
  }
  public function generate(Request $r,Story $story){
-  $this->owner($r,$story);$d=$r->validate(['request_key'=>'required|uuid','name'=>'required|string|max:160','prompt'=>'required|string|max:3000','model'=>'sometimes|in:fal-ai/stable-audio,cassetteai/sound-effects-generator','seconds'=>'required|integer|min:1|max:47']);
-  $d['model']??='fal-ai/stable-audio';if($d['model']==='cassetteai/sound-effects-generator')abort_if($d['seconds']>30,422,'CassetteAI supports up to 30 seconds.');
+  $this->owner($r,$story);$d=$r->validate(['request_key'=>'required|uuid','name'=>'required|string|max:160','prompt'=>'required|string|max:3000','model'=>'sometimes|in:minimax/music-3,fal-ai/stable-audio,cassetteai/sound-effects-generator','seconds'=>'required|integer|min:1|max:300','settings'=>'sometimes|array:lyrics','settings.lyrics'=>'nullable|string|max:10000']);
+  $d['model']??='minimax/music-3';if($d['model']==='fal-ai/stable-audio')abort_if($d['seconds']>47,422,'Stable Audio supports up to 47 seconds.');if($d['model']==='cassetteai/sound-effects-generator')abort_if($d['seconds']>30,422,'CassetteAI supports up to 30 seconds.');
   abort_unless(config('services.fal.key'),422,'FAL_KEY is not configured.');
-  return $this->queue($r,$story,$d,$d['seconds']*20000,['per_second'=>0.02],true);
+  $rate=$d['model']==='minimax/music-3'?2000:20000;
+  return $this->queue($r,$story,$d,$d['seconds']*$rate,['per_second'=>$rate/1000000],true);
  }
  private function queue(Request $r,Story $story,array $d,int $amount,array $pricing,bool $fal){
   $job=DB::transaction(function()use($r,$story,$d,$amount,$pricing,$fal){

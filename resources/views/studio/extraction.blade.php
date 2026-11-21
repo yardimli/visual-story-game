@@ -127,7 +127,9 @@
                     </select></label>
                 <template x-if="asset(extractionSource)">
                     <div class="relative mx-auto max-w-3xl"><img
-                            :src="asset(extractionSource).url"
+                            loading="lazy"
+                            decoding="async"
+                            :src="$thumbnail(asset(extractionSource).url)"
                             class="w-full rounded"
                             alt="Original scene"
                         ><template
@@ -296,8 +298,10 @@
                             >Accepted composition</button>
                         </div>
                         <div class="relative w-full overflow-hidden rounded"><img
-                                :src="asset(extractionPreview === 'original' ? extractionBatch.source_asset_id : (
-                                    extractionBackground || extractionBatch.source_asset_id))?.url"
+                                loading="lazy"
+                                decoding="async"
+                                :src="$thumbnail(asset(extractionPreview === 'original' ? extractionBatch.source_asset_id : (
+                                    extractionBackground || extractionBatch.source_asset_id))?.url)"
                                 class="block h-auto w-full"
                                 :alt="extractionPreview === 'original' ? 'Original scene preserved' :
                                     'Accepted composition preview'"
@@ -305,8 +309,10 @@
                                 x-for="o in extractionLayers.filter(o=>!extractionHidden.includes(o.id))"
                                 :key="o.id"
                             ><img
+                                    loading="lazy"
+                                    decoding="async"
                                     x-show="extractionPreview==='composition'"
-                                    :src="asset(o.accepted_asset_id)?.url"
+                                    :src="$thumbnail(asset(o.accepted_asset_id)?.url)"
                                     :style="style(o.bounds)"
                                     class="pointer-events-none absolute"
                                     alt="Scene item layer"
@@ -388,7 +394,7 @@
                                                     :aria-label="'Enlarge ' + ref.name"
                                                     @click.stop="$dispatch('vsg-image',ref)"
                                                 ><img
-                                                        :src="ref.url"
+                                                        :src="$thumbnail(ref.url)"
                                                         :alt="ref.name"
                                                         class="h-28 w-32 object-contain"
                                                         loading="lazy"
@@ -412,7 +418,9 @@
                                         type="button"
                                         @click="$dispatch('vsg-image',asset(ref))"
                                     ><img
-                                            :src="asset(ref)?.url"
+                                            loading="lazy"
+                                            decoding="async"
+                                            :src="$thumbnail(asset(ref)?.url)"
                                             class="h-24 w-32 rounded object-contain"
                                             alt="Generation reference"
                                         ><span
@@ -462,7 +470,9 @@
                                                     class="extraction-checker w-full rounded"
                                                     @click="$dispatch('vsg-image',asset(id))"
                                                 ><img
-                                                        :src="asset(id)?.url"
+                                                        loading="lazy"
+                                                        decoding="async"
+                                                        :src="$thumbnail(asset(id)?.url)"
                                                         class="h-32 w-full object-contain"
                                                         alt="Generated candidate"
                                                     ></button><button

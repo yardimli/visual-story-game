@@ -29,7 +29,7 @@
     ></p>
     <dialog
         x-ref="audioSearchDialog"
-        class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+        class="audio-workspace-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
         @close="$el.querySelectorAll('audio').forEach(a=>a.pause())"
     >
         <header class="mb-4 flex items-center justify-between gap-3">
@@ -39,109 +39,111 @@
                 @click="$refs.audioSearchDialog.close()"
             >Close</button>
         </header>
-        <p
-            x-show="error"
-            x-text="error"
-            role="alert"
-            class="mb-3 text-sm text-red-700"
-        ></p>
-        <div class="min-w-0 space-y-3">
-            <h3 class="text-xs font-semibold">Freesound</h3>
-            <form
-                @submit.prevent="search(1)"
-                class="flex flex-wrap items-end gap-2"
-            ><label class="field min-w-0 flex-1 basis-40">Search<input
-                        x-model="query"
-                        placeholder="Rain, creaking door, footsteps..."
-                        maxlength="200"
-                        required
-                    ></label><label class="field w-28">Max seconds<input
-                        type="number"
-                        min="0.1"
-                        max="3600"
-                        step="0.1"
-                        x-model="maxDuration"
-                        placeholder="Any"
+        <div class="audio-dialog-content">
+            <p
+                x-show="error"
+                x-text="error"
+                role="alert"
+                class="mb-3 text-sm text-red-700"
+            ></p>
+            <div class="min-w-0 space-y-3">
+                <h3 class="text-xs font-semibold">Freesound</h3>
+                <form
+                    @submit.prevent="search(1)"
+                    class="flex flex-wrap items-end gap-2"
+                ><label class="field min-w-0 flex-1 basis-40">Search<input
+                            x-model="query"
+                            placeholder="Rain, creaking door, footsteps..."
+                            maxlength="200"
+                            required
+                        ></label><label class="field w-28">Max seconds<input
+                            type="number"
+                            min="0.1"
+                            max="3600"
+                            step="0.1"
+                            x-model="maxDuration"
+                            placeholder="Any"
+                            :disabled="searching"
+                            @change="results=[];page=1;hasMore=false;if(query.trim())search(1)"
+                        ></label><button
+                        class="btn-primary"
                         :disabled="searching"
-                        @change="results=[];page=1;hasMore=false;if(query.trim())search(1)"
-                    ></label><button
-                    class="btn-primary"
-                    :disabled="searching"
-                    x-text="searching?'Searching…':'Search'"
-                ></button></form>
-            <div class="flex flex-wrap gap-2"><template
-                    x-for="q in searches"
-                    :key="q"
+                        x-text="searching?'Searching…':'Search'"
+                    ></button></form>
+                <div class="flex flex-wrap gap-2"><template
+                        x-for="q in searches"
+                        :key="q"
+                    ><button
+                            type="button"
+                            class="text-xs underline"
+                            @click="query=q;search(1)"
+                            x-text="q"
+                        ></button></template></div>
+                <p class="text-xs text-stone-500">High-quality MP3 previews. Creator and license credits are saved with
+                    each sound.</p>
+                <div class="space-y-2"><template
+                        x-for="s in results"
+                        :key="s.id"
+                    >
+                        <article
+                            class="min-w-0 rounded-lg border border-stone-200 p-3 dark:border-stone-700 space-y-2 text-xs"
+                        >
+                            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1"><a
+                                    :href="s.source_url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="break-words text-xs font-semibold underline"
+                                    x-text="s.name"
+                                ></a><span
+                                    class="text-xs text-stone-500"
+                                    x-text="s.creator"
+                                ></span><a
+                                    :href="s.license"
+                                    :title="s.license"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="min-w-0 max-w-40 truncate text-xs underline"
+                                    x-text="s.license"
+                                ></a><span
+                                    class="ml-auto shrink-0 text-xs"
+                                    x-text="Number(s.duration).toFixed(1)+'s'"
+                                ></span></div>
+                            <div class="flex min-w-0 items-center gap-2"><audio
+                                    controls
+                                    preload="none"
+                                    :src="s.preview_url"
+                                    class="h-10 min-w-0 flex-1"
+                                    @play="$el.closest('section').querySelectorAll('audio').forEach(a=>{if(a!==$el)a.pause()})"
+                                ></audio><button
+                                    type="button"
+                                    class="btn-secondary shrink-0 !px-3 !py-2 !text-xs"
+                                    :disabled="busy || added(s.id)"
+                                    @click="add(s.id)"
+                                    :aria-label="'Add ' + s.name + ' to project'"
+                                    x-text="added(s.id)?'Added':'Add'"
+                                ></button></div>
+                        </article>
+                    </template></div>
+                <div
+                    x-show="results.length"
+                    class="flex items-center justify-between text-sm"
                 ><button
                         type="button"
-                        class="text-xs underline"
-                        @click="query=q;search(1)"
-                        x-text="q"
-                    ></button></template></div>
-            <p class="text-xs text-stone-500">High-quality MP3 previews. Creator and license credits are saved with
-                each sound.</p>
-            <div class="max-h-[60vh] space-y-2 overflow-y-auto"><template
-                    x-for="s in results"
-                    :key="s.id"
-                >
-                    <article
-                        class="min-w-0 rounded-lg border border-stone-200 p-3 dark:border-stone-700 space-y-2 text-xs"
-                    >
-                        <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1"><a
-                                :href="s.source_url"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="break-words text-xs font-semibold underline"
-                                x-text="s.name"
-                            ></a><span
-                                class="text-xs text-stone-500"
-                                x-text="s.creator"
-                            ></span><a
-                                :href="s.license"
-                                :title="s.license"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="min-w-0 max-w-40 truncate text-xs underline"
-                                x-text="s.license"
-                            ></a><span
-                                class="ml-auto shrink-0 text-xs"
-                                x-text="Number(s.duration).toFixed(1)+'s'"
-                            ></span></div>
-                        <div class="flex min-w-0 items-center gap-2"><audio
-                                controls
-                                preload="none"
-                                :src="s.preview_url"
-                                class="h-10 min-w-0 flex-1"
-                                @play="$el.closest('section').querySelectorAll('audio').forEach(a=>{if(a!==$el)a.pause()})"
-                            ></audio><button
-                                type="button"
-                                class="btn-secondary shrink-0 !px-3 !py-2 !text-xs"
-                                :disabled="busy || added(s.id)"
-                                @click="add(s.id)"
-                                :aria-label="'Add ' + s.name + ' to project'"
-                                x-text="added(s.id)?'Added':'Add'"
-                            ></button></div>
-                    </article>
-                </template></div>
-            <div
-                x-show="results.length"
-                class="flex items-center justify-between text-sm"
-            ><button
-                    type="button"
-                    class="underline"
-                    :disabled="searching || page === 1"
-                    @click="search(page-1)"
-                >Previous</button><span x-text="'Page '+page+' · '+count+' results'"></span><button
-                    type="button"
-                    class="underline"
-                    :disabled="searching || !hasMore"
-                    @click="search(page+1)"
-                >Next</button></div>
+                        class="underline"
+                        :disabled="searching || page === 1"
+                        @click="search(page-1)"
+                    >Previous</button><span x-text="'Page '+page+' · '+count+' results'"></span><button
+                        type="button"
+                        class="underline"
+                        :disabled="searching || !hasMore"
+                        @click="search(page+1)"
+                    >Next</button></div>
+            </div>
         </div>
     </dialog>
     <dialog
         x-ref="audioGenerateDialog"
-        class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+        class="audio-workspace-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
     >
         <header class="mb-4 flex items-center justify-between gap-3">
             <h2 class="font-serif text-xl">Generate audio</h2><button
@@ -151,46 +153,64 @@
                 @click="$refs.audioGenerateDialog.close()"
             >Close</button>
         </header>
-        <p
-            x-show="error"
-            x-text="error"
-            role="alert"
-            class="mb-3 text-sm text-red-700"
-        ></p>
-        <div class="min-w-0 space-y-3"><label class="field">Model<select
-                    x-model="model"
-                    @change="seconds=Math.min(seconds,model==='cassetteai/sound-effects-generator'?30:47)"
-                >
-                    <option value="fal-ai/stable-audio">Stable Audio</option>
-                    <option value="cassetteai/sound-effects-generator">CassetteAI sound effects</option>
-                </select></label>
-            <form
-                @submit.prevent="generate()"
-                class="space-y-3"
-            ><label class="field">Name<input
-                        x-model="name"
-                        required
-                        maxlength="160"
-                        placeholder="A heavy wooden door opening"
-                    ></label><label class="field">Sound prompt
-                    <textarea
-                        x-model="prompt"
-                        required
-                        maxlength="3000"
-                        rows="4"
-                        placeholder="Describe the sound, atmosphere, and timing..."
-                    ></textarea>
-                </label><label class="field">Duration (seconds)<input
-                        type="number"
-                        min="1"
-                        :max="model === 'cassetteai/sound-effects-generator' ? 30 : 47"
-                        x-model="seconds"
-                        required
-                    ></label><button
-                    class="btn-primary"
-                    :disabled="generating"
-                    x-text="generating?'Submitting…':'Generate sound'"
-                ></button></form>
+        <div class="audio-dialog-content">
+            <p
+                x-show="error"
+                x-text="error"
+                role="alert"
+                class="mb-3 text-sm text-red-700"
+            ></p>
+            <div class="min-w-0 space-y-3"><label class="field">Model<select
+                        x-model="model"
+                        @change="seconds=Math.min(seconds,model==='minimax/music-3'?300:(model==='cassetteai/sound-effects-generator'?30:47))"
+                    >
+                        <option value="minimax/music-3">MiniMax Music 3</option>
+                        <option value="fal-ai/stable-audio">Stable Audio</option>
+                        <option value="cassetteai/sound-effects-generator">CassetteAI sound effects</option>
+                    </select></label>
+                <form
+                    @submit.prevent="generate()"
+                    class="space-y-3"
+                ><label class="field">Name<input
+                            x-model="name"
+                            required
+                            maxlength="160"
+                            placeholder="A heavy wooden door opening"
+                        ></label><label class="field">Sound prompt
+                        <textarea
+                            x-model="prompt"
+                            required
+                            maxlength="3000"
+                            rows="4"
+                            placeholder="Describe the sound, atmosphere, and timing..."
+                        ></textarea>
+                    </label>
+                    <label
+                        class="field"
+                        x-show="model==='minimax/music-3'"
+                    >Lyrics / structure
+                        <textarea
+                            x-model="lyrics"
+                            rows="5"
+                            maxlength="10000"
+                        ></textarea>
+                        <span class="text-xs font-normal">Use [instrumental] for background music, or add lyrics with
+                            each
+                            section tag on its own line. $0.002 per second.</span>
+                    </label><label class="field">Duration (seconds)<input
+                            type="number"
+                            min="1"
+                            :max="model === 'minimax/music-3' ? 300 : (model === 'cassetteai/sound-effects-generator' ? 30 :
+                                47)"
+                            x-model="seconds"
+                            required
+                        ></label><button
+                        class="btn-primary"
+                        :disabled="generating"
+                        x-text="generating?'Submitting…':'Generate sound'"
+                    ></button>
+                </form>
+            </div>
         </div>
     </dialog>
     <section class="min-w-0 rounded-xl border border-stone-200 p-4 dark:border-stone-700 space-y-3">

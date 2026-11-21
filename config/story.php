@@ -1,5 +1,7 @@
 <?php
 return [
+    'default_llm_model' => 'openai/gpt-6.2-sol',
+    'default_image_model' => 'openai/gpt-image-2.6-sunburst',
     'openrouter_providers' => array_values(array_filter(array_map(fn ($value) => strtolower(trim($value)), explode(',', env('OPENROUTER_PROVIDERS', 'deepseek,anthropic,openai,moonshotai,google,qwen'))))),
     'openrouter_key' => env('OPEN_ROUTER_KEY'),
     'openrouter_referer' => env('OPENROUTER_HTTP_REFERER', 'https://vsg.playground.computer'),

@@ -13,7 +13,7 @@ class StudioController extends Controller {
     public function store(Request $request) {
         $data=$request->validate(['title'=>'required|string|max:160']);
         $story=DB::transaction(function () use ($request,$data) {
-            $story=Story::create(['user_id'=>$request->user()->id,'title'=>$data['title'],'premise'=>'','genre'=>'']);
+            $story=Story::create(['user_id'=>$request->user()->id,'title'=>$data['title'],'premise'=>'','genre'=>'','llm_model'=>config('story.default_llm_model'),'image_model'=>config('story.default_image_model')]);
             $story->pages()->create(['position'=>1,'title'=>'Page 1']);
             return $story;
         });

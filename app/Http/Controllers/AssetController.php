@@ -26,6 +26,7 @@ class AssetController extends Controller {
     }
     public function show(Request $request,Asset $asset) {
         abort_unless(Story::whereKey($asset->story_id)->where('user_id',$request->user()->id)->exists(),404);
+        if ($request->boolean('thumbnail')) return app(\App\Services\ImageThumbnails::class)->response($asset->path);
         return Storage::disk('local')->response($asset->path,null,['Content-Type'=>$asset->mime,'X-Content-Type-Options'=>'nosniff','Cache-Control'=>'private, max-age=3600']);
     }
 }

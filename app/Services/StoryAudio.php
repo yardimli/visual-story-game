@@ -22,7 +22,7 @@ class StoryAudio {
   $host=strtolower(parse_url($url,PHP_URL_HOST)??'');
   $allowed=$provider==='freesound'?($host==='cdn.freesound.org'||$host==='freesound.org'):($host==='fal.media'||str_ends_with($host,'.fal.media'));
   if(parse_url($url,PHP_URL_SCHEME)!=='https'||!$allowed)throw new \RuntimeException('The sound provider returned an unsupported download URL.');
-  $response=Http::timeout(60)->withOptions(['allow_redirects'=>false,'progress'=>function($total,$downloaded){if($total>52428800||$downloaded>52428800)throw new \RuntimeException('Sound exceeds the 50 MB limit.');}])->get($url);
+  $response=Http::timeout(60)->withOptions(['allow_redirects'=>false,'progress'=>function($total,$downloaded){if($total>67108864||$downloaded>67108864)throw new \RuntimeException('Sound exceeds the 64 MB limit.');}])->get($url);
   if(!$response->successful())throw new \RuntimeException('Sound download failed (HTTP '.$response->status().').');
   $bytes=$response->body();$mime=(new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
   if(!in_array($mime,['audio/mpeg','audio/wav','audio/x-wav','audio/vnd.wave','audio/ogg','application/ogg','audio/flac','audio/x-flac','audio/mp4']))throw new \RuntimeException('The provider did not return a supported audio file.');

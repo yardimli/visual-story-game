@@ -20,7 +20,9 @@ class GenerateStoryAudio implements ShouldQueue {
     // Claim before POST. An uncertain submission must never create a second paid request.
     if(!AudioGeneration::whereKey($g->id)->where('status','queued')->whereNull('submitted_at')->update(['status'=>'submitting','submitted_at'=>now()])){return;}
     $g->refresh();$base='https://queue.fal.run/'.$g->model;
-    $r=$client->post($base,['prompt'=>$g->prompt,($g->model==='cassetteai/sound-effects-generator'?'duration':'seconds_total')=>$g->seconds]);
+    $payload=['prompt'=>$g->prompt,($g->model==='fal-ai/stable-audio'?'seconds_total':'duration')=>$g->seconds];
+    if($g->model==='minimax/music-3')$payload['lyrics']=$g->settings['lyrics']??'[instrumental]';
+    $r=$client->post($base,$payload);
     if(!$r->successful()||!$r->json('request_id'))throw new \RuntimeException('fal submission failed or was not confirmed. Check fal activity before trying again.');
     $g->refresh();$g->update(['provider_request_id'=>$r->json('request_id'),'status'=>'queued']);$this->release(5);return;
    }
@@ -35,10 +37,10 @@ class GenerateStoryAudio implements ShouldQueue {
     $g->update(['status'=>'running']);$this->release(5);return;
    }
    if($state!=='COMPLETED')throw new \RuntimeException('fal returned an unexpected audio status.');
-   $result=$client->get($request);if(!$result->successful()||!$result->json('audio_file.url'))throw new \RuntimeException('fal did not return a completed audio file.');
-   $sound=$audio->save(Story::findOrFail($g->story_id),$result->json('audio_file.url'),['name'=>$g->name,'provider'=>'fal','external_id'=>$g->provider_request_id,'prompt'=>$g->prompt,'duration'=>$g->seconds]);
+   $result=$client->get($request);$url=$result->json($g->model==='minimax/music-3'?'audio.url':'audio_file.url');if(!$result->successful()||!$url)throw new \RuntimeException('fal did not return a completed audio file.');
+   $sound=$audio->save(Story::findOrFail($g->story_id),$url,['name'=>$g->name,'provider'=>'fal','external_id'=>$g->provider_request_id,'prompt'=>$g->prompt,'duration'=>$result->json('duration')??$g->seconds]);
    $g->update(['status'=>'completed','sound_id'=>$sound->id,'error'=>null]);
-   if($account=$g->accounting){$account->update(['response_content'=>['status'=>'completed','sound_id'=>$sound->id,'duration'=>$sound->duration]]);app(\App\Services\LlmBudget::class)->settle($account,(int)round((float)$sound->duration*20000),'completed',$g->provider_request_id);}
+   if($account=$g->accounting){$account->update(['response_content'=>['status'=>'completed','sound_id'=>$sound->id,'duration'=>$sound->duration]]);app(\App\Services\LlmBudget::class)->settle($account,(int)round((float)$sound->duration*(float)($account->pricing_snapshot['per_second']??0.02)*1000000),'completed',$g->provider_request_id);}
   }catch(\Throwable $e){if($account=$g->accounting)app(\App\Services\LlmBudget::class)->settle($account,0,'failed',$g->provider_request_id);$g->update(['status'=>'failed','error'=>$e instanceof \RuntimeException && !$e instanceof \Illuminate\Http\Client\RequestException?$e->getMessage():'Audio request failed. Check provider activity before creating another request.']);}
  }
  public function failed(?\Throwable $e):void {if($g=AudioGeneration::find($this->id)){if($g->accounting)app(\App\Services\LlmBudget::class)->settle($g->accounting,0,'failed',$g->provider_request_id);}AudioGeneration::whereKey($this->id)->whereNotIn('status',['completed','failed'])->update(['status'=>'failed','error'=>'Audio worker stopped before completion. Check fal activity before creating another request.']);}

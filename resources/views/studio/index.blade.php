@@ -18,15 +18,24 @@
         </div>
         <dialog
             x-ref="createDialog"
-            class="image-form-dialog rounded-2xl p-6"
+            class="create-story-dialog rounded-2xl p-6 sm:p-10"
             aria-labelledby="create-story-title"
+            aria-describedby="create-story-description"
             @close="create=false"
             x-effect="if(create) $refs.createDialog.showModal(); else $refs.createDialog.close()"
         >
             <h2
                 id="create-story-title"
-                class="mb-5 font-serif text-2xl"
+                class="mb-4 font-serif text-3xl"
             >Create a story</h2>
+            <p
+                id="create-story-description"
+                class="mb-8 max-w-2xl leading-relaxed text-stone-500 dark:text-stone-400"
+            >
+                Build an interactive adventure with scenes to explore, objects to collect, and puzzles to solve.
+                Bring it to life with images, voices, music, and video, with AI to help along the way.
+                Start with a title and one blank page—you can add everything else as you go.
+            </p>
             <form
                 action="{{ route('stories.store') }}"
                 method="POST"
@@ -43,7 +52,7 @@
                 @error('title')
                     <p class="text-sm text-red-600">{{ $message }}</p>
                 @enderror
-                <div class="flex gap-3"><button class="btn-primary">Create story</button><button
+                <div class="flex justify-end gap-3 pt-3"><button class="btn-primary">Create story</button><button
                         type="button"
                         class="btn-secondary"
                         @click="create=false"
@@ -62,7 +71,7 @@
                 >
                     @if ($story->coverImage)
                         <a href="{{ route('stories.edit', $story) }}"><img
-                                src="{{ route('assets.show', $story->coverImage) }}"
+                                src="{{ route('assets.show', [$story->coverImage, 'thumbnail' => 1]) }}"
                                 alt="{{ $story->title }}"
                                 class="h-44 w-full object-cover"
                                 loading="lazy"

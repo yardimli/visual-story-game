@@ -24,6 +24,13 @@ import { proposalTargets, displayMessage } from './companion-proposals';
 import { selectableModels, rememberedModel, rememberModel, modelLabel, imagePriceLabel } from './model-preferences';
 
 window.Alpine = Alpine;
+Alpine.magic('thumbnail', () => (url) => {
+    if (!url || url.startsWith('data:') || url.startsWith('blob:')) return url;
+    const image = new URL(url, window.location.origin);
+    if (image.origin !== window.location.origin) return url;
+    image.searchParams.set('thumbnail', '1');
+    return image.href;
+});
 Alpine.data('storyCover', storyCover);
 Alpine.data('storyFlags', storyFlags);
 Alpine.data('inventoryLibrary', inventoryLibrary);

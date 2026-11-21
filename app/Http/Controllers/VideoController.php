@@ -113,6 +113,7 @@ class VideoController extends Controller
         abort_unless(in_array($frame, ['first', 'last']), 404);
         $path = $frame === 'first' ? $video->first_path : $video->last_path;
         abort_unless($path && Storage::disk('local')->exists($path), 404);
+        if ($request->boolean('thumbnail')) return app(\App\Services\ImageThumbnails::class)->response($path);
         return response()->file(Storage::disk('local')->path($path), [
             'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, max-age=3600',
         ]);

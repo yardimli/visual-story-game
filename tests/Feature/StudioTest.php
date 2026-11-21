@@ -35,6 +35,8 @@ class StudioTest extends TestCase {
             $story=Story::latest('id')->first();
             $this->assertSame('', $story->premise);
             $this->assertSame('', $story->genre);
+            $this->assertSame('openai/gpt-6.2-sol', $story->llm_model);
+            $this->assertSame('openai/gpt-image-2.6-sunburst', $story->image_model);
             $this->assertSame(1,$story->pages()->count());
             $this->assertEmpty($story->pages()->first()->narrative);
             $this->putJson(route('stories.update',$story),['revision'=>$story->revision,'title'=>'Renamed','premise'=>'','genre'=>'','language'=>'English'])->assertOk();

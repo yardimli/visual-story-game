@@ -32,7 +32,9 @@
                         @click="chooseImage(item)"
                         :aria-label="'Choose image for ' + item.name"
                     ><template x-if="asset(item.asset_id)"><img
-                                :src="asset(item.asset_id).url"
+                                loading="lazy"
+                                decoding="async"
+                                :src="$thumbnail(asset(item.asset_id).url)"
                                 :alt="item.name"
                                 class="h-full w-full object-contain"
                             ></template><span x-show="!asset(item.asset_id)">Choose image</span></button>
@@ -190,7 +192,7 @@
                         class="overflow-hidden rounded-lg border p-2 text-left"
                         @click="selectImage(a.id)"
                     ><img
-                            :src="a.url"
+                            :src="$thumbnail(a.url)"
                             :alt="a.name"
                             class="aspect-square w-full object-contain"
                             loading="lazy"

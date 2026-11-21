@@ -95,6 +95,7 @@
                                     x-text="m.name"
                                 ></option>
                             </template>
+                            <option value="minimax/music-3">MiniMax Music 3</option>
                             <option value="fal-ai/stable-audio">Stable Audio</option>
                             <option value="cassetteai/sound-effects-generator">CassetteAI sound effects</option>
                         </select></label>
@@ -135,11 +136,23 @@
                     </template>
                     <label
                         class="field"
-                        x-show="editingJob.model.startsWith('fal-ai/')||editingJob.model.startsWith('cassetteai/')"
+                        x-show="editingJob.model==='minimax/music-3'"
+                    >Lyrics / structure
+                        <textarea
+                            x-model="editingJob.settings.lyrics"
+                            rows="5"
+                            maxlength="10000"
+                            placeholder="[instrumental]"
+                        ></textarea>
+                    </label>
+                    <label
+                        class="field"
+                        x-show="editingJob.model==='minimax/music-3'||editingJob.model.startsWith('fal-ai/')||editingJob.model.startsWith('cassetteai/')"
                     >Duration (seconds)<input
                             type="number"
                             min="1"
-                            :max="editingJob.model.startsWith('cassetteai/') ? 30 : 47"
+                            :max="editingJob.model === 'minimax/music-3' ? 300 : (editingJob.model.startsWith('cassetteai/') ?
+                                30 : 47)"
                             x-model.number="editingJob.seconds"
                         ></label>
                 </div>

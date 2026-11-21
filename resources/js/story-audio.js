@@ -163,7 +163,7 @@ export function storyAudio(url) {
         get filteredSounds() {
             return this.sounds.filter((s) => !this.categoryFilter || (s.category || 'effects') === this.categoryFilter);
         },
-        model: 'fal-ai/stable-audio',
+        model: 'minimax/music-3',
         sounds: [],
         jobs: [],
         searches: [],
@@ -178,7 +178,8 @@ export function storyAudio(url) {
         generating: false,
         name: '',
         prompt: '',
-        seconds: 10,
+        seconds: 60,
+        lyrics: '[instrumental]',
         requestKey: null,
         timer: null,
         error: '',
@@ -276,6 +277,7 @@ export function storyAudio(url) {
                     model: this.model,
                     prompt: this.prompt,
                     seconds: Number(this.seconds),
+                    ...(this.model === 'minimax/music-3' ? { settings: { lyrics: this.lyrics } } : {}),
                 });
                 this.requestKey = null;
                 await this.load();

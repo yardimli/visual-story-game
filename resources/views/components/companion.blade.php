@@ -9,7 +9,7 @@
         'changesBase' => $story ? url('/stories/' . $story->id . '/messages') : null,
         'history' => $story ? route('chat.history', $story) : route('companion.history'),
         'messages' => $initial,
-        'model' => $story?->llm_model ?? '',
+        'model' => $story?->llm_model ?? config('story.default_llm_model'),
         'pageId' => $page?->id,
         'position' => $page?->position,
         'imageStudio' => $story && $page ? route('images.studio', [$story, $page]) : null,
@@ -335,7 +335,7 @@
                                 @click="$dispatch('vsg-image',image)"
                                 :aria-label="'Enlarge ' + image.name"
                             ><img
-                                    :src="image.url"
+                                    :src="$thumbnail(image.url)"
                                     :alt="image.name"
                                     loading="lazy"
                                     class="h-36 w-full object-contain"

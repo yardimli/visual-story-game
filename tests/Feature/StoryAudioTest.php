@@ -37,6 +37,22 @@ class StoryAudioTest extends TestCase {
   foreach(['3','5','all'] as $limit)Cache::store('file')->forget('freesound.search.v2.'.hash('sha256',$query.'|1|'.$limit));
   foreach([99999999,99999998] as $id)Cache::store('file')->forget('freesound.sound.'.$id);
  }
+ public function test_music_three_is_default_and_uses_lyrics_duration_and_actual_audio_cost():void {
+  $s=$this->story();Queue::fake();Storage::fake('local');config(['services.fal.key'=>'test']);
+  $data=['request_key'=>(string)Str::uuid(),'name'=>'Theme','prompt'=>'Quiet piano','seconds'=>60,'settings'=>['lyrics'=>"[verse]\nA quiet night"]];
+  $id=$this->postJson(route('audio.generate',$s),$data)->assertAccepted()->assertJsonPath('model','minimax/music-3')->json('id');
+  $g=AudioGeneration::findOrFail($id);$this->assertSame(120000,$g->accounting->reserved);
+  $base='https://queue.fal.run/minimax/music-3';
+  Http::fake([$base=>Http::response(['request_id'=>'music-1']),$base.'/requests/music-1/status*'=>Http::response(['status'=>'COMPLETED']),$base.'/requests/music-1'=>Http::response(['audio'=>['url'=>'https://fal.media/music.wav'],'duration'=>1]),'https://fal.media/music.wav'=>Http::response($this->wav())]);
+  $job=new GenerateStoryAudio($id);$job->handle(new StoryAudio());
+  Http::assertSent(fn($r)=>$r->url()===$base && $r['duration']===60 && $r['lyrics']===$data['settings']['lyrics'] && !isset($r['seconds_total']));
+  $job->handle(new StoryAudio());$job->handle(new StoryAudio());
+  $this->assertSame('completed',$g->fresh()->status);
+  $sound=StorySound::findOrFail($g->fresh()->sound_id);
+  $this->assertSame((int)round($sound->duration*2000),$g->fresh()->accounting->cost);
+  $this->assertSame(0,auth()->user()->fresh()->llm_reserved);
+  $this->postJson(route('audio.generate',$s),array_merge($data,['request_key'=>(string)Str::uuid(),'seconds'=>301]))->assertUnprocessable();
+ }
  public function test_generation_is_queued_once_for_repeated_request_key():void {
   $s=$this->story();Queue::fake();config(['services.fal.key'=>'test']);$data=['request_key'=>(string)Str::uuid(),'name'=>'Door','prompt'=>'A creaky wooden door','seconds'=>5];
   $first=$this->postJson(route('audio.generate',$s),$data)->assertAccepted()->json();$this->postJson(route('audio.generate',$s),$data)->assertAccepted()->assertJsonPath('id',$first['id']);Queue::assertPushed(GenerateStoryAudio::class,1);Queue::assertPushed(GenerateStoryAudio::class,fn($job)=>$job->connection==='database' && $job->queue==='audio' && $job->afterCommit);$this->assertDatabaseCount('audio_generations',1);
@@ -50,7 +66,7 @@ class StoryAudioTest extends TestCase {
   $job->handle($service);$this->assertSame('completed',$g->fresh()->status);$this->assertDatabaseCount('story_sounds',1);$job->handle($service);Http::assertSentCount(6);
  }
  public function test_uncertain_submission_is_never_posted_again():void {
-  $s=$this->story();$g=AudioGeneration::create(['story_id'=>$s->id,'request_key'=>(string)Str::uuid(),'name'=>'Door','prompt'=>'Door','seconds'=>5,'status'=>'submitting','submitted_at'=>now()]);Http::fake();(new GenerateStoryAudio($g->id))->handle(new StoryAudio());$this->assertSame('failed',$g->fresh()->status);Http::assertNothingSent();
+  $s=$this->story();$g=AudioGeneration::create(['story_id'=>$s->id,'request_key'=>(string)Str::uuid(),'name'=>'Door','prompt'=>'Door','seconds'=>5,'status'=>'submitting','submitted_at'=>now()]);Http::fake();(new GenerateStoryAudio($g->id))->handle(new StoryAudio());$this->assertSame('submitting',$g->fresh()->status);Http::assertNothingSent();
  }
  public function test_scene_sound_must_belong_to_story():void {
   $s=$this->story();$sound=StorySound::create(['story_id'=>$s->id,'name'=>'Door','provider'=>'fal','path'=>'test.wav','mime'=>'audio/wav']);

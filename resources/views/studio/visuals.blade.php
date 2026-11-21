@@ -460,7 +460,7 @@
                                         aria-haspopup="dialog"
                                     ><img
                                             x-show="asset(visual.asset_id)"
-                                            :src="asset(visual.asset_id)?.url"
+                                            :src="$thumbnail(asset(visual.asset_id)?.url)"
                                             alt=""
                                             class="h-9 w-12 shrink-0 rounded object-contain"
                                         ><span
@@ -768,7 +768,7 @@
                                                 aria-haspopup="dialog"
                                             ><img
                                                     x-show="areaImage(hotspot)"
-                                                    :src="areaImage(hotspot)?.url"
+                                                    :src="$thumbnail(areaImage(hotspot)?.url)"
                                                     alt=""
                                                     class="h-10 w-14 object-contain"
                                                 ><span
@@ -1030,7 +1030,7 @@
                                             @click="openInteractionPicker('object')"
                                         ><img
                                                 x-show="visualAsset(hotspot.object_id)"
-                                                :src="visualAsset(hotspot.object_id)?.url"
+                                                :src="$thumbnail(visualAsset(hotspot.object_id)?.url)"
                                                 alt=""
                                                 class="h-10 w-14 object-contain"
                                             ><span
@@ -1222,7 +1222,7 @@
                                             @click="openInteractionPicker('scene')"
                                         ><img
                                                 x-show="visualAsset(hotspot.target_id)"
-                                                :src="visualAsset(hotspot.target_id)?.url"
+                                                :src="$thumbnail(visualAsset(hotspot.target_id)?.url)"
                                                 alt=""
                                                 class="h-10 w-14 object-contain"
                                             ><span
@@ -1446,7 +1446,7 @@
                         @click="selectInventoryItem(item.id)"
                     ><img
                             x-show="asset(item.asset_id)"
-                            :src="asset(item.asset_id)?.url"
+                            :src="$thumbnail(asset(item.asset_id)?.url)"
                             :alt="item.name"
                             loading="lazy"
                             class="aspect-square w-full object-contain"
@@ -1475,7 +1475,7 @@
                         @click="if(hotspot){hotspot.target_id=v.id;changed();$refs.interactionImagePicker.close();}"
                     ><img
                             x-show="asset(v.asset_id)"
-                            :src="asset(v.asset_id)?.url"
+                            :src="$thumbnail(asset(v.asset_id)?.url)"
                             :alt="v.name"
                             loading="lazy"
                             class="aspect-square w-full object-contain"
@@ -1532,7 +1532,7 @@
                             @click="selectPickerImage(a.id)"
                         >
                             <img
-                                :src="a.url"
+                                :src="$thumbnail(a.url)"
                                 :alt="a.name"
                                 loading="lazy"
                                 class="aspect-square w-full bg-stone-100 object-contain dark:bg-stone-950"
@@ -1585,7 +1585,7 @@
                         class="cursor-pointer rounded-lg border border-stone-200 p-3 dark:border-stone-700"
                         :class="skipItemSelection.includes(item.id) ? 'ring-2 ring-amber-500' : ''"
                     ><template x-if="asset(item.asset_id)"><img
-                                :src="asset(item.asset_id).url"
+                                :src="$thumbnail(asset(item.asset_id).url)"
                                 :alt="item.name"
                                 class="h-28 w-full object-contain mb-2"
                             ></template><span class="flex gap-2 items-start"><input
@@ -1678,12 +1678,12 @@
                         ></strong>
                         <div class="grid grid-cols-2 gap-4">
                             <div><span class="mb-1 block text-sm">First frame</span><img
-                                    :src="video.first_frame_url"
+                                    :src="$thumbnail(video.first_frame_url)"
                                     alt="First frame"
                                     class="h-40 w-full object-contain"
                                 ></div>
                             <div x-show="video.last_frame_url"><span class="mb-1 block text-sm">Last frame</span><img
-                                    :src="video.last_frame_url || null"
+                                    :src="$thumbnail(video.last_frame_url || null)"
                                     alt="Last frame"
                                     class="h-40 w-full object-contain"
                                 ></div>
