@@ -25,7 +25,12 @@ export function sceneEditor(options) {
             flagDefinitions: [],
             flags: {},
             previewFlags: [],
-            imageCategories: { scene: 'Scene', inventory: 'Inventory', change_state: 'Change state' },
+            imageCategories: {
+                scene: 'Scene',
+                characters: 'Characters',
+                inventory: 'Inventory',
+                change_state: 'Change state',
+            },
             imageCategoryFilter: '',
             newImageCategory: '',
             editingCategory: null,
@@ -111,6 +116,31 @@ export function sceneEditor(options) {
             previewPageId: null,
             generationMode: !!options.generationMode,
             generationName: '',
+            characters: [],
+            charactersLoading: false,
+            get characterReferenceIds() {
+                return [
+                    ...new Set(
+                        this.characters.flatMap((c) => c.views.map((v) => v.asset_id).filter(Boolean)).map(String),
+                    ),
+                ];
+            },
+            get selectedCharacterViews() {
+                return this.references.filter((id) => this.characterReferenceIds.includes(String(id))).length;
+            },
+            async openCharacters() {
+                this.$refs.characterReferencesDialog.showModal();
+                this.charactersLoading = true;
+                try {
+                    const data = await this.request(options.url);
+                    this.characters = data.characters || [];
+                    this.assets = data.assets;
+                } catch (error) {
+                    this.error = error.message;
+                } finally {
+                    this.charactersLoading = false;
+                }
+            },
             selectedImageId: null,
             generationInput: { prompt: '', video_prompt: '' },
             namingImage: false,
@@ -276,6 +306,7 @@ export function sceneEditor(options) {
                     this.containerPlans = data.container_plans || [];
                     this.previewPages = data.preview_pages || [];
                     this.inventoryItems = data.inventory_items || [];
+                    this.characters = data.characters || [];
                     this.editorPageId = data.page_id;
                     this.revision = data.revision;
                     this.assets = data.assets;
@@ -292,8 +323,11 @@ export function sceneEditor(options) {
                     if (this.generationMode) {
                         const params = new URL(window.location.href).searchParams;
                         const job = this.jobs.find((j) => String(j.id) === params.get('image'));
-                        if (job) this.fillImageCard(job);
-                        else if (params.get('visual')) {
+                        if (job) {
+                            this.fillImageCard(job);
+                            if (params.get('open') === '1')
+                                this.$nextTick(() => this.$refs.imageFormDialog.showModal());
+                        } else if (params.get('visual')) {
                             const v = [...this.document.visuals, ...this.gameObjects].find(
                                 (v) => v.id === (params.get('visual') || this.selected),
                             );

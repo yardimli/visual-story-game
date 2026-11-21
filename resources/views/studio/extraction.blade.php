@@ -78,7 +78,7 @@
         <header class="flex shrink-0 items-center justify-between gap-3 border-b p-3 dark:border-stone-700">
             <h2
                 class="font-serif text-xl"
-                x-text="extractionMode==='switches'?'Create switches':'Extract collectible items'"
+                x-text="extractionMode==='switches'?'Change state':'Extract collectible items'"
             ></h2><button
                 class="btn-secondary"
                 type="button"
@@ -86,7 +86,149 @@
                 :disabled="extractionBusy"
             >Close</button>
         </header>
-        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-4"><label
+        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+            <section
+                x-show="extractionMode==='switches'"
+                class="space-y-4"
+            >
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h3 class="font-semibold">Current switch instructions</h3>
+                    <button
+                        type="button"
+                        class="btn-secondary"
+                        x-show="!switchOverview"
+                        :disabled="extractionBusy || extractionRun"
+                        @click="showSwitchOverview()"
+                    >All switch plans</button>
+                </div>
+                <p class="text-sm">These are the current scene settings, including accepted chat changes. Editing them
+                    saves the scene; it does not create or change a saved plan.</p>
+                <template
+                    x-for="area in currentSwitches"
+                    :key="area.id"
+                >
+                    <div class="space-y-3 rounded-lg border p-3">
+                        <h4
+                            class="font-semibold"
+                            x-text="area.label"
+                        ></h4>
+                        <label class="field">Changed appearance
+                            <textarea
+                                x-model="area.state_prompt"
+                                @input="changed()"
+                                maxlength="3000"
+                                rows="3"
+                                :disabled="extractionBusy || extractionRun"
+                                placeholder="Describe how this area should look after the change."
+                            ></textarea>
+                        </label>
+                        <label class="field">Player description after change
+                            <textarea
+                                x-model="area.state_description"
+                                @input="changed()"
+                                maxlength="3000"
+                                rows="3"
+                                :disabled="extractionBusy || extractionRun"
+                            ></textarea>
+                        </label>
+                        <details>
+                            <summary class="cursor-pointer text-sm">Preview image instructions for a new plan</summary>
+                            <p
+                                class="mt-2 whitespace-pre-wrap text-xs"
+                                x-text="switchPrompt(area)"
+                            ></p>
+                        </details>
+                    </div>
+                </template>
+                <p
+                    x-show="!currentSwitches.length"
+                    class="text-sm"
+                >Add a Change state area to this scene first.</p>
+                <template x-if="extractionBatch && extractionMode==='switches'">
+                    <p
+                        class="rounded border p-3 text-sm"
+                        x-text="switchPlanChanged(extractionBatch)?'This plan differs from the current instructions. Its saved prompts and images are unchanged. Return to All switch plans to create an updated plan.':'This plan uses the current image instructions. Editing the current settings will not rewrite this plan.'"
+                    ></p>
+                </template>
+            </section>
+            <section
+                x-show="extractionMode==='switches' && switchOverview"
+                class="space-y-3"
+            >
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h3 class="font-semibold">Existing plans</h3>
+                    <button
+                        type="button"
+                        class="btn-primary"
+                        :disabled="!currentSwitches.length || extractionBusy"
+                        @click="chooseExtractionPlan(false)"
+                    >Create new plan</button>
+                </div>
+                <p class="text-sm">Plans keep a saved copy of their image instructions. Create an updated plan to use
+                    current instructions with an existing crop; review it before generating.</p>
+                <p
+                    x-show="!sceneExtractions.length"
+                    class="text-sm"
+                >No saved switch plans yet.</p>
+                <template
+                    x-for="batch in sceneExtractions"
+                    :key="batch.id"
+                >
+                    <article class="space-y-3 rounded-lg border p-3">
+                        <h4
+                            class="font-semibold"
+                            x-text="extractionPlanLabel(batch)"
+                        ></h4>
+                        <p
+                            class="text-sm"
+                            x-text="switchPlanChanged(batch)?'Different from current instructions':'Matches current image instructions'"
+                        ></p>
+                        <details>
+                            <summary class="cursor-pointer text-sm">Compare saved and current instructions</summary>
+                            <template
+                                x-for="output in batch.outputs.filter(o=>o.type==='switch_on')"
+                                :key="output.id"
+                            >
+                                <div class="mt-3 space-y-2">
+                                    <h5
+                                        class="font-semibold"
+                                        x-text="output.name"
+                                    ></h5>
+                                    <p class="text-xs font-semibold">Saved image instructions</p>
+                                    <p
+                                        class="whitespace-pre-wrap text-xs"
+                                        x-text="output.prompt"
+                                    ></p>
+                                    <p class="text-xs font-semibold">Current image instructions</p>
+                                    <p
+                                        class="whitespace-pre-wrap text-xs"
+                                        x-text="currentSwitches.some(a=>a.id===output.area_id)?switchPrompt(currentSwitches.find(a=>a.id===output.area_id)):'This area is no longer a switch.'"
+                                    ></p>
+                                    <p
+                                        class="text-xs"
+                                        x-text="output.source_instructions?'Player description when prepared: '+output.source_instructions.state_description:'This older plan did not record its player description. The current description is shown above.'"
+                                    ></p>
+                                </div>
+                            </template>
+                        </details>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                @click="openSavedSwitchPlan(batch)"
+                            >Open saved plan</button>
+                            <button
+                                type="button"
+                                class="btn-primary"
+                                :disabled="extractionBusy || extractionRun || !batch.outputs.some(o=>o.type==='switch_on' &&
+                                    currentSwitches.some(a => a.id === o.area_id))"
+                                @click="adjustExtractionPadding(batch)"
+                            >Create updated plan</button>
+                        </div>
+                    </article>
+                </template>
+            </section>
+            <label
                 x-show="extractionBatch"
                 class="field"
             >Plan name<input
@@ -112,7 +254,7 @@
                 role="alert"
             ></p>
             <div
-                x-show="!extractionBatch"
+                x-show="!extractionBatch && !switchOverview"
                 class="space-y-3"
             >
                 <label

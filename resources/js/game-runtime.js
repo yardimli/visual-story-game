@@ -25,9 +25,14 @@ export function gameRuntime() {
             this.sceneIntroText = '';
             this.introVideoBlocked = false;
             this.introVideoFailed = false;
-            this.pausedVideoAudio = Object.values(this.soundPlayer?.channels || {}).filter(
-                (audio) => audio && !audio.paused,
-            );
+            this.pausedVideoAudio = Object.entries(this.soundPlayer?.channels || {})
+                .filter(
+                    ([channel, audio]) =>
+                        audio &&
+                        !audio.paused &&
+                        (channel !== 'music' || this.displayed?.intro_video_pause_music === true),
+                )
+                .map(([, audio]) => audio);
             this.pausedVideoAudio.forEach((audio) => audio.pause());
             this.introVideo = video;
         },

@@ -1902,6 +1902,38 @@ html.editor-document,
 .image-form-dialog::backdrop {
     background: rgb(0 0 0 / 0.55);
 }
+/* Keep modal controls visible; only the middle content area scrolls. */
+dialog.dialog-panel {
+    overflow: hidden;
+}
+.dialog-panel[open],
+.dialog-panel-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.dialog-panel-form {
+    flex: 1;
+    overflow: hidden;
+}
+.dialog-panel > header,
+.dialog-panel-form > header,
+.dialog-actions {
+    flex-shrink: 0;
+}
+.dialog-scroll-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.dialog-actions {
+    padding-top: 1rem;
+}
+.dialog-panel-form > header {
+    padding-bottom: 1rem;
+}
 @media (max-width: 767px) {
     .image-gallery {
         grid-template-columns: repeat(2, minmax(0, 1fr));

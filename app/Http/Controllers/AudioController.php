@@ -31,6 +31,24 @@ class AudioController extends Controller {
    try{$asset=$audio->save($story,$sound['preview_url'],['name'=>$sound['name'],'provider'=>'freesound','external_id'=>(string)$sound['id'],'creator'=>$sound['creator'],'license'=>$sound['license'],'source_url'=>$sound['source_url'],'duration'=>$sound['duration']]);}catch(\RuntimeException $e){abort(422,$e->getMessage());}return response()->json($asset,201);
   });
  }
+ public function upload(Request $r,Story $story,StoryAudio $audio){
+  $this->owner($r,$story);
+  $data=$r->validate([
+   'file'=>'required|file|max:65536|mimetypes:audio/mpeg,audio/wav,audio/x-wav,audio/vnd.wave,audio/ogg,application/ogg,audio/flac,audio/x-flac,audio/mp4,audio/x-m4a,audio/aac,audio/x-aac',
+   'category'=>['required',\Illuminate\Validation\Rule::in(array_keys($this->categories($story)))],
+  ]);
+  $file=$data['file'];
+  $bytes=file_get_contents($file->getRealPath());
+  $mime=(new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+  if(!in_array($mime,['audio/mpeg','audio/wav','audio/x-wav','audio/vnd.wave','audio/ogg','application/ogg','audio/flac','audio/x-flac','audio/mp4','audio/x-m4a','audio/aac','audio/x-aac'],true)){
+   throw \Illuminate\Validation\ValidationException::withMessages(['file'=>'Choose a supported audio file.']);
+  }
+  $name=mb_substr(pathinfo($file->getClientOriginalName(),PATHINFO_FILENAME),0,160);
+  $sound=$audio->saveBytes($story,$bytes,$mime,[
+   'name'=>trim($name)?:'Uploaded audio','provider'=>'upload','category'=>$data['category'],
+  ]);
+  return response()->json($sound,201);
+ }
  public function settings(Request $r,Story $story){
   $this->owner($r,$story);$sound=['nullable','integer',\Illuminate\Validation\Rule::exists('story_sounds','id')->where('story_id',$story->id)];
   $d=$r->validate(['music_id'=>$sound,'music_loop'=>'required|boolean','defaults'=>'present|array:examine,inspect,pickup,pickup_v2,state_v2,transition,inventory,choices,page,complete','defaults.*'=>'array:click,action','defaults.*.click'=>$sound,'defaults.*.action'=>$sound,'voices'=>'sometimes|array:scene,area,inventory','voices.*'=>'array:model,voice,instructions,temperature,language','voices.*.model'=>['nullable',\Illuminate\Validation\Rule::in(\App\Services\SpeechCatalog::MODELS)],'voices.*.voice'=>'nullable|string|max:200','voices.*.instructions'=>'nullable|string|max:1000','voices.*.temperature'=>'nullable|numeric|min:0|max:2','voices.*.language'=>'nullable|string|max:10']);

@@ -7,6 +7,20 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class CompanionTest extends TestCase {
     use RefreshDatabase;
+    public function test_chat_receives_character_profiles_and_preserves_selected_character_views(): void {
+        $user=$this->userAndProvider('Character ready.');
+        $story=Story::create(['user_id'=>$user->id,'title'=>'Cast','premise'=>'Meet Mira']);
+        $page=$story->pages()->create(['position'=>1,'title'=>'Arrival']);
+        $asset=$story->assets()->create(['name'=>'Mira profile','path'=>'mira.png','mime'=>'image/png','bytes'=>100,'role'=>'character']);
+        \App\Models\StoryCharacter::create(['id'=>(string)Str::uuid(),'story_id'=>$story->id,'name'=>'Mira','description'=>'Silver braid and green eyes','views'=>[['label'=>'Profile','asset_id'=>$asset->id]]]);
+        $payload=array_merge($this->payload(),['page_id'=>$page->id,'active_tab'=>'images','image_draft'=>['prompt'=>'Mira in the hall','references'=>[$asset->id]]]);
+        $this->actingAs($user)->postJson(route('chat.store',$story),$payload)->assertOk();
+        Http::assertSent(function($request) use($asset){
+            $messages=$request['messages'];
+            $context=json_decode(explode("\nActive tab:",substr($messages[1]['content'],strlen("Current project data:\n")))[0],true);
+            return ($context['characters'][0]['name']??null)==='Mira' && ($context['characters'][0]['views'][0]['asset_id']??null)===$asset->id && ($context['current_image_draft']['references']??[])===[$asset->id] && str_contains($messages[0]['content'],'Multiple views of a character depict ONE individual');
+        });
+    }
     public function test_image_prompt_proposal_is_bound_to_the_selected_visual_without_saving_it(): void {
         $u=$this->userAndProvider('Prompt draft. ```json {"pages":[{"position":1,"scene_prompt":"Remove the note from the porch."}]} ```');
         $s=Story::create(['user_id'=>$u->id,'title'=>'House','premise'=>'Find a key']);$id=(string)Str::uuid();

@@ -11,6 +11,24 @@ class StoryAudioTest extends TestCase {
  use RefreshDatabase;
  private function story():Story {$u=User::factory()->create();$this->actingAs($u);return Story::create(['user_id'=>$u->id,'title'=>'Sound story','premise'=>'Test']);}
  private function wav():string {return 'RIFF'.pack('V',2036).'WAVEfmt '.pack('VvvVVvv',16,1,1,8000,16000,2,16).'data'.pack('V',2000).str_repeat("\0",2000);}
+ public function test_uploaded_audio_is_private_and_joins_the_sound_library():void {
+  $story=$this->story();Storage::fake('local');
+  $file=\Illuminate\Http\UploadedFile::fake()->createWithContent('Door creak.wav',$this->wav());
+  $data=$this->postJson(route('audio.upload',$story),['file'=>$file,'category'=>'effects'])->assertCreated()->assertJsonPath('provider','upload')->assertJsonPath('name','Door creak')->json();
+  $this->assertArrayNotHasKey('path',$data);
+  $sound=StorySound::findOrFail($data['id']);Storage::disk('local')->assertExists($sound->getRawOriginal('path'));
+  $this->getJson(route('audio.index',$story))->assertJsonPath('sounds.0.id',$sound->id);
+  $this->get(route('audio.file',$sound))->assertOk();
+  $this->actingAs(User::factory()->create());
+  $this->get(route('audio.file',$sound))->assertNotFound();
+  $this->postJson(route('audio.upload',$story),['file'=>$file,'category'=>'effects'])->assertNotFound();
+ }
+ public function test_audio_upload_rejects_non_audio_and_invalid_categories():void {
+  $story=$this->story();Storage::fake('local');
+  $this->postJson(route('audio.upload',$story),['file'=>\Illuminate\Http\UploadedFile::fake()->createWithContent('fake.mp3','not audio'),'category'=>'effects'])->assertUnprocessable()->assertJsonValidationErrors('file');
+  $this->postJson(route('audio.upload',$story),['file'=>\Illuminate\Http\UploadedFile::fake()->createWithContent('sound.wav',$this->wav()),'category'=>'unknown'])->assertUnprocessable()->assertJsonValidationErrors('category');
+  $this->assertDatabaseCount('story_sounds',0);
+ }
  public function test_search_cache_and_import_preserve_credit_metadata_and_are_private():void {
   $s=$this->story();Storage::fake('local');config(['services.freesound.key'=>'test-token']);$query='test-'.Str::uuid();$id=random_int(1000000,9000000);
   Http::fake(['freesound.org/apiv2/search/*'=>Http::response(['count'=>1,'next'=>null,'results'=>[['id'=>$id,'name'=>'Door','username'=>'Artist','license'=>'https://creativecommons.org/licenses/by/4.0/','url'=>'https://freesound.org/s/'.$id,'duration'=>2,'previews'=>['preview-hq-mp3'=>'https://cdn.freesound.org/test.mp3']]]]),'cdn.freesound.org/*'=>Http::response($this->wav(),200,['Content-Type'=>'audio/wav'])]);

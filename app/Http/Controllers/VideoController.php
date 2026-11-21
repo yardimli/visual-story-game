@@ -48,7 +48,7 @@ class VideoController extends Controller
                 ->filter(fn ($asset) => str_starts_with($asset->mime, 'image/') && ! str_contains($asset->role ?? '', 'reference'))
                 ->sortBy(fn ($asset) => $assetOrder[$asset->id] ?? PHP_INT_MAX)
                 ->map(fn ($asset) => ['id' => $asset->id, 'name' => $asset->name, 'url' => route('assets.show', $asset),
-                    'composition' => $compositions[$asset->id] ?? null, 'category' => $assetCategories[$asset->id] ?? 'scene'])->values(),
+                    'composition' => $compositions[$asset->id] ?? null, 'category' => $asset->role === 'character' ? 'characters' : ($assetCategories[$asset->id] ?? 'scene')])->values(),
             'jobs' => VideoGeneration::where('story_id', $story->id)->latest()->get()->map->presentation(),
         ]);
     }

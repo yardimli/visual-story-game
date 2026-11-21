@@ -32,13 +32,13 @@
     ></p>
     <dialog
         x-ref="videoFormDialog"
-        class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+        class="image-form-dialog dialog-panel rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
         @cancel="if(busy)$event.preventDefault()"
     >
         <form
             x-ref="form"
             @submit.prevent="save(true)"
-            class="min-w-0 space-y-4"
+            class="dialog-panel-form min-w-0"
         >
             <header class="flex items-center justify-between gap-3">
                 <h3
@@ -51,112 +51,115 @@
                     @click="$refs.videoFormDialog.close()"
                 >Close</button>
             </header>
-            <p
-                x-show="error"
-                x-text="error"
-                role="alert"
-                class="text-sm text-red-700"
-            ></p>
-            <label class="field">Name<input
-                    type="text"
-                    x-model="form.name"
-                    required
-                    maxlength="160"
-                ></label>
-            <label class="field">Video engine<select
-                    x-model="form.engine"
-                    @change="selectEngine()"
-                    required
-                ><template
-                        x-for="[id, engine] in Object.entries(engines)"
-                        :key="id"
+            <div class="dialog-scroll-body space-y-4">
+                <p
+                    x-show="error"
+                    x-text="error"
+                    role="alert"
+                    class="text-sm text-red-700"
+                ></p>
+                <label class="field">Name<input
+                        type="text"
+                        x-model="form.name"
+                        required
+                        maxlength="160"
+                    ></label>
+                <label class="field">Video engine<select
+                        x-model="form.engine"
+                        @change="selectEngine()"
+                        required
+                    ><template
+                            x-for="[id, engine] in Object.entries(engines)"
+                            :key="id"
+                        >
+                            <option
+                                :value="id"
+                                x-text="engine.label"
+                            ></option>
+                        </template></select></label>
+                <div class="grid grid-cols-2 gap-4">
+                    <template
+                        x-for="frame in ['first','last']"
+                        :key="frame"
                     >
-                        <option
-                            :value="id"
-                            x-text="engine.label"
-                        ></option>
-                    </template></select></label>
-            <div class="grid grid-cols-2 gap-4">
-                <template
-                    x-for="frame in ['first','last']"
-                    :key="frame"
-                >
-                    <div
-                        x-show="frame==='first' || engines[form.engine]?.supports_last_frame"
-                        class="min-w-0 space-y-2"
-                    >
-                        <div class="field"><span x-text="frame==='first'?'First frame':'Last frame (optional)'"></span>
+                        <div
+                            x-show="frame==='first' || engines[form.engine]?.supports_last_frame"
+                            class="min-w-0 space-y-2"
+                        >
+                            <div class="field"><span
+                                    x-text="frame==='first'?'First frame':'Last frame (optional)'"></span>
+                                <button
+                                    type="button"
+                                    class="btn-secondary w-full text-left"
+                                    @click="framePicker=frame"
+                                    x-text="asset(form[frame+'_asset_id'])?.name || (frame==='first'?'Choose image':'Choose image (optional)')"
+                                ></button>
+                                <button
+                                    type="button"
+                                    class="text-xs underline"
+                                    x-show="frame==='last' && form.last_asset_id"
+                                    @click="form.last_asset_id=''"
+                                >Remove last frame</button>
+                            </div>
                             <button
                                 type="button"
-                                class="btn-secondary w-full text-left"
-                                @click="framePicker=frame"
-                                x-text="asset(form[frame+'_asset_id'])?.name || (frame==='first'?'Choose image':'Choose image (optional)')"
-                            ></button>
-                            <button
-                                type="button"
-                                class="text-xs underline"
-                                x-show="frame==='last' && form.last_asset_id"
-                                @click="form.last_asset_id=''"
-                            >Remove last frame</button>
+                                x-show="asset(form[frame+'_asset_id'])"
+                                @click="zoom=asset(form[frame+'_asset_id'])?.url"
+                                class="block w-full"
+                                :aria-label="'Enlarge ' + frame + ' frame'"
+                            ><img
+                                    loading="lazy"
+                                    decoding="async"
+                                    :src="$thumbnail(asset(form[frame + '_asset_id'])?.url)"
+                                    :alt="frame + ' frame'"
+                                    class="h-40 w-full object-contain"
+                                ></button>
+                            <label class="field text-xs">Upload image<input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    :disabled="busy"
+                                    @change="upload($event,frame)"
+                                ></label>
                         </div>
-                        <button
-                            type="button"
-                            x-show="asset(form[frame+'_asset_id'])"
-                            @click="zoom=asset(form[frame+'_asset_id'])?.url"
-                            class="block w-full"
-                            :aria-label="'Enlarge ' + frame + ' frame'"
-                        ><img
-                                loading="lazy"
-                                decoding="async"
-                                :src="$thumbnail(asset(form[frame + '_asset_id'])?.url)"
-                                :alt="frame + ' frame'"
-                                class="h-40 w-full object-contain"
-                            ></button>
-                        <label class="field text-xs">Upload image<input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                :disabled="busy"
-                                @change="upload($event,frame)"
-                            ></label>
-                    </div>
-                </template>
+                    </template>
+                </div>
+                <label class="field">Prompt
+                    <textarea
+                        x-model="form.prompt"
+                        rows="5"
+                        required
+                        maxlength="10000"
+                        placeholder="Describe the movement and what changes during this video."
+                    ></textarea>
+                </label>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <template
+                        x-for="[key, parameter] in Object.entries(engines[form.engine]?.parameters || {})"
+                        :key="form.engine + '-' + key"
+                    >
+                        <label class="field min-w-0"><span x-text="parameter.label"></span>
+                            <template x-if="parameter.type==='select'"><select x-model="form.parameters[key]"><template
+                                        x-for="[value,label] in Object.entries(parameter.options)"
+                                        :key="value"
+                                    >
+                                        <option
+                                            :value="value"
+                                            x-text="label"
+                                        ></option>
+                                    </template></select></template>
+                            <template x-if="parameter.type!=='select'"><input
+                                    type="number"
+                                    x-model.number="form.parameters[key]"
+                                    :min="parameter.min"
+                                    :max="parameter.max"
+                                    :step="parameter.step"
+                                    required
+                                ></template>
+                        </label>
+                    </template>
+                </div>
             </div>
-            <label class="field">Prompt
-                <textarea
-                    x-model="form.prompt"
-                    rows="5"
-                    required
-                    maxlength="10000"
-                    placeholder="Describe the movement and what changes during this video."
-                ></textarea>
-            </label>
-            <div class="grid gap-3 sm:grid-cols-3">
-                <template
-                    x-for="[key, parameter] in Object.entries(engines[form.engine]?.parameters || {})"
-                    :key="form.engine + '-' + key"
-                >
-                    <label class="field min-w-0"><span x-text="parameter.label"></span>
-                        <template x-if="parameter.type==='select'"><select x-model="form.parameters[key]"><template
-                                    x-for="[value,label] in Object.entries(parameter.options)"
-                                    :key="value"
-                                >
-                                    <option
-                                        :value="value"
-                                        x-text="label"
-                                    ></option>
-                                </template></select></template>
-                        <template x-if="parameter.type!=='select'"><input
-                                type="number"
-                                x-model.number="form.parameters[key]"
-                                :min="parameter.min"
-                                :max="parameter.max"
-                                :step="parameter.step"
-                                required
-                            ></template>
-                    </label>
-                </template>
-            </div>
-            <div class="flex flex-wrap gap-2"><button
+            <footer class="dialog-actions flex flex-wrap gap-2"><button
                     class="btn-primary"
                     :disabled="busy"
                     x-text="busy?'Saving…':'Queue video'"
@@ -170,7 +173,7 @@
                     x-show="editing"
                     class="btn-secondary"
                     @click="$refs.videoFormDialog.close()"
-                >Cancel edit</button></div>
+                >Cancel edit</button></footer>
         </form>
     </dialog>
     <div class="min-w-0 space-y-4">
@@ -266,7 +269,7 @@
                             x-show="job.status==='draft'"
                             class="btn-primary"
                             :disabled="busy"
-                            @click="queue(job)"
+                            @click="edit(job)"
                         >Generate</button>
                         <button
                             type="button"

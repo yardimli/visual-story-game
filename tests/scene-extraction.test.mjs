@@ -321,3 +321,79 @@ test('plan summaries distinguish untouched crops from completed or pending rende
     assert.match(e.extractionPlanLabel(batch), /^Porch door/);
     assert.match(e.planSummary(batch), /1 rendered · 1 accepted/);
 });
+
+test('switch overview bypasses plan selection and never creates a plan', async () => {
+    const editor = sceneExtraction({});
+    editor.inventoryItems = [];
+    editor.visual = { asset_id: 1, hotspots: [{ id: 'a', action: 'state_v2', state_prompt: 'Open the panel' }] };
+    editor.selected = 'scene';
+    editor.flush = async () => true;
+    editor.refreshExtraction = async () => {};
+    editor.extractionBatches = [{ id: 1, visual_id: 'scene', mode: 'switches', outputs: [] }];
+    editor.request = async () => assert.fail('Must not create a plan');
+    let opened = false;
+    editor.$refs = {
+        extractionDialog: {
+            showModal() {
+                opened = true;
+            },
+        },
+        extractionPlanDialog: {
+            showModal() {
+                assert.fail('Must skip chooser');
+            },
+        },
+    };
+    await editor.openExtraction('switches');
+    assert.equal(opened, true);
+    assert.equal(editor.switchOverview, true);
+    assert.equal(editor.extractionId, null);
+    assert.equal(editor.currentSwitches[0].state_prompt, 'Open the panel');
+});
+
+test('current instruction edits flag old plans without changing their saved prompt', () => {
+    const editor = sceneExtraction({});
+    const area = {
+        id: 'a',
+        action: 'state_v2',
+        label: 'Panel',
+        state_prompt: 'Open it',
+        state_description: 'Open panel',
+    };
+    editor.visual = { hotspots: [area] };
+    const saved = editor.switchPrompt(area);
+    const batch = {
+        outputs: [
+            {
+                type: 'switch_on',
+                area_id: 'a',
+                prompt: saved,
+                source_instructions: { state_description: 'Open panel' },
+            },
+        ],
+    };
+    assert.equal(editor.switchPlanChanged(batch), false);
+    area.state_description = 'Blue lights glow';
+    assert.equal(editor.switchPlanChanged(batch), true);
+    area.state_prompt = 'Reveal blue lights';
+    assert.equal(batch.outputs[0].prompt, saved);
+    assert.match(editor.switchPrompt(area), /Reveal blue lights/);
+    delete batch.outputs[0].source_instructions;
+    assert.equal(editor.switchPlanChanged(batch), true);
+});
+
+test('updated switch setup preserves legacy crop and does not prepare automatically', async () => {
+    const editor = sceneExtraction({});
+    editor.visual = { asset_id: 2 };
+    editor.extractionAreas = [{ id: 'a' }, { id: 'b' }];
+    editor.$refs = { extractionDialog: { showModal() {} } };
+    editor.request = async () => assert.fail('Must wait for explicit preparation');
+    const bounds = { x: 0.1, y: 0.2, width: 0.3, height: 0.4 };
+    const batch = { outputs: [{ type: 'switch_on', area_id: 'a', bounds }] };
+    await editor.adjustExtractionPadding(batch);
+    assert.deepEqual(editor.extractionAreas[0].bounds, bounds);
+    assert.equal(editor.extractionAreas[0].useSavedBounds, true);
+    assert.equal(editor.extractionAreas[1].selected, false);
+    assert.equal(editor.extractionId, null);
+    assert.equal(editor.switchOverview, false);
+});

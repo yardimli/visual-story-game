@@ -27,7 +27,7 @@
                     <section
                         x-show="tab==='story'"
                         x-cloak
-                        x-data="{ bibleTab: 'story' }"
+                        x-data="{ bibleTab: new URL(window.location.href).searchParams.get('bible') === 'characters' ? 'characters' : 'story' }"
                     >
 
                         <nav
@@ -35,7 +35,7 @@
                             aria-label="Story bible sections"
                         >
                             <template
-                                x-for="section in [{id:'story',label:'Story'},{id:'gameplay',label:'Gameplay'},{id:'flags',label:'Flags'},{id:'audio',label:'Music & sounds'},{id:'voices',label:'Voices'},{id:'models',label:'AI models'}]"
+                                x-for="section in [{id:'story',label:'Story'},{id:'characters',label:'Characters'},{id:'gameplay',label:'Gameplay'},{id:'flags',label:'Flags'},{id:'audio',label:'Music & sounds'},{id:'voices',label:'Voices'},{id:'models',label:'AI models'}]"
                                 :key="section.id"
                             ><button
                                     type="button"
@@ -205,6 +205,7 @@
                             <p class="text-xs text-stone-400">Changes save automatically.</p>
                         </form>
                         <div x-show="bibleTab==='flags'">@include('studio.story-flags')</div>
+                        <div x-show="bibleTab==='characters'">@include('studio.characters')</div>
                         @include('studio.audio-settings')
                     </section>
                     @include('studio.visuals')

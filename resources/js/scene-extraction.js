@@ -21,6 +21,44 @@ function cropSource(url) {
 export function sceneExtraction(options) {
     return {
         extractionUpdateId: null,
+        switchOverview: false,
+        get currentSwitches() {
+            return (this.visual?.hotspots || []).filter(
+                (h) => h.action === 'state_v2' && !h.is_container && !h.container_parent_id,
+            );
+        },
+        switchPrompt(area) {
+            return (
+                'Edit only the local state of ' +
+                area.label +
+                ' in this cropped reference: ' +
+                (area.state_prompt ?? 'Show it pressed or activated.') +
+                '. Preserve the exact framing, dimensions, surrounding background, lighting and perspective. Nothing is removed. Do not change anything outside the mechanism. Output a full rectangular patch with matching edges, not a transparent cutout.'
+            );
+        },
+        switchPlanChanged(batch) {
+            return batch.outputs
+                .filter((o) => o.type === 'switch_on')
+                .some((o) => {
+                    const area = this.currentSwitches.find((h) => h.id === o.area_id);
+                    return (
+                        !area ||
+                        o.prompt !== this.switchPrompt(area) ||
+                        (o.source_instructions &&
+                            o.source_instructions.state_description !== (area.state_description ?? ''))
+                    );
+                });
+        },
+        showSwitchOverview() {
+            this.extractionId = null;
+            this.extractionUpdateId = null;
+            this.switchOverview = true;
+            this.$refs.extractionDialog.showModal();
+        },
+        openSavedSwitchPlan(batch) {
+            this.extractionPlanChoice = batch.id;
+            this.chooseExtractionPlan(true);
+        },
         extractionPreview: 'composition',
         extractionReferenceMode: 'original_and_annotated',
         extractionMode: 'collectibles',
@@ -120,6 +158,7 @@ export function sceneExtraction(options) {
             try {
                 const source = await cropSource(this.asset(this.extractionSource).url);
                 a.padding = { ...a.paddingDraft };
+                a.useSavedBounds = false;
                 a.bounds = containerCropBounds(a.areaBounds, source.naturalWidth, source.naturalHeight, a.padding);
             } catch (e) {
                 this.extractionError = e.message;
@@ -165,7 +204,9 @@ export function sceneExtraction(options) {
                 notify(this.extractionError, 'error');
                 return;
             }
-            if (this.sceneExtractions.length) {
+            if (mode === 'switches') {
+                this.showSwitchOverview();
+            } else if (this.sceneExtractions.length) {
                 this.extractionPlanChoice = this.sceneExtractions[0].id;
                 this.$refs.extractionPlanDialog.showModal();
             } else this.chooseExtractionPlan(false);
@@ -197,8 +238,8 @@ export function sceneExtraction(options) {
                 this.extractionBusy = false;
             }
         },
-        async adjustExtractionPadding() {
-            const batch = this.extractionBatch;
+        async adjustExtractionPadding(batch = this.extractionBatch) {
+            if (this.extractionBusy || this.extractionRun) return;
             if (!batch) return;
             const outputs = batch.outputs;
             this.chooseExtractionPlan(false);
@@ -209,10 +250,14 @@ export function sceneExtraction(options) {
                 a.paddingDraft = { ...a.padding };
                 a.equalPadding = output?.equal_padding !== false;
                 if (output?.initial_empty !== undefined) a.initial_empty = output.initial_empty;
-                if (output) await this.commitExtractionPadding(a);
+                if (output?.padding) await this.commitExtractionPadding(a);
+                else if (output) {
+                    a.bounds = { ...output.bounds };
+                    a.useSavedBounds = true;
+                }
             }
             this.extractionProgress =
-                'Adjust crop padding below, then prepare a new plan. Your previous plan and renders are kept.';
+                'Crop settings copied. Review the current instructions and crop, then prepare a new plan. Your previous plan and renders are kept.';
             this.$nextTick?.(() => this.$refs.extractionDialog.querySelector('.overflow-y-auto')?.scrollTo({ top: 0 }));
         },
         updateExtractionPlan() {
@@ -229,6 +274,7 @@ export function sceneExtraction(options) {
                 batch.outputs.find((o) => o.type === 'background')?.accepted_asset_id || this.visual.asset_id;
         },
         chooseExtractionPlan(existing) {
+            this.switchOverview = false;
             this.extractionUpdateId = null;
             this.extractionAreas.forEach((a) => {
                 a.reused = false;
@@ -307,7 +353,7 @@ export function sceneExtraction(options) {
                         .map((a) => ({
                             id: a.id,
                             bounds: a.bounds,
-                            padding: a.padding,
+                            ...(a.useSavedBounds ? {} : { padding: a.padding }),
                             equal_padding: a.equalPadding,
                             initial_empty: !!a.initial_empty,
                         })),

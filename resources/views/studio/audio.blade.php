@@ -8,7 +8,7 @@
     <header>
         <div class="flex flex-wrap items-center justify-between gap-3">
 
-            <div class="flex gap-2"><button
+            <div class="flex flex-wrap gap-2"><button
                     type="button"
                     class="btn-secondary"
                     @click="error='';$refs.audioSearchDialog.showModal()"
@@ -16,7 +16,20 @@
                     type="button"
                     class="btn-primary"
                     @click="error='';$el.closest('section').querySelectorAll('audio').forEach(a=>a.pause());$refs.audioGenerateDialog.showModal()"
-                >Generate audio</button></div>
+                >Generate audio</button><button
+                    type="button"
+                    class="btn-secondary"
+                    :disabled="uploading"
+                    @click="$refs.audioUpload.click()"
+                    x-text="uploading?'Uploading…':'Upload audio'"
+                ></button><input
+                    x-ref="audioUpload"
+                    type="file"
+                    class="hidden"
+                    accept=".mp3,.wav,.ogg,.flac,.m4a,.aac,audio/mpeg,audio/wav,audio/ogg,audio/flac,audio/mp4,audio/aac"
+                    @change="uploadAudio($event)"
+                    :disabled="uploading"
+                ></div>
         </div>
 
     </header>
@@ -169,6 +182,7 @@
                         <option value="cassetteai/sound-effects-generator">CassetteAI sound effects</option>
                     </select></label>
                 <form
+                    id="audio-generation-form"
                     @submit.prevent="generate()"
                     class="space-y-3"
                 ><label class="field">Name<input
@@ -204,14 +218,17 @@
                                 47)"
                             x-model="seconds"
                             required
-                        ></label><button
-                        class="btn-primary"
-                        :disabled="generating"
-                        x-text="generating?'Submitting…':'Generate sound'"
-                    ></button>
+                        ></label>
                 </form>
             </div>
         </div>
+        <footer class="dialog-actions"><button
+                type="submit"
+                form="audio-generation-form"
+                class="btn-primary"
+                :disabled="generating"
+                x-text="generating?'Submitting…':'Generate sound'"
+            ></button></footer>
     </dialog>
     <section class="min-w-0 rounded-xl border border-stone-200 p-4 dark:border-stone-700 space-y-3">
         <div class="flex flex-wrap items-center gap-2">
@@ -315,11 +332,42 @@
             </dialog>
         </template>
         <p
-            x-show="!filteredSounds.length"
+            x-show="!filteredSounds.length && !libraryJobs.length"
             class="text-sm text-stone-500"
             x-text="sounds.length?'No sounds in this category.':'No sounds yet.'"
         ></p>
-        <div class="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3"><template
+        <div class="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <template
+                x-for="job in libraryJobs"
+                :key="'job-' + job.id"
+            >
+                <article class="min-w-0 rounded-xl border border-stone-200 p-4 dark:border-stone-700 space-y-2">
+                    <h4
+                        class="text-sm font-semibold"
+                        x-text="job.name"
+                    ></h4>
+                    <p
+                        class="text-xs"
+                        role="status"
+                        x-text="job.status"
+                    ></p>
+                    <p
+                        class="text-xs"
+                        x-show="job.queue_position != null"
+                        x-text="'Queue position '+job.queue_position"
+                    ></p>
+                    <p
+                        class="whitespace-pre-wrap text-xs"
+                        x-text="job.prompt"
+                    ></p>
+                    <p
+                        class="text-sm text-red-600"
+                        x-show="job.error"
+                        x-text="job.error"
+                        role="alert"
+                    ></p>
+                </article>
+            </template><template
                 x-for="s in filteredSounds"
                 :key="s.id"
             >
@@ -347,7 +395,7 @@
                             class="text-xs underline"
                         >Source</a><span
                             class="ml-auto text-xs"
-                            x-text="s.provider==='freesound'?'Freesound':'AI generated'"
+                            x-text="s.provider==='freesound'?'Freesound':s.provider==='upload'?'Uploaded':'AI generated'"
                         ></span>
                     </div>
                     <div class="flex items-center gap-3"><select
@@ -380,44 +428,7 @@
                         x-text="s.prompt"
                     ></p>
                 </article>
-            </template></div>
+            </template>
+        </div>
     </section>
-    <details
-        class="rounded-xl border p-4"
-        x-show="jobs.some(j=>!editableJob(j))"
-    >
-        <summary class="cursor-pointer text-sm">Generation history</summary>
-        <div class="max-h-72 overflow-y-auto space-y-2"><template
-                x-for="j in jobs.filter(j=>!editableJob(j))"
-                :key="j.id"
-            >
-                <details class="rounded-lg border border-stone-200 p-3 dark:border-stone-700">
-                    <summary class="cursor-pointer text-sm"><span x-text="j.name"></span> · <span
-                            :class="['queued', 'running', 'submitting'].includes(j.status) ? 'animate-pulse' : ''"
-                            x-text="j.status"
-                        ></span><span
-                            x-show="j.queue_position!==null"
-                            x-text="' · Queue position '+j.queue_position"
-                        ></span></summary>
-                    <p
-                        class="mt-2 whitespace-pre-wrap text-sm"
-                        x-text="j.prompt"
-                    ></p>
-                    <p
-                        x-show="j.error"
-                        class="mt-2 text-sm text-red-600"
-                        x-text="j.error"
-                    ></p><template
-                        x-for="(log,i) in j.logs||[]"
-                        :key="i"
-                    >
-                        <p
-                            class="text-xs"
-                            x-text="log.message"
-                        ></p>
-                    </template>
-                </details>
-            </template></div>
-
-    </details>
 </section>

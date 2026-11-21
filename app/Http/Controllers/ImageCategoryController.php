@@ -9,7 +9,7 @@ use Illuminate\Validation\Rule;
 
 class ImageCategoryController extends Controller
 {
-    public const DEFAULTS = ['scene' => 'Scene', 'inventory' => 'Inventory', 'change_state' => 'Change state'];
+    public const DEFAULTS = ['scene' => 'Scene', 'inventory' => 'Inventory', 'characters' => 'Characters', 'change_state' => 'Change state'];
 
     public static function jobCategories(Story $story): array
     {
@@ -35,6 +35,7 @@ class ImageCategoryController extends Controller
     public static function categories(Story $story): array
     {
         $categories = $story->image_categories ?? self::DEFAULTS;
+        $categories['characters'] ??= 'Characters';
         foreach (self::usedKeys($story) as $key) $categories[$key] ??= self::DEFAULTS[$key] ?? $key;
         return $categories;
     }

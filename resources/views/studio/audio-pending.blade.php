@@ -44,7 +44,7 @@
                 class="btn-primary"
                 x-show="j.status==='draft'"
                 :disabled="batchBusy || jobBusy"
-                @click="generateDraft(j)"
+                @click="editJob(j)"
             >Generate</button>
         </div>
     </template>
@@ -57,7 +57,7 @@
     >
         <div class="flex flex-col">
             <header class="flex items-center justify-between border-b px-6 py-4">
-                <h3 class="font-serif text-xl">Edit pending audio</h3><button
+                <h3 class="font-serif text-xl">Generate audio</h3><button
                     type="button"
                     class="btn-secondary"
                     @click="$refs.audioJobDialog.close()"
@@ -157,12 +157,18 @@
                         ></label>
                 </div>
             </template>
-            <footer class="flex justify-end border-t px-6 py-4"><button
+            <footer class="flex flex-wrap justify-end gap-3 border-t px-6 py-4"><button
                     type="button"
                     class="btn-primary"
                     :disabled="jobBusy"
                     @click="saveJob()"
-                >Save pending audio</button></footer>
+                >Save pending audio</button><button
+                    type="button"
+                    class="btn-primary"
+                    :disabled="jobBusy || !editingJob"
+                    @click="saveJob(true)"
+                    x-text="jobBusy?'Saving…':'Generate audio'"
+                ></button></footer>
         </div>
     </dialog>
 </template>

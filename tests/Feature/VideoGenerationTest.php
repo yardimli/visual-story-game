@@ -140,9 +140,10 @@ class VideoGenerationTest extends TestCase
         $video = $this->queued();
         $video->update(['status' => 'completed', 'output_path' => 'videos/'.$video->id.'/result.mp4']);
         $visual = ['id' => (string) Str::uuid(), 'kind' => 'scene', 'name' => 'Hall', 'asset_id' => null,
-            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id, 'intro_video_repeat' => true];
+            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id, 'intro_video_repeat' => true, 'intro_video_pause_music' => true];
         $document = app(\App\Services\SceneDocument::class)->validate($this->story, ['visuals' => [$visual]]);
         $this->assertTrue($document['visuals'][0]['intro_video_repeat']);
+        $this->assertTrue($document['visuals'][0]['intro_video_pause_music']);
         $page = $this->story->pages()->create(['position' => 1, 'title' => 'Hall', 'visual_document' => $document]);
         $this->get(route('stories.play', [$this->story, 'page' => $page->id, 'skip_first_video' => 1]))
             ->assertOk()->assertViewHas('game', fn ($game) => $game['start']['skipFirstVideo'] === true

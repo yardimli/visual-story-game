@@ -40,19 +40,6 @@ export function storyAudio(url) {
                 await this.load();
             }
         },
-        async generateDraft(j) {
-            if (this.jobBusy) return;
-            this.jobBusy = true;
-            try {
-                await this.startJob(j);
-                notify('Audio queued.');
-            } catch (e) {
-                notify(e.message, 'error');
-            } finally {
-                this.jobBusy = false;
-                await this.load();
-            }
-        },
         async editJob(j) {
             this.editingJob = JSON.parse(JSON.stringify(j));
             this.editingJob.settings ??= {};
@@ -66,14 +53,17 @@ export function storyAudio(url) {
         get draftVoices() {
             return this.voiceModels.find((m) => m.id === this.editingJob?.model)?.supported_voices || [];
         },
-        async saveJob() {
+        async saveJob(generate = false) {
             if (this.jobBusy) return;
             this.jobBusy = true;
             try {
-                await this.request('/jobs/' + this.editingJob.id, 'PUT', this.editingJob);
+                const saved = await this.request('/jobs/' + this.editingJob.id, 'PUT', this.editingJob);
+                // Queued requests may receive a new ID when saved back as drafts.
+                this.editingJob = saved;
+                if (generate) await this.startJob(saved);
                 this.$refs.audioJobDialog.close();
                 await this.load();
-                notify('Saved as pending audio. Generate it from Audio when ready.');
+                notify(generate ? 'Audio generation queued.' : 'Saved as pending audio.');
             } catch (e) {
                 notify(e.message, 'error');
             } finally {
@@ -163,6 +153,40 @@ export function storyAudio(url) {
         get filteredSounds() {
             return this.sounds.filter((s) => !this.categoryFilter || (s.category || 'effects') === this.categoryFilter);
         },
+        get libraryJobs() {
+            return this.jobs.filter(
+                (job) =>
+                    !this.editableJob(job) &&
+                    job.status !== 'completed' &&
+                    (!this.categoryFilter || (job.category || 'effects') === this.categoryFilter),
+            );
+        },
+        uploading: false,
+        async uploadAudio(event) {
+            const file = event.target.files?.[0];
+            if (!file || this.uploading) return;
+            this.uploading = true;
+            this.error = '';
+            try {
+                const body = new FormData();
+                body.append('file', file);
+                body.append(
+                    'category',
+                    this.categoryFilter ||
+                        (this.categories.effects ? 'effects' : Object.keys(this.categories)[0]) ||
+                        'effects',
+                );
+                await this.request('/upload', 'POST', body);
+                await this.load();
+                notify('Audio uploaded to project.');
+            } catch (error) {
+                this.error = error.message;
+                notify(error.message, 'error');
+            } finally {
+                this.uploading = false;
+                event.target.value = '';
+            }
+        },
         model: 'minimax/music-3',
         sounds: [],
         jobs: [],
@@ -195,10 +219,10 @@ export function storyAudio(url) {
                 method,
                 headers: {
                     Accept: 'application/json',
-                    'Content-Type': 'application/json',
+                    ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                 },
-                ...(body ? { body: JSON.stringify(body) } : {}),
+                ...(body ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
             });
             const data = await r.json();
             if (!r.ok)

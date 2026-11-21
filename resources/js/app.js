@@ -1,3 +1,4 @@
+import { characterLibrary } from './character-library.js';
 import { storyCover } from './story-cover';
 import { recoverChatMessages } from './chat-history';
 import { storyVideo } from './story-video.js';
@@ -31,6 +32,7 @@ Alpine.magic('thumbnail', () => (url) => {
     image.searchParams.set('thumbnail', '1');
     return image.href;
 });
+Alpine.data('characterLibrary', characterLibrary);
 Alpine.data('storyCover', storyCover);
 Alpine.data('storyFlags', storyFlags);
 Alpine.data('inventoryLibrary', inventoryLibrary);

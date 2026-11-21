@@ -249,7 +249,7 @@ class SceneAuthoringTest extends TestCase {
  }
  public function test_generation_workspace_is_private_and_returns_original_prompt_snapshot(): void {
   Queue::fake();[$u,$s,$p]=$this->setupScene();
-  $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSee('Copy prompt')->assertDontSee('Current visual')->assertDontSee('selectGenerationVisual()')->assertSee('Include as reference')->assertDontSee('Edit this image');
+  $this->get(route('images.studio',[$s,$p]))->assertOk()->assertSee('Copy prompt')->assertDontSee('Current visual')->assertDontSee('selectGenerationVisual()')->assertDontSee('Include as reference')->assertSee('Character reference views')->assertDontSee('Edit this image');
   $this->postJson(route('images.generate',[$s,$p]),$this->payload($p))->assertAccepted();
   $doc=$p->visual_document;$doc['visuals'][0]['prompt']='Changed later';$p->update(['visual_document'=>$doc]);
   $this->getJson(route('visuals.show',[$s,$p]))->assertJsonPath('jobs.0.prompt','A porch without a note')->assertJsonPath('jobs.0.model','openai/image');

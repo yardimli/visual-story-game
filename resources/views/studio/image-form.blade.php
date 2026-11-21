@@ -30,10 +30,10 @@
             </template>
         </select></label>
     <template x-if="endpoint">
-        <div class="grid grid-cols-2 gap-3"><template
+        <div class="flex flex-wrap gap-3"><template
                 x-for="key in ['quality','resolution','aspect_ratio','background'].filter(k=>endpoint.supported_parameters?.[k]?.type==='enum')"
                 :key="key"
-            ><label class="field"><span
+            ><label class="field min-w-0 flex-1 basis-36"><span
                         class="capitalize"
                         x-text="key.replaceAll('_',' ')"
                     ></span><select
@@ -51,23 +51,4 @@
                         </template>
                     </select></label></template></div>
     </template>
-    <div class="flex flex-wrap items-center gap-2 pt-1"><button
-            type="button"
-            class="btn-secondary"
-            @click="openReferences()"
-            x-text="'Reference images ('+references.length+')'"
-        ></button>
-        <button
-            type="button"
-            class="btn-primary"
-            @click="generate()"
-            :disabled="uploading || generating || !model || !endpoints.length || !visual.prompt || halted"
-            x-text="generating?(namingImage?'Naming image…':'Queueing…'):'Generate image'"
-        ></button><button
-            type="button"
-            class="btn-secondary"
-            @click="createNewImage()"
-            :disabled="generating"
-        >Create new image</button>
-    </div>
 </div>

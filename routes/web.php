@@ -22,6 +22,12 @@ Route::get('/', function () {
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/stories/{story}/characters', [\App\Http\Controllers\CharacterController::class, 'index'])->name('characters.index');
+    Route::post('/stories/{story}/characters', [\App\Http\Controllers\CharacterController::class, 'save']);
+    Route::put('/stories/{story}/characters/{character}', [\App\Http\Controllers\CharacterController::class, 'save']);
+    Route::delete('/stories/{story}/characters/{character}', [\App\Http\Controllers\CharacterController::class, 'destroy']);
+    Route::post('/stories/{story}/characters/{character}/draft', [\App\Http\Controllers\CharacterController::class, 'draft']);
+
     Route::get('/stories/{story}/videos', [\App\Http\Controllers\VideoController::class, 'index'])->name('videos.index');
     Route::post('/stories/{story}/videos', [\App\Http\Controllers\VideoController::class, 'store']);
     Route::patch('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'update']);
@@ -52,6 +58,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/stories/{story}/audio/speech',[\App\Http\Controllers\AudioController::class,'speech'])->middleware('throttle:6,1,audio-speech:');
     Route::get('/stories/{story}/audio/search',[\App\Http\Controllers\AudioController::class,'search'])->middleware('throttle:60,1,audio-search:')->name('audio.search');
     Route::post('/stories/{story}/audio/import',[\App\Http\Controllers\AudioController::class,'add'])->name('audio.add');
+    Route::post('/stories/{story}/audio/upload',[\App\Http\Controllers\AudioController::class,'upload'])->name('audio.upload');
     Route::post('/stories/{story}/audio/generate',[\App\Http\Controllers\AudioController::class,'generate'])->middleware('throttle:6,1,audio-generate:')->name('audio.generate');
     Route::get('/audio/{sound}',[\App\Http\Controllers\AudioController::class,'file'])->name('audio.file');
 

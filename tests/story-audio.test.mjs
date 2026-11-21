@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GameAudio } from '../resources/js/story-audio.js';
+import { GameAudio, storyAudio } from '../resources/js/story-audio.js';
 const sounds = [
     { id: 1, url: '/1' },
     { id: 2, url: '/2' },
@@ -98,3 +98,110 @@ test('voice pause clears on completion, failure and stop without stopping music'
         p.channel('voice', null);
         assert.equal(p.speaking, false);
     }));
+
+test('prepared audio opens for review without starting generation', async () => {
+    const audio = storyAudio('/audio');
+    let opened = false;
+    audio.$refs = {
+        audioJobDialog: {
+            showModal() {
+                opened = true;
+            },
+        },
+    };
+    audio.voiceModels = [{ id: 'voice' }];
+    audio.request = async () => {
+        throw new Error('No submission expected');
+    };
+    const job = { id: 1, prompt: 'Door opens', settings: {} };
+    await audio.editJob(job);
+    assert.equal(opened, true);
+    audio.editingJob.prompt = 'Door closes';
+    assert.equal(job.prompt, 'Door opens');
+});
+
+test('audio dialog saves edits before starting the returned draft ID', async () => {
+    const audio = storyAudio('/audio');
+    const calls = [];
+    let closed = false;
+    audio.editingJob = { id: 1, prompt: 'Updated sound' };
+    audio.$refs = {
+        audioJobDialog: {
+            close() {
+                closed = true;
+            },
+        },
+    };
+    audio.load = async () => {};
+    audio.request = async (path, method, body) => {
+        calls.push([path, method, body?.prompt]);
+        return { id: 2, prompt: 'Updated sound' };
+    };
+    await audio.saveJob(true);
+    assert.deepEqual(calls, [
+        ['/jobs/1', 'PUT', 'Updated sound'],
+        ['/jobs/2/start', 'POST', undefined],
+    ]);
+    assert.equal(closed, true);
+    assert.equal(audio.jobBusy, false);
+});
+
+test('invalid audio edits do not start generation or close the dialog', async () => {
+    const audio = storyAudio('/audio');
+    audio.editingJob = { id: 1 };
+    const calls = [];
+    audio.$refs = {
+        audioJobDialog: {
+            close() {
+                assert.fail('Must stay open');
+            },
+        },
+    };
+    audio.request = async (path) => {
+        calls.push(path);
+        throw new Error('Invalid prompt');
+    };
+    await audio.saveJob(true);
+    assert.deepEqual(calls, ['/jobs/1']);
+    assert.equal(audio.jobBusy, false);
+});
+
+test('sound library status cards exclude completed audio and respect categories', () => {
+    const audio = storyAudio('/audio');
+    audio.jobs = [
+        { id: 1, status: 'completed' },
+        { id: 2, status: 'running', category: 'music' },
+        { id: 3, status: 'failed', category: 'effects' },
+        { id: 4, status: 'draft' },
+    ];
+    assert.deepEqual(
+        audio.libraryJobs.map((j) => j.id),
+        [2, 3],
+    );
+    audio.categoryFilter = 'music';
+    assert.deepEqual(
+        audio.libraryJobs.map((j) => j.id),
+        [2],
+    );
+});
+
+test('audio uploads send multipart data without forcing a JSON content type', async () => {
+    const oldFetch = globalThis.fetch;
+    const oldDocument = globalThis.document;
+    globalThis.document = { querySelector: () => ({ content: 'csrf' }) };
+    const body = new FormData();
+    body.append('category', 'effects');
+    globalThis.fetch = async (url, options) => {
+        assert.equal(url, '/audio/upload');
+        assert.equal(options.body, body);
+        assert.equal(options.headers['Content-Type'], undefined);
+        assert.equal(options.headers['X-CSRF-TOKEN'], 'csrf');
+        return { ok: true, json: async () => ({ id: 1 }) };
+    };
+    try {
+        await storyAudio('/audio').request('/upload', 'POST', body);
+    } finally {
+        globalThis.fetch = oldFetch;
+        globalThis.document = oldDocument;
+    }
+});

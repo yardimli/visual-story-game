@@ -14,7 +14,7 @@
         >
             <dialog
                 x-ref="imageFormDialog"
-                class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+                class="image-form-dialog dialog-panel rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
                 @click="if($event.target===$el)$el.close()"
             >
                 <header class="mb-5 flex items-center justify-between gap-3">
@@ -27,31 +27,111 @@
                         @click="$refs.imageFormDialog.close()"
                     >Close</button>
                 </header>
-                <p
-                    x-show="error"
-                    x-text="error"
-                    role="alert"
-                    class="mb-3 text-sm text-red-700"
-                ></p><template x-if="selectedComposition">
-                    <div class="space-y-3">
-                        <p
-                            class="text-sm"
-                            x-text="compositionText(selectedComposition)"
-                        ></p><img
-                            loading="lazy"
-                            decoding="async"
-                            :src="$thumbnail(asset(jobs.find(j => j.id === selectedImageId)?.asset_ids?.[0])?.url)"
-                            class="max-h-[60vh] w-full object-contain"
-                            alt="Scene with changed state applied"
-                        >
-                    </div>
-                </template>
-                <template x-if="visual && !selectedComposition">
-                    <div
-                        x-ref="generationForm"
-                        class="space-y-3"
-                    >@include('studio.image-form')</div>
-                </template>
+                <div class="dialog-scroll-body">
+                    <p
+                        x-show="error"
+                        x-text="error"
+                        role="alert"
+                        class="mb-3 text-sm text-red-700"
+                    ></p><template x-if="selectedComposition">
+                        <div class="space-y-3">
+                            <p
+                                class="text-sm"
+                                x-text="compositionText(selectedComposition)"
+                            ></p><img
+                                loading="lazy"
+                                decoding="async"
+                                :src="$thumbnail(asset(jobs.find(j => j.id === selectedImageId)?.asset_ids?.[0])?.url)"
+                                class="max-h-[60vh] w-full object-contain"
+                                alt="Scene with changed state applied"
+                            >
+                        </div>
+                    </template>
+                    <template x-if="visual && !selectedComposition">
+                        <div
+                            x-ref="generationForm"
+                            class="space-y-3"
+                        >@include('studio.image-form')</div>
+                    </template>
+                </div>
+                <footer
+                    class="dialog-actions"
+                    x-show="visual && !selectedComposition"
+                >
+                    @include('studio.image-form-actions')
+                </footer>
+            </dialog>
+            <dialog
+                x-ref="characterReferencesDialog"
+                class="image-form-dialog dialog-panel rounded-xl border bg-white p-5 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+            >
+                <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="font-serif text-xl">Character reference views</h2><button
+                        type="button"
+                        class="btn-secondary"
+                        @click="$refs.characterReferencesDialog.close()"
+                    >Done</button>
+                </header>
+                <div class="dialog-scroll-body space-y-4">
+                    <p class="text-sm">Choose the views needed for this image. Selected views are sent with the
+                        character's appearance notes to preserve identity.</p>
+                    <a
+                        class="text-sm underline"
+                        href="{{ route('stories.edit', [$story, 'page' => $page->id, 'tab' => 'story', 'bible' => 'characters']) }}"
+                        @click.prevent="if(await flush())window.location.assign($el.href)"
+                    >Manage characters in Story bible</a>
+                    <p
+                        x-show="charactersLoading"
+                        role="status"
+                    >Loading characters…</p>
+                    <p
+                        x-show="!charactersLoading && !characters.length"
+                        class="text-sm"
+                    >No characters yet. Create one in Story bible → Characters.</p>
+                    <template
+                        x-for="character in characters"
+                        :key="character.id"
+                    >
+                        <section class="space-y-3 rounded-lg border p-3">
+                            <h3
+                                class="font-semibold"
+                                x-text="character.name"
+                            ></h3>
+                            <p
+                                class="whitespace-pre-wrap text-sm"
+                                x-text="character.description"
+                            ></p>
+                            <p
+                                x-show="!character.views.some(v=>v.asset_id)"
+                                class="text-xs"
+                            >No ready views. Upload an image or generate a reference view in Characters.</p>
+                            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3"><template
+                                    x-for="(view,index) in character.views.filter(v=>v.asset_id)"
+                                    :key="index"
+                                >
+                                    <label
+                                        class="space-y-2 rounded border p-2"
+                                        :class="references.includes(String(view.asset_id)) ? 'ring-2 ring-amber-500' : ''"
+                                    ><img
+                                            :src="$thumbnail(view.url)"
+                                            :alt="character.name + ' · ' + view.label"
+                                            loading="lazy"
+                                            class="h-36 w-full object-contain"
+                                        ><span class="flex items-center gap-2 text-xs"><input
+                                                type="checkbox"
+                                                :value="String(view.asset_id)"
+                                                x-model="references"
+                                                @change="changed()"
+                                                :disabled="generating"
+                                            ><span x-text="view.label"></span></span></label>
+                                </template></div>
+                        </section>
+                    </template>
+                </div>
+                <footer
+                    class="dialog-actions text-xs"
+                    x-text="selectedCharacterViews+' character views selected · '+references.length+' total reference images'"
+                ></footer>
             </dialog>
             <aside
                 @vsg-editor-tab.window="unusedImageIds=[]"
@@ -185,9 +265,9 @@
                                 ></span><span
                                     x-show="job.status==='running' && job.started_at"
                                     class="mt-1 block text-xs tabular-nums text-stone-500 dark:text-stone-400"
-                                ><span x-text="'Started '+renderStarted(job)"></span><span class="mx-1">·</span><span
-                                        x-text="renderElapsed(job)+' elapsed'"
-                                    ></span></span></header>
+                                ><span x-text="'Started '+renderStarted(job)"></span><span
+                                        class="mx-1">·</span><span
+                                        x-text="renderElapsed(job)+' elapsed'"></span></span></header>
                             <div class="space-y-1 px-3 pb-3">
                                 <div x-show="!jobAssets(job).length"> <select
                                         aria-label="Image category"
@@ -314,12 +394,6 @@
                                                 @click.stop="$dispatch('vsg-image',asset(id))"
                                                 title="Zoom image"
                                             ><x-zoom-icon /></button></div>
-                                        <label class="flex items-center gap-2 text-xs"><input
-                                                type="checkbox"
-                                                :value="String(id)"
-                                                x-model="references"
-                                                @change="changed()"
-                                            >Include as reference</label>
                                         <div class="flex flex-wrap gap-2"><template
                                                 x-for="use in asset(id)?.uses||[]"
                                                 :key="use.url"
@@ -341,7 +415,7 @@
                                 </template>
                                 <button
                                     type="button"
-                                    :class="job.status==='draft' ? 'btn-primary' : 'text-xs underline'"
+                                    :class="job.status === 'draft' ? 'btn-primary' : 'text-xs underline'"
                                     @click="openImageForm(job)"
                                     x-text="job.composition?'View combined image':job.status==='draft'?'Generate':'Open image form'"
                                 ></button>
@@ -463,7 +537,7 @@
                                 each.</span></label>
 
                         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3"><template
-                                x-for="a in referenceAssets"
+                                x-for="a in referenceAssets.filter(a=>!characterReferenceIds.includes(String(a.id)))"
                                 :key="a.id"
                             >
                                 <div

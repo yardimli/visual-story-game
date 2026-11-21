@@ -484,6 +484,11 @@
                                             :checked="visual.intro_video_repeat === true"
                                             @change="visual.intro_video_repeat=$event.target.checked;changed()"
                                         >Play video each time the scene loads</label>
+                                    <label class="inline-flex w-fit items-center gap-2 text-xs font-normal"><input
+                                            type="checkbox"
+                                            :checked="visual.intro_video_pause_music === true"
+                                            @change="visual.intro_video_pause_music=$event.target.checked;changed()"
+                                        >Pause game music while video is playing</label>
                                 </div><label class="field min-w-0">Scene entry sound<div
                                         class="audio-select-row"
                                         x-data="audioPreview('scenes')"
@@ -1260,7 +1265,7 @@
     </div>
     <dialog
         x-ref="sceneCaptureDialog"
-        class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+        class="image-form-dialog dialog-panel rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
     >
         <header class="mb-4 flex items-center justify-between gap-3">
             <h2 class="font-serif text-xl">Save scene as image</h2><button
@@ -1270,34 +1275,37 @@
                 :disabled="sceneCaptureBusy"
             >Cancel</button>
         </header>
-        <p
-            x-show="sceneCaptureError"
-            x-text="sceneCaptureError"
-            role="alert"
-            class="mb-3 text-sm text-red-700"
-        ></p>
-        <img
-            :src="sceneCapture?.preview"
-            alt="Scene image without click-area outlines"
-            class="mb-4 max-h-[55vh] w-full object-contain"
-        >
-        <label class="field">Image name<input
-                type="text"
-                maxlength="160"
-                x-model="sceneCaptureName"
-                :disabled="sceneCaptureBusy"
-            ></label>
-        <p
-            class="my-4 text-sm"
-            x-text="sceneCapture?.description"
-        ></p>
-        <button
-            type="button"
-            class="btn-primary"
-            @click="saveSceneCapture()"
-            :disabled="sceneCaptureBusy || !sceneCaptureName.trim()"
-            x-text="sceneCaptureBusy?'Saving…':'Save image'"
-        ></button>
+        <div class="dialog-scroll-body">
+            <p
+                x-show="sceneCaptureError"
+                x-text="sceneCaptureError"
+                role="alert"
+                class="mb-3 text-sm text-red-700"
+            ></p>
+            <img
+                :src="sceneCapture?.preview"
+                alt="Scene image without click-area outlines"
+                class="mb-4 max-h-[55vh] w-full object-contain"
+            >
+            <label class="field">Image name<input
+                    type="text"
+                    maxlength="160"
+                    x-model="sceneCaptureName"
+                    :disabled="sceneCaptureBusy"
+                ></label>
+            <p
+                class="my-4 text-sm"
+                x-text="sceneCapture?.description"
+            ></p>
+        </div>
+        <footer class="dialog-actions"> <button
+                type="button"
+                class="btn-primary"
+                @click="saveSceneCapture()"
+                :disabled="sceneCaptureBusy || !sceneCaptureName.trim()"
+                x-text="sceneCaptureBusy?'Saving…':'Save image'"
+            ></button>
+        </footer>
     </dialog>
     <dialog
         x-ref="visualTypeDialog"

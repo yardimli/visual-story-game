@@ -40,7 +40,7 @@
     </div>
     <dialog
         x-ref="coverDialog"
-        class="image-form-dialog rounded-xl p-5"
+        class="image-form-dialog dialog-panel rounded-xl p-5"
         aria-label="Choose story graphic"
     >
         <header class="mb-4 flex items-center justify-between gap-3">
@@ -68,37 +68,39 @@
                 @click="$refs.coverDialog.close()"
             >Close</button>
         </header>
-        <p x-show="loading">Loading images�</p>
-        <p
-            x-show="error"
-            x-text="error"
-            role="alert"
-            class="text-red-600"
-        ></p>
-        <p x-show="!loading && !error && !images.length">No project images available.</p>
-        <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-            <template
-                x-for="image in images.filter(image => !category || image.category === category)"
-                :key="image.id"
-            >
-                <button
-                    type="button"
-                    class="rounded-lg border p-2 text-left"
-                    :class="selected?.id === image.id ? 'ring-2 ring-amber-600' : ''"
-                    @click="choose(image)"
+        <div class="dialog-scroll-body">
+            <p x-show="loading">Loading images�</p>
+            <p
+                x-show="error"
+                x-text="error"
+                role="alert"
+                class="text-red-600"
+            ></p>
+            <p x-show="!loading && !error && !images.length">No project images available.</p>
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+                <template
+                    x-for="image in images.filter(image => !category || image.category === category)"
+                    :key="image.id"
                 >
-                    <img
-                        :src="$thumbnail(image.url)"
-                        :alt="image.name"
-                        class="h-36 w-full object-contain"
-                        loading="lazy"
+                    <button
+                        type="button"
+                        class="rounded-lg border p-2 text-left"
+                        :class="selected?.id === image.id ? 'ring-2 ring-amber-600' : ''"
+                        @click="choose(image)"
                     >
-                    <span
-                        class="text-sm"
-                        x-text="image.name"
-                    ></span>
-                </button>
-            </template>
+                        <img
+                            :src="$thumbnail(image.url)"
+                            :alt="image.name"
+                            class="h-36 w-full object-contain"
+                            loading="lazy"
+                        >
+                        <span
+                            class="text-sm"
+                            x-text="image.name"
+                        ></span>
+                    </button>
+                </template>
+            </div>
         </div>
     </dialog>
 </div>
