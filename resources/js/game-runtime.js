@@ -7,11 +7,16 @@ export function gameRuntime() {
     return {
         videos: [],
         introVideo: null,
+        seenSceneVideos: {},
         introVideoBlocked: false,
         introVideoFailed: false,
         pausedVideoAudio: [],
         beginScenePresentation(skipVideo = false) {
-            const video = !skipVideo && this.videos.find((v) => v.id === this.displayed?.intro_video_id);
+            const key = this.previewPageId + ':' + this.previewId;
+            const alreadySeen = this.seenSceneVideos[key];
+            const selected = this.videos.find((v) => v.id === this.displayed?.intro_video_id);
+            if (selected) this.seenSceneVideos[key] = true;
+            const video = !skipVideo && (!alreadySeen || this.displayed?.intro_video_repeat === true) && selected;
             if (!video?.url) {
                 this.prepareSceneIntro();
                 this.soundPlayer?.enter(this.displayed, this.audioSounds);
@@ -989,6 +994,7 @@ export function gameRuntime() {
         },
         startPreview(initialItems = [], startKey = null, initialFlags = null, skipFirstVideo = false) {
             this.seenSceneIntros = {};
+            this.seenSceneVideos = {};
             this.sceneIntroText = '';
             this.readyPickups = {};
             this.readDescriptions = {};
@@ -1050,6 +1056,7 @@ export function gameRuntime() {
             this.introVideo = null;
             this.pausedVideoAudio = [];
             this.seenSceneIntros = {};
+            this.seenSceneVideos = {};
             this.sceneIntroText = '';
             this.readyPickups = {};
             this.readDescriptions = {};

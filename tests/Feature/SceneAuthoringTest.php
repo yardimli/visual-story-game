@@ -152,6 +152,23 @@ class SceneAuthoringTest extends TestCase {
   $removed=$s->pages()->create(['position'=>2,'title'=>'Removed']);$removed->delete();
   $this->getJson(route('visuals.show',[$s,$p]))->assertOk()->assertJsonPath('page_id',$p->id)->assertJsonCount(2,'preview_pages')->assertJsonPath('preview_pages.1.id',$next->id);
  }
+ public function test_switch_images_link_to_every_scene_using_them_without_duplicate_links(): void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $image=$s->assets()->create(['name'=>'Open door','path'=>'door.png','mime'=>'image/png','bytes'=>1]);
+  $scene=$doc['visuals'][0];
+  $scene['hotspots'][0]['state_asset_id']=$image->id;
+  $scene['hotspots'][0]['overlay_asset_id']=$image->id;
+  $p->update(['visual_document'=>['visuals'=>[$scene]]]);
+  $scene['id']=(string)Str::uuid();$scene['name']='Another doorway';
+  $other=$s->pages()->create(['position'=>2,'title'=>'Other','visual_document'=>['visuals'=>[$scene]]]);
+  $response=$this->getJson(route('visuals.show',[$s,$p]))->assertOk();
+  $asset=collect($response->json('assets'))->firstWhere('id',$image->id);
+  $this->assertCount(2,$asset['uses']);
+  $this->assertSame('scene',$asset['uses'][0]['kind']);
+  $this->assertSame('Another doorway',$asset['uses'][1]['name']);
+  $this->assertStringContainsString('page='.$other->id,$asset['uses'][1]['url']);
+  $this->assertSame([$p->id,$other->id],$asset['page_ids']);
+ }
  public function test_asset_names_archiving_and_usage_links_are_owned_and_preserve_assignments(): void {
   [$u,$s,$p,$doc]=$this->setupScene();
   $a=$s->assets()->create(['name'=>'Original','path'=>'test.png','mime'=>'image/png','bytes'=>1]);

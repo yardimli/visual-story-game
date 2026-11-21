@@ -825,40 +825,29 @@ test('scene crossfade waits another 250ms before inspection and closing cancels 
     assert.equal(editor.sceneTransition, false);
 });
 
-test('image sidebar remembers collapse and filters archived assets without losing assignments', () => {
-    const previous = globalThis.localStorage;
-    const stored = new Map();
-    globalThis.localStorage = { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) };
-    try {
-        const editor = sceneEditor({ url: '/story/page/visuals' });
-        editor.assets = [
-            { id: 1, name: 'Envelope', archived: true },
-            { id: 2, name: 'Porch', archived: false },
-        ];
-        const job = {
-            id: 10,
-            name: 'Old scene name',
-            status: 'completed',
-            asset_ids: [1, 2],
-            prompt: Array.from({ length: 25 }, (_, i) => 'word' + i).join(' '),
-        };
-        editor.jobs = [job, { id: 11, status: 'completed', asset_ids: [1] }];
-        assert.equal(editor.visibleJobs.length, 1);
-        assert.deepEqual(editor.jobAssets(job), [2]);
-        assert.equal(editor.archivedCount, 1);
-        editor.showArchived = true;
-        assert.equal(editor.visibleJobs.length, 2);
-        assert.deepEqual(editor.jobAssets(job), [1, 2]);
-        assert.equal(editor.jobTitle(job), 'Envelope, Porch');
-        assert.equal(editor.promptLong(job), true);
-        assert.equal(editor.promptShort(job).split(' ').length, 20);
-        editor.rememberCard(job, false);
-        const reopened = sceneEditor({ url: '/story/page/visuals' });
-        reopened.loadCardStates();
-        assert.equal(reopened.cardOpen(job), false);
-    } finally {
-        globalThis.localStorage = previous;
-    }
+test('image sidebar filters archived assets without losing assignments', () => {
+    const editor = sceneEditor({ url: '/story/page/visuals' });
+    editor.assets = [
+        { id: 1, name: 'Envelope', archived: true },
+        { id: 2, name: 'Porch', archived: false },
+    ];
+    const job = {
+        id: 10,
+        name: 'Old scene name',
+        status: 'completed',
+        asset_ids: [1, 2],
+        prompt: Array.from({ length: 25 }, (_, i) => 'word' + i).join(' '),
+    };
+    editor.jobs = [job, { id: 11, status: 'completed', asset_ids: [1] }];
+    assert.equal(editor.visibleJobs.length, 1);
+    assert.deepEqual(editor.jobAssets(job), [2]);
+    assert.equal(editor.archivedCount, 1);
+    editor.showArchived = true;
+    assert.equal(editor.visibleJobs.length, 2);
+    assert.deepEqual(editor.jobAssets(job), [1, 2]);
+    assert.equal(editor.jobTitle(job), 'Envelope, Porch');
+    assert.equal(editor.promptLong(job), true);
+    assert.equal(editor.promptShort(job).split(' ').length, 20);
 });
 
 test('inventory areas match carried object states, show fallback, consume keys and transition without editing story', (t) => {
@@ -2599,4 +2588,163 @@ test('resizing extracted pickups including container children preserves their im
     e.transformAreaImage(h, original);
     e.syncContainerAreas(h);
     assert.deepEqual(h.overlay_bounds, original.overlay_bounds);
+});
+
+test('image category filter retains ordering and combines with failed visibility', () => {
+    const editor = sceneEditor({});
+    editor.jobs = [
+        { id: 1, category: 'scene', status: 'draft' },
+        { id: 2, category: 'inventory', status: 'draft' },
+        { id: 3, category: 'inventory', status: 'failed' },
+    ];
+    editor.imageOrder = [3, 2, 1];
+    editor.imageCategoryFilter = 'inventory';
+    assert.deepEqual(
+        editor.visibleJobs.map((job) => job.id),
+        [2],
+    );
+    editor.showFailed = true;
+    assert.deepEqual(
+        editor.visibleJobs.map((job) => job.id),
+        [3, 2],
+    );
+    editor.imageCategoryFilter = '';
+    assert.deepEqual(
+        editor.visibleJobs.map((job) => job.id),
+        [3, 2, 1],
+    );
+});
+
+test('category save updates the live image card after polling replaces its object', async () => {
+    const editor = sceneEditor({ categoriesUrl: '/stories/1/image-categories' });
+    const original = { id: 9, category: 'scene', status: 'completed' };
+    editor.jobs = [original];
+    let complete;
+    editor.request = (url, method, body) => {
+        assert.equal(url, '/stories/1/image-categories/9');
+        assert.equal(method, 'PUT');
+        assert.deepEqual(body, { category: 'change_state' });
+        return new Promise((resolve) => {
+            complete = resolve;
+        });
+    };
+    const save = editor.categorizeImage(original, 'change_state');
+    editor.jobs = [{ ...original }];
+    complete({ category: 'change_state' });
+    await save;
+    assert.equal(editor.jobs[0].category, 'change_state');
+    assert.equal(editor.savingImageCategory[9], undefined);
+    editor.request = async () => {
+        throw new Error('Save failed');
+    };
+    await editor.categorizeImage(editor.jobs[0], 'inventory');
+    assert.equal(editor.jobs[0].category, 'change_state');
+    assert.equal(editor.error, 'Save failed');
+});
+
+test('drag reorder inserts cards and preserves filtered-out positions and failed saves', async () => {
+    const editor = sceneEditor({ orderUrl: '/order' });
+    editor.jobs = [1, 2, 3, 4].map((id) => ({ id, status: 'draft', category: id === 2 ? 'inventory' : 'scene' }));
+    editor.imageOrder = [1, 2, 3, 4];
+    editor.imageCategoryFilter = 'scene';
+    editor.request = async (url, method, body) => body;
+    editor.draggedImageId = 4;
+    editor.imageDropAfter = false;
+    await editor.dropImage(1);
+    assert.deepEqual(editor.imageOrder, [4, 2, 1, 3]);
+    assert.equal(editor.draggedImageId, null);
+    editor.draggedImageId = 4;
+    editor.imageDropAfter = true;
+    await editor.dropImage(3);
+    assert.deepEqual(editor.imageOrder, [1, 2, 3, 4]);
+    editor.request = async () => {
+        throw new Error('Save failed');
+    };
+    editor.draggedImageId = 4;
+    await editor.dropImage(1);
+    assert.deepEqual(editor.imageOrder, [1, 2, 3, 4]);
+    assert.equal(editor.error, 'Save failed');
+    assert.equal(editor.orderingImages, false);
+});
+
+test('reference dialog puts selected images first only when reopened', () => {
+    const editor = sceneEditor({});
+    editor.assets = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4, archived: true }];
+    editor.references = ['3'];
+    editor.$refs = { referenceDialog: { showModal() {} }, referenceImagesScroll: { scrollTop: 20 } };
+    editor.$nextTick = (callback) => callback();
+    editor.openReferences();
+    assert.deepEqual(
+        editor.referenceAssets.map((a) => a.id),
+        [3, 1, 2],
+    );
+    editor.references = ['2'];
+    assert.deepEqual(
+        editor.referenceAssets.map((a) => a.id),
+        [3, 1, 2],
+    );
+    editor.openReferences();
+    assert.deepEqual(
+        editor.referenceAssets.map((a) => a.id),
+        [2, 1, 3],
+    );
+    assert.equal(editor.$refs.referenceImagesScroll.scrollTop, 0);
+});
+
+test('category edits save explicitly and used categories cannot be deleted', async () => {
+    const editor = sceneEditor({ categoriesUrl: '/categories' });
+    editor.jobs = [{ id: 1, category: 'scene' }];
+    let saves = 0;
+    editor.request = async (url, method, body) => {
+        saves++;
+        return body;
+    };
+    editor.editCategory('scene');
+    editor.categoryNameDraft = 'Backgrounds';
+    assert.equal(editor.imageCategories.scene, 'Scene');
+    await editor.finishCategoryEdit('scene');
+    assert.equal(editor.imageCategories.scene, 'Backgrounds');
+    assert.equal(editor.editingCategory, null);
+    await editor.deleteCategory('scene');
+    assert.equal(saves, 1);
+    await editor.deleteCategory('inventory');
+    assert.equal(editor.imageCategories.inventory, undefined);
+    editor.request = async () => {
+        throw new Error('Cannot save');
+    };
+    editor.editCategory('scene');
+    editor.categoryNameDraft = 'Not saved';
+    await editor.finishCategoryEdit('scene');
+    assert.equal(editor.imageCategories.scene, 'Backgrounds');
+    assert.equal(editor.editingCategory, 'scene');
+});
+
+test('clicking the selected image again clears the prompt after saving', async () => {
+    const originalWindow = globalThis.window;
+    globalThis.window = {
+        location: { href: 'http://localhost/images?image=5' },
+        history: { replaceState() {} },
+        dispatchEvent() {},
+    };
+    try {
+        const editor = sceneEditor({ generationMode: true });
+        editor.selectedImageId = 5;
+        editor.generationName = 'Door';
+        editor.generationInput = { prompt: 'A door', video_prompt: 'Open' };
+        editor.references = ['1'];
+        editor.$nextTick = (callback) => callback();
+        let saved = false;
+        editor.flush = async () => {
+            saved = true;
+            return true;
+        };
+        await editor.selectImageCard({ id: 5, status: 'completed' });
+        assert.equal(saved, true);
+        assert.equal(editor.selectedImageId, null);
+        assert.equal(editor.generationInput.prompt, '');
+        assert.equal(editor.generationName, '');
+        assert.deepEqual(editor.references, []);
+    } finally {
+        globalThis.window = originalWindow;
+    }
 });

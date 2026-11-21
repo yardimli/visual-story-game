@@ -25,6 +25,72 @@ export function sceneEditor(options) {
             flagDefinitions: [],
             flags: {},
             previewFlags: [],
+            imageCategories: { scene: 'Scene', inventory: 'Inventory', change_state: 'Change state' },
+            imageCategoryFilter: '',
+            newImageCategory: '',
+            editingCategory: null,
+            categoryNameDraft: '',
+            categoryBusy: false,
+            categoryUsed(key) {
+                return this.jobs.some((job) => (job.category || 'scene') === key);
+            },
+            editCategory(key) {
+                this.editingCategory = key;
+                this.categoryNameDraft = this.imageCategories[key];
+            },
+            async finishCategoryEdit(key) {
+                if (!this.categoryNameDraft.trim()) return;
+                if (await this.saveImageCategories({ ...this.imageCategories, [key]: this.categoryNameDraft.trim() }))
+                    this.editingCategory = null;
+            },
+            async deleteCategory(key) {
+                if (this.categoryUsed(key) || this.categoryBusy) return;
+                const categories = { ...this.imageCategories };
+                delete categories[key];
+                if (await this.saveImageCategories(categories)) {
+                    if (this.imageCategoryFilter === key) this.imageCategoryFilter = '';
+                    if (this.editingCategory === key) this.editingCategory = null;
+                }
+            },
+            async saveImageCategories(categories = this.imageCategories) {
+                if (this.categoryBusy) return false;
+                this.categoryBusy = true;
+                try {
+                    const data = await this.request(options.categoriesUrl, 'PUT', { categories });
+                    this.imageCategories = data.categories;
+
+                    return true;
+                } catch (error) {
+                    this.error = error.message;
+                    return false;
+                } finally {
+                    this.categoryBusy = false;
+                }
+            },
+            async addImageCategory() {
+                if (!this.newImageCategory.trim()) return;
+                const categories = {
+                    ...this.imageCategories,
+                    ['custom_' + crypto.randomUUID()]: this.newImageCategory.trim(),
+                };
+                if (await this.saveImageCategories(categories)) this.newImageCategory = '';
+            },
+            savingImageCategory: {},
+            async categorizeImage(job, category) {
+                if (this.savingImageCategory[job.id]) return;
+                this.savingImageCategory[job.id] = true;
+                try {
+                    const data = await this.request(options.categoriesUrl + '/' + job.id, 'PUT', { category });
+                    // A polling refresh may have replaced the card while the save was running.
+                    const current = this.jobs.find((item) => item.id === job.id);
+                    if (current) current.category = data.category;
+                    job.category = data.category;
+                } catch (error) {
+                    this.error = error.message;
+                } finally {
+                    delete this.savingImageCategory[job.id];
+                }
+            },
             imageOrder: [],
             orderingImages: false,
             movedImageId: null,
@@ -52,7 +118,6 @@ export function sceneEditor(options) {
             editingVisual: false,
             showArchived: false,
             showFailed: false,
-            cardStates: {},
             expandedPrompts: {},
             assetNames: {},
             assetSaving: {},
@@ -197,7 +262,6 @@ export function sceneEditor(options) {
                     this.inventoryItems = JSON.parse(JSON.stringify(e.detail));
                 };
                 window.addEventListener('vsg-inventory', this.inventoryListener);
-                this.loadCardStates();
                 this.model = rememberedModel('vsg-image-model', options.model || '');
                 this.unload = (e) => {
                     if (this.dirty || this.saving) {
@@ -221,6 +285,7 @@ export function sceneEditor(options) {
                     this.unavailableText = data.unavailable_text || 'You cannot do that yet.';
                     this.unavailableTimeout = data.unavailable_timeout_ms ?? 1000;
                     this.imageOrder = data.image_order || [];
+                    this.imageCategories = data.image_categories || this.imageCategories;
                     this.upgradePageLinks();
                     this.credit(data);
                     this.restoreVisual();
@@ -758,15 +823,83 @@ export function sceneEditor(options) {
                 window.history.replaceState(null, '', url);
                 this.$nextTick(() => window.dispatchEvent(new Event('textarea-refresh')));
             },
+            referenceCategoryFilter: '',
+            get selectedComposition() {
+                return this.jobs.find((j) => j.id === this.selectedImageId)?.composition;
+            },
+            assetComposition(id) {
+                return this.jobs.find((job) => job.asset_ids?.includes(id))?.composition;
+            },
+            compositionText(composition) {
+                return (
+                    composition?.description ||
+                    (composition
+                        ? 'Combined: ' + composition.sources.map((source) => source.name).join(' + ') + '.'
+                        : '')
+                );
+            },
+            async openImageForm(job = null) {
+                if (job) {
+                    if (!(await this.flush())) return;
+                    this.fillImageCard(job);
+                } else {
+                    if (this.generating || !(await this.flush())) return;
+                    await this.createNewImage();
+                }
+                this.$refs.imageFormDialog.showModal();
+            },
+            sceneCaptureBusy: false,
+            sceneCapture: null,
+            sceneCaptureName: '',
+            sceneCaptureError: '',
+            async captureSceneImage() {
+                if (this.sceneCaptureBusy || !this.visual?.asset_id) return;
+                this.sceneCaptureBusy = true;
+                this.sceneCaptureError = '';
+                try {
+                    if (!(await this.flush())) return;
+                    const payload = {
+                        scene_id: this.visual.id,
+                        revision: this.revision,
+                        area_ids: this.visual.hotspots.filter((h) => this.editorAreaImage(h)).map((h) => h.id),
+                    };
+                    const result = await this.request(options.stateImagesUrl, 'POST', { ...payload, preview: true });
+                    this.sceneCapture = { ...result, payload };
+                    this.sceneCaptureName = result.name;
+                    this.$refs.sceneCaptureDialog.showModal();
+                } catch (error) {
+                    this.error = error.message;
+                } finally {
+                    this.sceneCaptureBusy = false;
+                }
+            },
+            async saveSceneCapture() {
+                if (this.sceneCaptureBusy || !this.sceneCapture || !this.sceneCaptureName.trim()) return;
+                this.sceneCaptureBusy = true;
+                this.sceneCaptureError = '';
+                try {
+                    await this.request(options.stateImagesUrl, 'POST', {
+                        ...this.sceneCapture.payload,
+                        name: this.sceneCaptureName.trim(),
+                    });
+                    const data = await this.request(options.url);
+                    this.assets = data.assets;
+                    this.jobs = data.jobs;
+                    this.$refs.sceneCaptureDialog.close();
+                    this.sceneCapture = null;
+                    this.status = 'Scene image saved to Images.';
+                } catch (error) {
+                    this.sceneCaptureError = error.message;
+                } finally {
+                    this.sceneCaptureBusy = false;
+                }
+            },
             async selectImageCard(job) {
-                if (
-                    this.generating ||
-                    this.uploading ||
-                    job.localFailure ||
-                    job.status === 'submitting' ||
-                    this.selectedImageId === job.id
-                )
+                if (this.generating || this.uploading || job.localFailure || job.status === 'submitting') return;
+                if (this.selectedImageId === job.id) {
+                    await this.createNewImage();
                     return;
+                }
                 if (!(await this.flush())) return;
                 this.fillImageCard(job);
             },
@@ -780,7 +913,6 @@ export function sceneEditor(options) {
                     await this.request(options.deleteDraftBase + '/' + id, 'DELETE');
                     this.jobs = this.jobs.filter((j) => j.id !== id);
                     this.imageOrder = this.imageOrder.filter((value) => value !== id);
-                    delete this.cardStates[id];
                     delete this.expandedPrompts[id];
                     if (this.selectedImageId === id) {
                         this.dirty = false;
@@ -831,23 +963,6 @@ export function sceneEditor(options) {
                 window.history.replaceState(null, '', url);
                 return true;
             },
-            loadCardStates() {
-                try {
-                    const saved = JSON.parse(localStorage.getItem('vsg-image-cards:' + options.url) || '{}');
-                    this.cardStates = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
-                } catch (_) {
-                    this.cardStates = {};
-                }
-            },
-            cardOpen(job) {
-                return this.cardStates[job.id] ?? (job.localFailure || job.status !== 'failed');
-            },
-            rememberCard(job, open) {
-                this.cardStates = { ...this.cardStates, [job.id]: open };
-                try {
-                    localStorage.setItem('vsg-image-cards:' + options.url, JSON.stringify(this.cardStates));
-                } catch (_) {}
-            },
             get historyJobs() {
                 return this.jobs;
             },
@@ -892,10 +1007,71 @@ export function sceneEditor(options) {
                 return this.historyJobs
                     .filter(
                         (job) =>
+                            (!this.imageCategoryFilter || (job.category || 'scene') === this.imageCategoryFilter) &&
                             (this.showFailed || job.status !== 'failed') &&
                             (!job.asset_ids?.length || this.jobAssets(job).length),
                     )
                     .sort((a, b) => (rank.get(a.id) ?? -1) - (rank.get(b.id) ?? -1));
+            },
+            draggedImageId: null,
+            imageDropId: null,
+            imageDropAfter: false,
+            startImageDrag(job, event) {
+                if (this.orderingImages || !Number.isInteger(job.id)) {
+                    event.preventDefault();
+                    return;
+                }
+                this.draggedImageId = job.id;
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', String(job.id));
+            },
+            endImageDrag() {
+                this.draggedImageId = null;
+                this.imageDropId = null;
+                this.imageDropAfter = false;
+            },
+            overImage(job, event, card) {
+                if (this.draggedImageId === null || this.orderingImages) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                this.imageDropId = job.id;
+                const bounds = card.getBoundingClientRect();
+                this.imageDropAfter = event.clientY > bounds.top + bounds.height / 2;
+                const list = this.$refs.imageResults,
+                    viewport = list.getBoundingClientRect();
+                if (event.clientY < viewport.top + 60) list.scrollTop -= 24;
+                else if (event.clientY > viewport.bottom - 60) list.scrollTop += 24;
+            },
+            async dropImage(targetId) {
+                const id = this.draggedImageId,
+                    after = this.imageDropAfter;
+                this.endImageDrag();
+                if (this.orderingImages || id === null || id === targetId) return;
+                const visible = this.visibleJobs.map((job) => job.id).filter(Number.isInteger);
+                if (!visible.includes(id) || !visible.includes(targetId)) return;
+                const reordered = visible.filter((value) => value !== id);
+                reordered.splice(reordered.indexOf(targetId) + (after ? 1 : 0), 0, id);
+                // Filtered-out cards keep their positions in the full library order.
+                const rank = new Map(this.imageOrder.map((value, index) => [value, index]));
+                let index = 0;
+                const order = [...this.historyJobs]
+                    .filter((job) => Number.isInteger(job.id))
+                    .sort((a, b) => (rank.get(a.id) ?? -1) - (rank.get(b.id) ?? -1))
+                    .map((job) => (visible.includes(job.id) ? reordered[index++] : job.id));
+                await this.saveImageOrder(order, id);
+            },
+            async saveImageOrder(order, id) {
+                this.orderingImages = true;
+                this.movedImageId = null;
+                try {
+                    const data = await this.request(options.orderUrl, 'PUT', { order });
+                    this.imageOrder = data.order;
+                    this.movedImageId = id;
+                } catch (error) {
+                    this.error = error.message;
+                } finally {
+                    this.orderingImages = false;
+                }
             },
             async moveImageOrder(id, direction) {
                 if (this.orderingImages) return;
@@ -910,17 +1086,7 @@ export function sceneEditor(options) {
                     b = order.indexOf(visible[target]);
                 if (a < 0 || b < 0) return;
                 [order[a], order[b]] = [order[b], order[a]];
-                this.orderingImages = true;
-                this.movedImageId = null;
-                try {
-                    const d = await this.request(options.orderUrl, 'PUT', { order });
-                    this.imageOrder = d.order;
-                    this.movedImageId = id;
-                } catch (e) {
-                    this.error = e.message;
-                } finally {
-                    this.orderingImages = false;
-                }
+                await this.saveImageOrder(order, id);
             },
             get failedCount() {
                 return this.jobs.filter((job) => job.status === 'failed').length;
@@ -1783,10 +1949,26 @@ export function sceneEditor(options) {
                     (this.asset(v.asset_id)?.name || 'No image')
                 );
             },
+            referenceDialogOrder: [],
             get referenceAssets() {
-                return this.assets.filter((a) => !a.archived && a.role !== 'extraction_reference');
+                const rank = new Map(this.referenceDialogOrder.map((id, index) => [id, index]));
+                return this.assets
+                    .filter(
+                        (a) =>
+                            !a.archived &&
+                            a.role !== 'extraction_reference' &&
+                            (!this.referenceCategoryFilter ||
+                                (this.jobs.find((j) => j.asset_ids?.includes(a.id))?.category || 'scene') ===
+                                    this.referenceCategoryFilter),
+                    )
+                    .sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
             },
             openReferences() {
+                const selected = new Set(this.references.map(String));
+                this.referenceDialogOrder = this.assets
+                    .filter((a) => !a.archived && a.role !== 'extraction_reference')
+                    .sort((a, b) => Number(selected.has(String(b.id))) - Number(selected.has(String(a.id))))
+                    .map((a) => a.id);
                 this.$refs.referenceDialog.showModal();
                 this.$nextTick(() => {
                     this.$refs.referenceImagesScroll.scrollTop = 0;

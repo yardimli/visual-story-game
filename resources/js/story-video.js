@@ -2,6 +2,19 @@ export function storyVideo(url, uploadUrl) {
     return {
         engines: {},
         assets: [],
+        imageCategories: {},
+        framePicker: null,
+        imageCategoryFilter: '',
+        get frameImages() {
+            return this.assets.filter(
+                (image) => !this.imageCategoryFilter || image.category === this.imageCategoryFilter,
+            );
+        },
+        chooseFrame(image) {
+            if (!this.framePicker) return;
+            this.form[this.framePicker + '_asset_id'] = image.id;
+            this.framePicker = null;
+        },
         jobs: [],
         form: { name: '', prompt: '', engine: '', parameters: {}, first_asset_id: '', last_asset_id: '' },
         editing: null,
@@ -50,6 +63,7 @@ export function storyVideo(url, uploadUrl) {
                 const data = await this.request();
                 this.engines = data.engines;
                 this.assets = data.assets;
+                this.imageCategories = data.image_categories || {};
                 this.jobs = data.jobs;
                 if (!this.form.engine) {
                     this.form.engine = Object.keys(this.engines)[0] || '';
@@ -100,7 +114,13 @@ export function storyVideo(url, uploadUrl) {
                 if (queue) await this.request(`/${job.id}/queue`, 'POST');
                 this.notice = queue ? 'Video queued.' : 'Draft saved.';
                 this.reset();
+                this.$refs?.videoFormDialog?.close();
             });
+        },
+        createVideo() {
+            this.reset();
+            this.error = '';
+            this.$refs.videoFormDialog.showModal();
         },
         reset() {
             this.editing = null;
@@ -119,7 +139,8 @@ export function storyVideo(url, uploadUrl) {
                 first_asset_id: job.first_asset_id,
                 last_asset_id: job.last_asset_id || '',
             };
-            this.$refs.form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            this.error = '';
+            this.$refs.videoFormDialog.showModal();
         },
         queue(job) {
             return this.perform(() => this.request(`/${job.id}/queue`, 'POST'));

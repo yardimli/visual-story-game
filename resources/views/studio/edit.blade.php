@@ -29,7 +29,7 @@
                         x-cloak
                         x-data="{ bibleTab: 'story' }"
                     >
-                        <h2 class="mb-6 font-serif text-2xl">The world behind the story</h2>
+
                         <nav
                             class="mb-5 flex flex-wrap gap-2 border-b border-stone-200 pb-3 dark:border-stone-700"
                             aria-label="Story bible sections"

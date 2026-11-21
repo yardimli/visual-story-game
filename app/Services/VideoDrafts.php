@@ -55,5 +55,8 @@ class VideoDrafts
         $job->status = config('video.mode') === 'relay' ? 'forwarding' : 'queued';
         $job->queued_at = now();
         $job->save();
+        if (config('video.mode') === 'relay') {
+            \App\Jobs\SyncVideo::dispatch($job->id);
+        }
     }
 }

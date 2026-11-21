@@ -4,8 +4,19 @@
     x-data="storyVideo(@js(route('videos.index', $story)), @js(route('assets.store', $story)))"
     class="space-y-5"
 >
-    <header>
-        <h2 class="font-serif text-2xl">Video</h2>
+    <header class="flex flex-wrap items-center gap-3">
+        <button
+            type="button"
+            class="btn-primary"
+            @click="createVideo()"
+            :disabled="busy"
+        >Create video</button>
+        <button
+            type="button"
+            class="btn-secondary"
+            :disabled="busy || !jobs.some(j=>j.status==='draft')"
+            @click="queueAll()"
+        >Generate all pending</button>
     </header>
     <p
         x-show="error"
@@ -19,16 +30,33 @@
         role="status"
         class="text-sm"
     ></p>
-    <div class="grid gap-5 xl:grid-cols-2">
+    <dialog
+        x-ref="videoFormDialog"
+        class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+        @cancel="if(busy)$event.preventDefault()"
+    >
         <form
             x-ref="form"
             @submit.prevent="save(true)"
-            class="min-w-0 space-y-4 rounded-xl border border-stone-300 p-5"
+            class="min-w-0 space-y-4"
         >
-            <h3
-                class="font-serif text-xl"
-                x-text="editing?'Edit pending video':'Create video'"
-            ></h3>
+            <header class="flex items-center justify-between gap-3">
+                <h3
+                    class="font-serif text-xl"
+                    x-text="editing?'Edit pending video':'Create video'"
+                ></h3><button
+                    type="button"
+                    class="btn-secondary"
+                    :disabled="busy"
+                    @click="$refs.videoFormDialog.close()"
+                >Close</button>
+            </header>
+            <p
+                x-show="error"
+                x-text="error"
+                role="alert"
+                class="text-sm text-red-700"
+            ></p>
             <label class="field">Name<input
                     type="text"
                     x-model="form.name"
@@ -57,26 +85,20 @@
                         x-show="frame==='first' || engines[form.engine]?.supports_last_frame"
                         class="min-w-0 space-y-2"
                     >
-                        <label class="field"><span
-                                x-text="frame==='first'?'First frame':'Last frame (optional)'"></span>
-                            <select
-                                x-model="form[frame+'_asset_id']"
-                                :required="frame === 'first'"
-                            >
-                                <option
-                                    value=""
-                                    x-text="frame==='first'?'Choose image':'No last frame'"
-                                ></option><template
-                                    x-for="image in assets"
-                                    :key="image.id"
-                                >
-                                    <option
-                                        :value="image.id"
-                                        x-text="image.name"
-                                    ></option>
-                                </template>
-                            </select>
-                        </label>
+                        <div class="field"><span x-text="frame==='first'?'First frame':'Last frame (optional)'"></span>
+                            <button
+                                type="button"
+                                class="btn-secondary w-full text-left"
+                                @click="framePicker=frame"
+                                x-text="asset(form[frame+'_asset_id'])?.name || (frame==='first'?'Choose image':'Choose image (optional)')"
+                            ></button>
+                            <button
+                                type="button"
+                                class="text-xs underline"
+                                x-show="frame==='last' && form.last_asset_id"
+                                @click="form.last_asset_id=''"
+                            >Remove last frame</button>
+                        </div>
                         <button
                             type="button"
                             x-show="asset(form[frame+'_asset_id'])"
@@ -145,22 +167,17 @@
                     type="button"
                     x-show="editing"
                     class="btn-secondary"
-                    @click="reset()"
+                    @click="$refs.videoFormDialog.close()"
                 >Cancel edit</button></div>
         </form>
-        <div class="min-w-0 space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h3 class="font-serif text-xl">Project videos</h3><button
-                    type="button"
-                    class="btn-secondary"
-                    :disabled="busy || !jobs.some(j=>j.status==='draft')"
-                    @click="queueAll()"
-                >Generate all pending</button>
-            </div>
-            <p
-                x-show="!jobs.length"
-                class="text-sm"
-            >No videos yet. Create one here or ask the chat to prepare a video draft.</p>
+    </dialog>
+    <div class="min-w-0 space-y-4">
+
+        <p
+            x-show="!jobs.length"
+            class="text-sm"
+        >No videos yet. Create one here or ask the chat to prepare a video draft.</p>
+        <div class="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
             <template
                 x-for="job in jobs"
                 :key="job.id"
@@ -179,6 +196,35 @@
                         class="text-xs"
                         x-text="(engines[job.engine]?.label || job.engine)+' · '+Object.entries(job.parameters).map(([key,value])=>(engines[job.engine]?.parameters[key]?.label || key)+': '+value).join(' · ')"
                     ></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <template
+                            x-for="frame in ['first','last']"
+                            :key="frame"
+                        >
+                            <div
+                                x-show="job[frame+'_frame_url']"
+                                class="min-w-0"
+                            >
+                                <p
+                                    class="mb-1 text-xs"
+                                    x-text="frame==='first'?'First frame':'Last frame'"
+                                ></p>
+                                <button
+                                    type="button"
+                                    class="block w-full"
+                                    @click="zoom=job[frame+'_frame_url']"
+                                    :aria-label="'Enlarge ' + frame + ' frame of ' + job.name"
+                                >
+                                    <img
+                                        :src="job[frame + '_frame_url']"
+                                        :alt="frame + ' frame of ' + job.name"
+                                        loading="lazy"
+                                        class="h-32 w-full rounded-lg object-contain"
+                                    >
+                                </button>
+                            </div>
+                        </template>
+                    </div>
                     <p
                         class="text-sm whitespace-pre-wrap"
                         x-text="job.prompt"
@@ -252,12 +298,82 @@
             </template>
         </div>
     </div>
-    <div
-        x-show="zoom"
-        x-cloak
+    <dialog
+        x-effect="if(framePicker && !$el.open)$el.showModal();else if(!framePicker && $el.open)$el.close()"
+        @close="framePicker=null"
+        @click.self="framePicker=null"
+        class="image-form-dialog rounded-2xl border bg-white p-0 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose video frame"
+    >
+        <div class="flex max-h-[85vh] w-full max-w-5xl flex-col rounded-xl bg-white p-5 dark:bg-stone-900">
+            <header class="mb-4 flex flex-wrap items-center gap-3">
+                <h3
+                    class="font-serif text-xl"
+                    x-text="framePicker==='first'?'Choose first frame':'Choose last frame'"
+                ></h3>
+                <label class="field"><span class="sr-only">Image category</span><select
+                        x-model="imageCategoryFilter"
+                    >
+                        <option value="">All categories</option>
+                        <template
+                            x-for="[key,name] in Object.entries(imageCategories)"
+                            :key="key"
+                        >
+                            <option
+                                :value="key"
+                                x-text="name"
+                            ></option>
+                        </template>
+                    </select></label>
+                <button
+                    type="button"
+                    class="btn-secondary ml-auto"
+                    @click="framePicker=null"
+                >Close</button>
+            </header>
+            <div class="min-h-0 overflow-y-auto">
+                <p
+                    x-show="!frameImages.length"
+                    class="p-4 text-sm"
+                >No images in this category.</p>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <template
+                        x-for="image in frameImages"
+                        :key="image.id"
+                    >
+                        <button
+                            type="button"
+                            @click="chooseFrame(image)"
+                            class="min-w-0 rounded-lg border border-stone-300 p-2 text-left"
+                            :class="form[framePicker + '_asset_id'] == image.id ? 'ring-2 ring-amber-500' : ''"
+                        >
+                            <img
+                                :src="image.url"
+                                :alt="image.name"
+                                loading="lazy"
+                                class="h-40 w-full object-contain"
+                            >
+                            <span
+                                class="mt-2 block break-words text-sm"
+                                x-text="image.name"
+                            ></span><span
+                                class="mt-1 block text-xs"
+                                x-show="image.composition"
+                                x-text="image.composition?(image.composition.description || 'Combined: '+image.composition.sources.map(s=>s.name).join(' + ')):''"
+                            ></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </dialog>
+    <dialog
+        x-effect="if(zoom && !$el.open)$el.showModal();else if(!zoom && $el.open)$el.close()"
+        @close="zoom=null"
         @click.self="zoom=null"
-        @keydown.escape.window="zoom=null"
-        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-8"
+        class="image-form-dialog rounded-xl bg-stone-900 p-8"
         role="dialog"
         aria-modal="true"
         aria-label="Frame preview"
@@ -269,5 +385,5 @@
             :src="zoom"
             alt="Video frame preview"
             class="max-h-full max-w-full object-contain"
-        ></div>
+        ></dialog>
 </section>

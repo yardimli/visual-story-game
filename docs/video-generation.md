@@ -128,24 +128,24 @@ VIDEO_HUB_URL=https://vsg.playground.computer
 VIDEO_RELAY_TOKEN=the-relay-credential-printed-on-the-server
 ```
 
-Run `php artisan config:clear`. Run the scheduler in another terminal:
+Run `php artisan config:clear`, then use the same worker as images and audio:
 
 ```bat
-php artisan schedule:work
+php artisan queue:work database --queue=images,audio,video --timeout=240 --tries=1
 ```
 
-The scheduler runs `videos:sync` every minute. It uploads queued frame snapshots,
-imports jobs idempotently, polls hub status, and downloads completed MP4s with a
-SHA-256 check. Closing the browser does not stop the transfer. For an immediate
-single sync, use `php artisan videos:sync`. This command is a no-op in hub mode.
-The local UI refreshes every five seconds; remote status can lag by the one-minute
-sync interval. Keep the scheduler running on the local machine while testing.
+Local videos automatically enqueue their relay work on `video`. Each attempt uploads
+frames, checks hub status, or downloads the completed MP4 with a SHA-256 check.
+While the GPU renders, the job waits 15 seconds between checks and releases the worker
+for other jobs. Transport failures retry after 60 seconds without creating a second
+remote video. Closing the browser does not stop the transfer. No scheduler is required
+for videos. A production hub needs no cron change: its GPU worker claims videos
+directly through the API. Only relay installations need `video` in their Laravel
+worker queue list. Restart existing workers after updating the code.
 
-If you use a Linux relay installation instead, the standard scheduler cron is:
-
-```cron
-* * * * * cd /absolute/path/to/visual-story-game && php artisan schedule:run >> /dev/null 2>&1
-```
+To resume videos queued before this change, or recover pending transfers, run
+`php artisan videos:sync` once. It enqueues pending relay work without duplicating
+already queued transfers and is a no-op in hub mode.
 
 Both images are transferred as files, never localhost URLs. Returned videos are
 stored privately on the local installation, so local playback does not rely on

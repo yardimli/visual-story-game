@@ -12,7 +12,6 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('videos:sync')->everyMinute()->withoutOverlapping();
         $schedule->command('ai:expire-reservations')->everySecond()->withoutOverlapping();
     }
 

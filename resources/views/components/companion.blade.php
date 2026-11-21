@@ -3,6 +3,7 @@
     $initial = $story ? $story->messages()->latest('id')->limit(40)->get()->reverse()->values() : [];
     $options = [
         'userId' => auth()->id(),
+        'imagesUrl' => $story ? route('videos.index', $story) : null,
         'storyId' => $story?->id,
         'endpoint' => $story ? route('chat.store', $story) : route('companion.store'),
         'changesBase' => $story ? url('/stories/' . $story->id . '/messages') : null,
@@ -209,15 +210,13 @@
                 placeholder="Message…&#10;Enter to send · Shift+Enter for a new line"
             ></textarea>
         </div>
-        <div class="flex items-center gap-2"><label
-                x-show="activeTab==='visuals'"
-                x-cloak
-                class="flex shrink-0 items-center gap-1 text-xs"
-            ><input
-                    type="checkbox"
-                    x-model="includeSceneImage"
-                    :disabled="sending"
-                ><span>Include scene<br>image</span></label>
+        <div class="flex items-center gap-2"><button
+                type="button"
+                class="btn-secondary shrink-0"
+                @click="openChatImages()"
+                :disabled="sending"
+                x-text="'Images'+(chatImageIds.length?' ('+chatImageIds.length+')':'')"
+            ></button>
             <div class="field min-w-0 flex-1"><select
                     aria-label="Writing model"
                     class="companion-model"
@@ -276,6 +275,86 @@
                 @click="deleteMessage()"
                 x-text="deletingMessage?'Deleting…':'Delete message'"
             ></button></div>
+    </dialog>
+    <dialog
+        x-ref="chatImagesDialog"
+        class="reference-dialog rounded-2xl border border-stone-200 bg-white text-stone-900 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+    >
+        <div class="flex min-h-0 flex-col">
+            <header class="flex shrink-0 flex-wrap items-center gap-3 border-b p-4">
+                <h2 class="font-serif text-xl">Images for chat</h2>
+                <label class="field"><span class="sr-only">Image category</span><select x-model="chatImageCategory">
+                        <option value="">All categories</option><template
+                            x-for="(name,key) in chatImageCategories"
+                            :key="key"
+                        >
+                            <option
+                                :value="key"
+                                x-text="name"
+                            ></option>
+                        </template>
+                    </select></label>
+                <button
+                    type="button"
+                    class="text-xs underline"
+                    @click="chatImageIds=[]"
+                >Clear selection</button>
+                <button
+                    type="button"
+                    class="btn-secondary ml-auto"
+                    @click="$refs.chatImagesDialog.close()"
+                >Done</button>
+            </header>
+            <div class="min-h-0 overflow-y-auto p-4">
+                <p class="mb-3 text-sm">Only checked images will be sent with your prompt. Select up to 16 images.</p>
+                <p
+                    x-show="chatImagesError"
+                    x-text="chatImagesError"
+                    role="alert"
+                    class="text-sm text-red-700"
+                ></p>
+                <p
+                    x-show="chatImagesLoading"
+                    class="text-sm"
+                >Loading images…</p>
+                <p
+                    x-show="!chatImagesLoading && !filteredChatImages().length"
+                    class="text-sm"
+                >No project images available.</p>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3"><template
+                        x-for="image in filteredChatImages()"
+                        :key="image.id"
+                    >
+                        <div
+                            class="min-w-0 rounded-xl border p-2"
+                            :class="chatImageIds.includes(String(image.id)) ? 'ring-2 ring-amber-500' : ''"
+                        >
+                            <button
+                                type="button"
+                                class="w-full"
+                                @click="$dispatch('vsg-image',image)"
+                                :aria-label="'Enlarge ' + image.name"
+                            ><img
+                                    :src="image.url"
+                                    :alt="image.name"
+                                    loading="lazy"
+                                    class="h-36 w-full object-contain"
+                                ></button>
+                            <label class="mt-2 flex items-start gap-2 text-xs"><input
+                                    type="checkbox"
+                                    :value="String(image.id)"
+                                    x-model="chatImageIds"
+                                    :disabled="chatImageIds.length >= 16 && !chatImageIds.includes(String(image.id))"
+                                ><span x-text="image.name"></span></label>
+                            <p
+                                class="mt-1 text-xs"
+                                x-show="image.composition"
+                                x-text="image.composition?.description || ''"
+                            ></p>
+                        </div>
+                    </template></div>
+            </div>
+        </div>
     </dialog>
     @include('studio.companion-help')
 </aside>

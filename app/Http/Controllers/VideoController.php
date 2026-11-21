@@ -25,12 +25,30 @@ class VideoController extends Controller
     {
         $this->owner($request, $story);
 
+        $categories = ImageCategoryController::jobCategories($story);
+        $rank = array_flip($story->image_order ?? []);
+        $images = \App\Models\ImageGeneration::where('story_id', $story->id)->latest('id')->get()
+            ->sortBy(fn ($job) => $rank[$job->id] ?? -1);
+        $assetOrder = [];
+        $assetCategories = [];
+        $compositions = [];
+        foreach ($images as $image) {
+            foreach ($image->asset_ids ?? [] as $id) {
+                $assetOrder[$id] ??= count($assetOrder);
+                $assetCategories[$id] ??= $categories[$image->id] ?? 'scene';
+                $compositions[$id] ??= $image->payload['_composition'] ?? null;
+            }
+        }
+
         return response()->json([
+            'image_categories' => ImageCategoryController::categories($story),
             'engines' => app(VideoEngines::class)->all(),
             'mode' => config('video.mode'),
             'assets' => Asset::withGenerationNames($story->assets()->whereNull('archived_at')->latest()->get(), $story->id)
                 ->filter(fn ($asset) => str_starts_with($asset->mime, 'image/') && ! str_contains($asset->role ?? '', 'reference'))
-                ->map(fn ($asset) => ['id' => $asset->id, 'name' => $asset->name, 'url' => route('assets.show', $asset)])->values(),
+                ->sortBy(fn ($asset) => $assetOrder[$asset->id] ?? PHP_INT_MAX)
+                ->map(fn ($asset) => ['id' => $asset->id, 'name' => $asset->name, 'url' => route('assets.show', $asset),
+                    'composition' => $compositions[$asset->id] ?? null, 'category' => $assetCategories[$asset->id] ?? 'scene'])->values(),
             'jobs' => VideoGeneration::where('story_id', $story->id)->latest()->get()->map->presentation(),
         ]);
     }

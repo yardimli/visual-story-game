@@ -41,17 +41,39 @@ class CompanionTest extends TestCase {
         $s=Story::create(['user_id'=>$u->id,'title'=>'House','premise'=>'Look']);
         $a=$s->assets()->create(['name'=>'Scene','path'=>'scene.png','mime'=>'image/png','bytes'=>strlen($bytes),'role'=>'scene']);$id=(string)Str::uuid();
         $p=$s->pages()->create(['position'=>1,'title'=>'Porch','visual_document'=>['visuals'=>[['id'=>$id,'kind'=>'scene','name'=>'Porch','asset_id'=>$a->id,'hotspots'=>[]]]]]);
-        $payload=array_merge($this->payload(),['page_id'=>$p->id,'active_tab'=>'visuals','visual_id'=>$id,'include_scene_image'=>true]);
+        $payload=array_merge($this->payload(),['page_id'=>$p->id,'active_tab'=>'visuals','visual_id'=>$id,'attachment_ids'=>[$a->id]]);
         $this->actingAs($u)->postJson(route('chat.store',$s),$payload)->assertOk();
         Http::assertSent(function($r)use($bytes){$last=collect($r['messages'])->last();return $last['content'][0]['text']==='Plan a mystery' && $last['content'][1]['image_url']['url']==='data:image/png;base64,'.base64_encode($bytes);});
         $this->assertSame('Plan a mystery',$s->messages()->where('role','user')->first()->content);
         $this->assertSame('[redacted]',collect(LlmRequest::first()->request_content['messages'])->last()['content'][1]['image_url']['url']);
-        $payload['include_scene_image']=false;$payload['request_key']=(string)Str::uuid();$this->postJson(route('chat.store',$s),$payload)->assertOk();
+        $payload['attachment_ids']=[];$payload['request_key']=(string)Str::uuid();$this->postJson(route('chat.store',$s),$payload)->assertOk();
         $this->assertIsString(collect(LlmRequest::latest('id')->first()->request_content['messages'])->last()['content']);
-        $payload['include_scene_image']=true;$payload['active_tab']='page';$payload['request_key']=(string)Str::uuid();$this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();
+        $payload['attachment_ids']=[$a->id];$payload['active_tab']='page';$payload['request_key']=(string)Str::uuid();$this->postJson(route('chat.store',$s),$payload)->assertOk();
         $payload['active_tab']='visuals';$catalog[0]['architecture']['input_modalities']=['text'];Cache::put('openrouter.models',$catalog,600);
-        $this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();Http::assertSentCount(2);
+        $this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();Http::assertSentCount(3);
         $this->actingAs(User::factory()->create())->postJson(route('chat.store',$s),$payload)->assertNotFound();
+    }
+    public function test_explicit_chat_images_attach_multiple_and_ignore_legacy_automatic_selection(): void {
+        $user=$this->userAndProvider('I see the selected image.');
+        $catalog=Cache::get('openrouter.models');$catalog[0]['architecture']['input_modalities']=['text','image'];Cache::put('openrouter.models',$catalog,600);
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $bytes=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ3sAAAAASUVORK5CYII=');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('selected.png',$bytes);
+        $story=Story::create(['user_id'=>$user->id,'title'=>'House','premise'=>'Explore']);
+        $page=$story->pages()->create(['position'=>1,'title'=>'Hall']);
+        $asset=$story->assets()->create(['name'=>'Door','path'=>'selected.png','mime'=>'image/png','bytes'=>strlen($bytes)]);
+        $job=app(\App\Services\ImageDrafts::class)->save($story,$page,['name'=>'Door','prompt'=>'A wooden door']);
+        $job->update(['status'=>'completed','asset_ids'=>[$asset->id]]);
+        $second=$asset->replicate();$second->name='Second image';$second->save();
+        $payload=$this->payload()+['active_tab'=>'images','attachment_ids'=>[$asset->id,$second->id]];
+        $this->actingAs($user)->postJson(route('chat.store',$story),$payload)->assertOk();
+        Http::assertSent(fn($request)=>count(collect($request['messages'])->last()['content'])===3 && collect($request['messages'])->last()['content'][1]['image_url']['url']==='data:image/png;base64,'.base64_encode($bytes));
+        $other=Story::create(['user_id'=>$user->id,'title'=>'Other','premise'=>'Other']);
+        $this->postJson(route('chat.store',$other),$this->payload()+['attachment_ids'=>[$asset->id]])->assertUnprocessable();
+        $legacy=$this->payload()+['active_tab'=>'images','selected_image_job_id'=>$job->id,'include_scene_image'=>true,'reference_ids'=>[$asset->id]];
+        $this->postJson(route('chat.store',$story),$legacy)->assertOk();
+        $this->assertIsString(collect(LlmRequest::latest('id')->first()->request_content['messages'])->last()['content']);
+        Http::assertSentCount(2);
     }
     private function userAndProvider(string $content): User {
         config(['story.openrouter_providers'=>['test','openai'], 'story.openrouter_key'=>'test-key']);

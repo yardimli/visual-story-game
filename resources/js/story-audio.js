@@ -106,21 +106,50 @@ export function storyAudio(url) {
         categories: {},
         categoryFilter: '',
         newCategory: '',
-        categoriesOpen: false,
-        async saveCategories() {
+        editingCategory: null,
+        categoryNameDraft: '',
+        categoryBusy: false,
+        categoryUsed(key) {
+            return [...this.sounds, ...this.jobs].some((item) => (item.category || 'effects') === key);
+        },
+        editCategory(key) {
+            this.editingCategory = key;
+            this.categoryNameDraft = this.categories[key];
+        },
+        async finishCategoryEdit(key) {
+            if (!this.categoryNameDraft.trim()) return;
+            if (await this.saveCategories({ ...this.categories, [key]: this.categoryNameDraft.trim() }))
+                this.editingCategory = null;
+        },
+        async deleteCategory(key) {
+            if (this.categoryUsed(key) || this.categoryBusy) return;
+            const categories = { ...this.categories };
+            delete categories[key];
+            if (await this.saveCategories(categories)) {
+                if (this.categoryFilter === key) this.categoryFilter = '';
+                if (this.editingCategory === key) this.editingCategory = null;
+            }
+        },
+        async saveCategories(categories = this.categories) {
+            if (this.categoryBusy) return false;
+            this.categoryBusy = true;
             try {
-                await this.request('/categories', 'PUT', { categories: this.categories });
+                const data = await this.request('/categories', 'PUT', { categories });
+                this.categories = data.categories;
                 window.vsgAudioCategories = this.categories;
                 window.dispatchEvent(new CustomEvent('vsg-audio-categories', { detail: this.categories }));
-            } catch (e) {
-                notify(e.message, 'error');
+                return true;
+            } catch (error) {
+                notify(error.message, 'error');
+                return false;
+            } finally {
+                this.categoryBusy = false;
             }
         },
         async addCategory() {
             if (!this.newCategory.trim()) return;
-            this.categories['custom_' + crypto.randomUUID()] = this.newCategory.trim();
-            this.newCategory = '';
-            await this.saveCategories();
+            const categories = { ...this.categories, ['custom_' + crypto.randomUUID()]: this.newCategory.trim() };
+            if (await this.saveCategories(categories)) this.newCategory = '';
         },
         async categorize(sound, category) {
             try {
@@ -135,7 +164,6 @@ export function storyAudio(url) {
             return this.sounds.filter((s) => !this.categoryFilter || (s.category || 'effects') === this.categoryFilter);
         },
         model: 'fal-ai/stable-audio',
-        audioMode: 'search',
         sounds: [],
         jobs: [],
         searches: [],
@@ -251,6 +279,7 @@ export function storyAudio(url) {
                 });
                 this.requestKey = null;
                 await this.load();
+                this.$refs?.audioGenerateDialog?.close();
                 notify('Audio generation queued.');
             } catch (e) {
                 this.error = e.message;

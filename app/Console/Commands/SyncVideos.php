@@ -3,22 +3,22 @@
 namespace App\Console\Commands;
 
 use App\Models\VideoGeneration;
-use App\Services\VideoRelay;
+use App\Jobs\SyncVideo;
 use Illuminate\Console\Command;
 
 class SyncVideos extends Command
 {
     protected $signature = 'videos:sync';
 
-    protected $description = 'Forward local video jobs to the hub and download completed videos';
+    protected $description = 'Resume pending local video transfers on the video queue';
 
-    public function handle(VideoRelay $relay): int
+    public function handle(): int
     {
         if (config('video.mode') !== 'relay') {
             return self::SUCCESS;
         }
         VideoGeneration::whereNotIn('status', ['draft', 'completed', 'failed'])->orderBy('created_at')
-            ->each(fn ($job) => $relay->sync($job), 20);
+            ->each(fn ($job) => SyncVideo::dispatch($job->id), 20);
 
         return self::SUCCESS;
     }

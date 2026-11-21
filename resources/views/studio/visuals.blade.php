@@ -2,7 +2,7 @@
     class="scene-editor-panel"
     x-show="tab==='visuals'"
     x-cloak
-    x-data="sceneEditor(@js(['videoUrl' => route('videos.index', $story), 'playUrl' => route('stories.play', $story), 'flagsUrl' => route('flags.show', $story), 'audioUrl' => route('audio.index', $story), 'url' => route('visuals.show', [$story, $page]), 'extractionUrl' => route('extractions.index', [$story, $page]), 'containerUrl' => route('containers.index', [$story, $page]), 'writingModel' => $story->llm_model, 'generate' => route('images.generate', [$story, $page]), 'upload' => route('assets.store', $story), 'model' => $story->image_model]))"
+    x-data="sceneEditor(@js(['stateImagesUrl' => route('images.states', $story), 'videoUrl' => route('videos.index', $story), 'playUrl' => route('stories.play', $story), 'flagsUrl' => route('flags.show', $story), 'audioUrl' => route('audio.index', $story), 'url' => route('visuals.show', [$story, $page]), 'extractionUrl' => route('extractions.index', [$story, $page]), 'containerUrl' => route('containers.index', [$story, $page]), 'writingModel' => $story->llm_model, 'generate' => route('images.generate', [$story, $page]), 'upload' => route('assets.store', $story), 'model' => $story->image_model]))"
 >
     <p
         x-show="halted"
@@ -438,6 +438,12 @@
                                     @click="toggleDrawing()"
                                     class="btn-secondary"
                                     x-text="drawing?'Cancel drawing':'Draw area'"
+                                ></button><button
+                                    type="button"
+                                    class="btn-secondary"
+                                    @click="captureSceneImage()"
+                                    :disabled="sceneCaptureBusy || saving || !visual.asset_id"
+                                    x-text="sceneCaptureBusy?'Preparing image…':'Save scene as image'"
                                 ></button></div>
                         </div>
                         <div class="space-y-3">
@@ -473,6 +479,11 @@
                                             x-text="introVideos.find(v=>v.id===visual.intro_video_id)?.name || (visual.intro_video_id ? 'Selected video' : 'No intro video')"
                                         ></span><span aria-hidden="true">▾</span>
                                     </button>
+                                    <label class="inline-flex w-fit items-center gap-2 text-xs font-normal"><input
+                                            type="checkbox"
+                                            :checked="visual.intro_video_repeat === true"
+                                            @change="visual.intro_video_repeat=$event.target.checked;changed()"
+                                        >Play video each time the scene loads</label>
                                 </div><label class="field min-w-0">Scene entry sound<div
                                         class="audio-select-row"
                                         x-data="audioPreview('scenes')"
@@ -1247,6 +1258,47 @@
             </div>
         </template>
     </div>
+    <dialog
+        x-ref="sceneCaptureDialog"
+        class="image-form-dialog rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+    >
+        <header class="mb-4 flex items-center justify-between gap-3">
+            <h2 class="font-serif text-xl">Save scene as image</h2><button
+                type="button"
+                class="btn-secondary"
+                @click="$refs.sceneCaptureDialog.close()"
+                :disabled="sceneCaptureBusy"
+            >Cancel</button>
+        </header>
+        <p
+            x-show="sceneCaptureError"
+            x-text="sceneCaptureError"
+            role="alert"
+            class="mb-3 text-sm text-red-700"
+        ></p>
+        <img
+            :src="sceneCapture?.preview"
+            alt="Scene image without click-area outlines"
+            class="mb-4 max-h-[55vh] w-full object-contain"
+        >
+        <label class="field">Image name<input
+                type="text"
+                maxlength="160"
+                x-model="sceneCaptureName"
+                :disabled="sceneCaptureBusy"
+            ></label>
+        <p
+            class="my-4 text-sm"
+            x-text="sceneCapture?.description"
+        ></p>
+        <button
+            type="button"
+            class="btn-primary"
+            @click="saveSceneCapture()"
+            :disabled="sceneCaptureBusy || !sceneCaptureName.trim()"
+            x-text="sceneCaptureBusy?'Saving…':'Save image'"
+        ></button>
+    </dialog>
     <dialog
         x-ref="visualTypeDialog"
         class="reference-dialog rounded-xl bg-white text-stone-900 dark:bg-stone-900 dark:text-stone-100"

@@ -3,6 +3,7 @@ import { storyVideo } from './story-video.js';
 import { audioSettings, storySpeech, audioPreview } from './audio-settings';
 import { storyAudio } from './story-audio.js';
 import { chatDrafts } from './chat-drafts';
+import { chatImages } from './chat-images';
 import { storyFlags } from './story-flags';
 import { inventoryLibrary } from './inventory-library';
 import { readChatStream, streamingMessage } from './chat-stream';
@@ -102,6 +103,7 @@ Alpine.data('modelPicker', (initial, modality = 'text') => ({
 
 Alpine.data('creativeCompanion', (options) => ({
     ...chatDrafts(options),
+    ...chatImages(options),
     modelLabel,
     displayMessage,
     streamingMessage,
@@ -263,7 +265,7 @@ Alpine.data('creativeCompanion', (options) => ({
         this.scroll();
         const message = this.prompt,
             sentDraftKey = this.draftKey(),
-            attachScene = this.activeTab === 'visuals' && this.includeSceneImage;
+            attachmentIds = this.chatImageIds.map(Number);
         let streamingIndex = null;
         this.savePrompt();
         try {
@@ -279,7 +281,7 @@ Alpine.data('creativeCompanion', (options) => ({
                 body: JSON.stringify({
                     stream: true,
                     message,
-                    include_scene_image: attachScene,
+                    attachment_ids: attachmentIds,
                     model: this.model,
                     request_key: crypto.randomUUID(),
                     page_id: window.vsgAutosave?.activePageId || options.pageId,
@@ -293,12 +295,10 @@ Alpine.data('creativeCompanion', (options) => ({
                             ? window.vsgSceneEditor?.hotspotId || undefined
                             : undefined,
                     image_draft: window.vsgSceneEditor?.generationMode
-                        ? window.vsgSceneEditor.generationSnapshot()
+                        ? { ...window.vsgSceneEditor.generationSnapshot(), references: attachmentIds }
                         : undefined,
                     image_settings: window.vsgSceneEditor?.generationMode ? window.vsgSceneEditor.settings : undefined,
-                    reference_ids: window.vsgSceneEditor?.generationMode
-                        ? window.vsgSceneEditor.references.map(Number)
-                        : undefined,
+                    reference_ids: attachmentIds,
                     form: this.draft(),
                 }),
             });

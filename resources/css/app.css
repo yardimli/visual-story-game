@@ -1541,7 +1541,7 @@ html.editor-document,
     font-size: 20px;
     line-height: 1;
 }
-.image-history-card > summary {
+.image-history-card > header {
     min-height: 60px;
 }
 .image-history-card[data-moved='true'] {
@@ -1873,4 +1873,42 @@ html.editor-document,
 .object-preview-dialog.scene-narrating .game-object-actions,
 .object-preview-dialog.scene-narrating .game-object-actions * {
     cursor: not-allowed !important;
+}
+
+.image-card-name.field {
+    gap: 2px;
+}
+.image-card-name.field select {
+    width: 9rem;
+    flex-shrink: 0;
+}
+
+/* The image library fills the workspace beside chat; authoring lives in a dialog. */
+.image-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+}
+.image-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    align-content: start;
+}
+.image-form-dialog {
+    width: min(960px, calc(100vw - 2rem));
+    max-height: 90dvh;
+    overflow-y: auto;
+}
+.image-form-dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+}
+@media (max-width: 767px) {
+    .image-gallery {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 480px) {
+    .image-gallery {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }

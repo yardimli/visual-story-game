@@ -7,8 +7,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Cache,DB,Storage};
 class AudioController extends Controller {
  public const CATEGORIES=['scenes'=>'Scenes','inventory'=>'Inventory','click_areas'=>'Click areas','music'=>'Music','effects'=>'Effects'];
- private function categories(Story $story):array {return json_decode($story->getRawOriginal('audio_categories')??'null',true)??self::CATEGORIES;}
- public function saveCategories(Request $r,Story $story){$this->owner($r,$story);$d=$r->validate(['categories'=>'required|array|min:5|max:100','categories.*'=>'required|string|max:80']);foreach(array_keys(self::CATEGORIES) as $key)abort_unless(isset($d['categories'][$key]),422,'Default categories must be kept; you can rename them.');foreach(array_keys($d['categories']) as $key)abort_unless(preg_match('/^[a-z0-9_-]{1,80}$/',$key),422,'Invalid category key.');$story->update(['audio_categories'=>json_encode($d['categories'])]);return response()->json($d);}
+ private function usedCategories(Story $story):array {
+  return StorySound::where('story_id',$story->id)->pluck('category')->merge(AudioGeneration::where('story_id',$story->id)->pluck('category'))->map(fn($key)=>$key?:'effects')->unique()->values()->all();
+ }
+ private function categories(Story $story):array {
+  $categories=json_decode($story->getRawOriginal('audio_categories')??'null',true)??self::CATEGORIES;
+  foreach($this->usedCategories($story) as $key)$categories[$key]??=self::CATEGORIES[$key]??$key;
+  return $categories;
+ }
+ public function saveCategories(Request $r,Story $story){
+  $this->owner($r,$story);
+  $d=$r->validate(['categories'=>'present|array|max:100','categories.*'=>'required|string|max:80']);
+  foreach($this->usedCategories($story) as $key)abort_unless(isset($d['categories'][$key]),422,'This category is in use and cannot be deleted.');
+  foreach(array_keys($d['categories']) as $key)abort_unless(preg_match('/^[a-z0-9_-]{1,80}$/',$key),422,'Invalid category key.');
+  $story->update(['audio_categories'=>json_encode($d['categories'])]);return response()->json($d);
+ }
  public function categorize(Request $r,Story $story,StorySound $sound){$this->owner($r,$story);abort_unless($sound->story_id===$story->id,404);$d=$r->validate(['category'=>['required',\Illuminate\Validation\Rule::in(array_keys($this->categories($story)))]]);$sound->update($d);return response()->json($sound);}
  private function owner(Request $r,Story $s):void {abort_unless($s->user_id===$r->user()->id,404);}
  public function index(Request $r,Story $story){$this->owner($r,$story);return response()->json(['categories'=>$this->categories($story),'remaining'=>$r->user()->fresh()->availableCredit()/1000000,'settings'=>$story->audio_settings??[],'sounds'=>StorySound::where('story_id',$story->id)->latest()->orderByDesc('id')->get(),'jobs'=>AudioGeneration::where('story_id',$story->id)->latest()->get(),'searches'=>DB::table('audio_searches')->where('story_id',$story->id)->latest('updated_at')->limit(50)->pluck('query')]);}
@@ -25,7 +38,7 @@ class AudioController extends Controller {
  }
  public function voices(Request $r,Story $story,\App\Services\SpeechCatalog $catalog){$this->owner($r,$story);return response()->json(['models'=>$catalog->models()]);}
  public function speech(Request $r,Story $story,\App\Services\SpeechCatalog $catalog){
-  $this->owner($r,$story);$d=$r->validate(['request_key'=>'required|uuid','name'=>'required|string|max:160','prompt'=>'required|string|max:5000','source_text'=>'required|string|max:10000','category'=>['sometimes',\Illuminate\Validation\Rule::in(array_keys($this->categories($story)))],'model'=>['required',\Illuminate\Validation\Rule::in($catalog::MODELS)],'settings'=>'required|array:voice,instructions,temperature,language','settings.voice'=>'required|string|max:200','settings.instructions'=>'nullable|string|max:1000','settings.temperature'=>'nullable|numeric|min:0|max:2','settings.language'=>'nullable|string|max:10']);
+  $this->owner($r,$story);$d=$r->validate(['request_key'=>'required|uuid','name'=>'required|string|max:160','prompt'=>'required|string|max:5000','source_text'=>'required|string|max:10000','category'=>['sometimes',\Illuminate\Validation\Rule::in(array_keys($this->categories($story)+self::CATEGORIES))],'model'=>['required',\Illuminate\Validation\Rule::in($catalog::MODELS)],'settings'=>'required|array:voice,instructions,temperature,language','settings.voice'=>'required|string|max:200','settings.instructions'=>'nullable|string|max:1000','settings.temperature'=>'nullable|numeric|min:0|max:2','settings.language'=>'nullable|string|max:10']);
   $model=$catalog->model($d['model']);abort_unless(in_array($d['settings']['voice'],$model['supported_voices']??[],true),422,'Choose a supported voice.');
   abort_unless($r->user()->openrouter_key || config('story.openrouter_key'),422,'OpenRouter key is not configured.');
   return $this->queue($r,$story,$d,$catalog->reservation($model,$d['prompt'],$d['settings']['instructions']??''),$model['pricing'],false);

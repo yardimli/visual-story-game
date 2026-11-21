@@ -66,6 +66,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/stories/{story}/pages/{page}/extractions/{extraction}',[\App\Http\Controllers\SceneExtractionController::class,'destroy'])->name('extractions.delete');
     Route::post('/stories/{story}/pages/{page}/extractions/{extraction}/activate',[\App\Http\Controllers\SceneExtractionController::class,'activate'])->name('extractions.activate');
     Route::delete('/stories/{story}/image-drafts/{image}',[\App\Http\Controllers\SceneController::class,'deleteDraft'])->name('images.draft.delete');
+    Route::post('/stories/{story}/state-images', [\App\Http\Controllers\SceneStateImageController::class, 'store'])->name('images.states');
+    Route::put('/stories/{story}/image-categories', [\App\Http\Controllers\ImageCategoryController::class, 'save'])->name('images.categories');
+    Route::put('/stories/{story}/image-categories/{job}', [\App\Http\Controllers\ImageCategoryController::class, 'assign']);
     Route::put('/stories/{story}/image-order',[\App\Http\Controllers\StoryStateController::class,'order'])->name('images.order');
     Route::get('/stories/{story}/inventory',[\App\Http\Controllers\InventoryController::class,'show'])->name('inventory.show');
     Route::put('/stories/{story}/inventory',[\App\Http\Controllers\InventoryController::class,'update'])->name('inventory.update');

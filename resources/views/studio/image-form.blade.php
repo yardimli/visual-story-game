@@ -15,14 +15,6 @@
             placeholder="Describe the scene or changes to your selected references."
         ></textarea>
     </label>
-    <label class="field">Video prompt
-        <textarea
-            x-model="visual.video_prompt"
-            @input="changed()"
-            maxlength="5000"
-            placeholder="Camera movement and atmosphere for this visual."
-        ></textarea>
-    </label>
     <label class="field">Image model<select
             x-model="model"
             @change="loadEndpoints();changed()"

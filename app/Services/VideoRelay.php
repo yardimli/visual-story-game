@@ -22,7 +22,7 @@ class VideoRelay
             try {
                 $url = rtrim(config('video.hub_url'), '/').'/api/video/relay';
                 throw_unless(str_starts_with($url, 'https://') && config('video.relay_token'), new \RuntimeException('Configure an HTTPS VIDEO_HUB_URL and VIDEO_RELAY_TOKEN.'));
-                $client = Http::withToken(config('video.relay_token'))->acceptJson()->connectTimeout(15)->timeout(300)->withoutRedirecting();
+                $client = Http::withToken(config('video.relay_token'))->acceptJson()->connectTimeout(15)->timeout(60)->withoutRedirecting();
                 if (! $job->remote_id) {
                     $streams = [];
                     try {
@@ -45,7 +45,7 @@ class VideoRelay
                         }
                     }
                 }
-                $client = Http::withToken(config('video.relay_token'))->acceptJson()->connectTimeout(15)->timeout(300)->withoutRedirecting();
+                $client = Http::withToken(config('video.relay_token'))->acceptJson()->connectTimeout(15)->timeout(60)->withoutRedirecting();
                 $remote = $client->get($url.'/'.$job->remote_id)->throw()->json();
                 validator($remote, ['status' => 'required|in:queued,claimed,submitting,running,uploading,completed,failed', 'progress' => 'required|integer|min:0|max:100'])->validate();
                 $fields = array_intersect_key($remote, array_flip(['status', 'progress', 'started_at', 'heartbeat_at', 'error', 'completed_at']));

@@ -7,10 +7,7 @@
     @vsg-inventory-refresh.window="load()"
 >
     <header class="mb-5 flex items-center justify-between gap-4">
-        <div>
-            <h2 class="font-serif text-2xl">Inventory</h2>
-            <p class="mt-1 text-sm text-stone-500">Shared items for every page and scene. Changes save automatically.</p>
-        </div><button
+        <button
             type="button"
             class="btn-primary"
             @click="create()"

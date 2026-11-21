@@ -1,7 +1,6 @@
 export function chatDrafts(options) {
     return {
         activeTab: 'page',
-        includeSceneImage: false,
         draftTabListener: null,
         draftKey(tab = this.activeTab) {
             return 'vsg-chat-draft:' + options.userId + ':' + (options.storyId || 'new') + ':' + tab;
@@ -35,7 +34,6 @@ export function chatDrafts(options) {
             if (tab === this.activeTab) return;
             this.savePrompt();
             this.activeTab = tab;
-            this.includeSceneImage = false;
             this.loadPrompt();
         },
         clearSentDraft(key, message) {

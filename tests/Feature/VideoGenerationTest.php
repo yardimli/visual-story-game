@@ -39,13 +39,92 @@ class VideoGenerationTest extends TestCase
             'parameters' => ['aspect_ratio' => '16:9', 'seconds' => 5, 'megapixels' => 0.4], 'first_asset_id' => $asset->id];
     }
 
+    public function test_pending_video_cards_include_source_frame_urls(): void
+    {
+        $fields = $this->fields + ['last_asset_id' => $this->fields['first_asset_id']];
+        $job = app(VideoDrafts::class)->save($this->story, $fields);
+        $this->getJson(route('videos.index', $this->story))->assertOk()
+            ->assertJsonPath('jobs.0.first_frame_url', route('assets.show', $fields['first_asset_id']))
+            ->assertJsonPath('jobs.0.last_frame_url', route('assets.show', $fields['last_asset_id']));
+        $job->update(['last_asset_id' => null]);
+        $this->assertNull($job->presentation()['last_frame_url']);
+    }
+
+    public function test_relay_queues_on_existing_worker_and_hub_does_not(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $hub = $this->queued();
+        \Illuminate\Support\Facades\Queue::assertNotPushed(\App\Jobs\SyncVideo::class);
+        config(['video.mode' => 'relay']);
+        $local = $this->queued();
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\SyncVideo::class,
+            fn ($job) => $job->videoId === $local->id && $job->queue === 'video'
+                && $job->connection === 'database' && $job->tries === 0 && $job->timeout < 240);
+        $this->assertSame('forwarding', $local->status);
+    }
+
+    public function test_relay_poll_releases_until_complete_and_stops_for_deleted_jobs(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        config(['video.mode' => 'relay']);
+        $video = $this->queued();
+        $relay = \Mockery::mock(VideoRelay::class);
+        $relay->shouldReceive('sync')->once()->andReturnUsing(fn ($job) => $job->update(['status' => 'running']));
+        $queued = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $queued->shouldReceive('release')->once()->with(15);
+        $poll = new \App\Jobs\SyncVideo($video->id);
+        $poll->setJob($queued);
+        $poll->handle($relay);
+
+        $relay = \Mockery::mock(VideoRelay::class);
+        $relay->shouldReceive('sync')->once()->andReturnUsing(fn ($job) => $job->update(['status' => 'completed']));
+        $poll->setJob(\Mockery::mock(\Illuminate\Contracts\Queue\Job::class));
+        $poll->handle($relay);
+        $video->delete();
+        $poll->handle($relay);
+    }
+
+    public function test_video_worker_recovers_preexisting_relay_jobs(): void
+    {
+        $video = $this->queued();
+        config(['video.mode' => 'relay']);
+        \Illuminate\Support\Facades\Queue::fake();
+        event(new \Illuminate\Queue\Events\Looping('database', 'images,audio'));
+        \Illuminate\Support\Facades\Queue::assertNotPushed(\App\Jobs\SyncVideo::class);
+        event(new \Illuminate\Queue\Events\Looping('database', 'images,audio,video'));
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\SyncVideo::class,
+            fn ($job) => $job->videoId === $video->id && $job->queue === 'video');
+    }
+
+    public function test_frame_picker_uses_image_card_order_and_categories(): void
+    {
+        $page = $this->story->pages()->create(['position' => 1, 'title' => 'Hall']);
+        $first = $this->story->assets()->first();
+        $second = $first->replicate();
+        $second->name = 'Second';
+        $second->save();
+        $drafts = app(\App\Services\ImageDrafts::class);
+        $one = $drafts->save($this->story, $page, ['prompt' => 'One']);
+        $two = $drafts->save($this->story, $page, ['prompt' => 'Two']);
+        $one->update(['status' => 'completed', 'asset_ids' => [$first->id], 'category' => 'inventory']);
+        $two->update(['status' => 'completed', 'asset_ids' => [$second->id], 'category' => 'change_state']);
+        $this->story->update(['image_order' => [$one->id, $two->id]]);
+        $this->getJson(route('videos.index', $this->story))->assertOk()
+            ->assertJsonPath('assets.0.id', $first->id)
+            ->assertJsonPath('assets.0.category', 'inventory')
+            ->assertJsonPath('assets.1.id', $second->id)
+            ->assertJsonPath('assets.1.category', 'change_state')
+            ->assertJsonPath('image_categories.inventory', 'Inventory');
+    }
+
     public function test_scene_video_selection_playback_payload_frames_and_delete_cleanup(): void
     {
         $video = $this->queued();
         $video->update(['status' => 'completed', 'output_path' => 'videos/'.$video->id.'/result.mp4']);
         $visual = ['id' => (string) Str::uuid(), 'kind' => 'scene', 'name' => 'Hall', 'asset_id' => null,
-            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id];
+            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id, 'intro_video_repeat' => true];
         $document = app(\App\Services\SceneDocument::class)->validate($this->story, ['visuals' => [$visual]]);
+        $this->assertTrue($document['visuals'][0]['intro_video_repeat']);
         $page = $this->story->pages()->create(['position' => 1, 'title' => 'Hall', 'visual_document' => $document]);
         $this->get(route('stories.play', [$this->story, 'page' => $page->id, 'skip_first_video' => 1]))
             ->assertOk()->assertViewHas('game', fn ($game) => $game['start']['skipFirstVideo'] === true

@@ -3,7 +3,7 @@
         aria-label="Story editor tabs"
         class="flex min-w-0 flex-1 gap-5 overflow-x-auto text-sm"
     >
-        @foreach (['page' => 'Page plan', 'visuals' => 'Scenes', 'images' => 'Image generation ↗', 'video' => 'Video', 'inventory' => 'Inventory', 'story' => 'Story bible', 'audio' => 'Audio'] as $key => $label)
+        @foreach (['page' => 'Page plan', 'visuals' => 'Scenes', 'images' => 'Image', 'video' => 'Video', 'audio' => 'Audio', 'inventory' => 'Inventory', 'story' => 'Story bible'] as $key => $label)
             @if ($generation ?? false)
                 <a
                     href="{{ $key === 'images' ? route('images.studio', [$story, $page, 'visual' => request('visual')]) : route('stories.edit', [$story, 'page' => $page->id, 'tab' => $key, 'visual' => request('visual')]) }}"

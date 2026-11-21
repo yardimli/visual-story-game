@@ -742,14 +742,48 @@ test('skip first video does not disable subsequent scene videos', () => {
     const game = data();
     game.pages[0].visuals[0].intro_video_id = 'video';
     game.videos = [{ id: 'video', url: '/video.mp4' }];
+    game.pages[0].visuals.push({ id: 'other', kind: 'scene', hotspots: [], intro_video_id: 'video' });
     game.start.skipFirstVideo = true;
     const p = gamePlayer(game);
     p.init();
     p.begin();
     assert.equal(p.introVideo, null);
     p.beginScenePresentation();
+    assert.equal(p.introVideo, null);
+    p.previewId = 'other';
+    p.beginScenePresentation();
     assert.equal(p.introVideo.id, 'video');
     p.destroy();
     assert.equal(p.introVideo, null);
     globalThis.window = original;
+});
+
+test('scene videos play once by default, repeat when enabled, and reset for a new playthrough', () => {
+    const original = globalThis.window;
+    globalThis.window = {};
+    const game = data();
+    game.pages[0].visuals[0].intro_video_id = 'video';
+    game.videos = [{ id: 'video', url: '/video.mp4' }];
+    const p = gamePlayer(game);
+    try {
+        p.init();
+        p.begin();
+        assert.equal(p.introVideo.id, 'video');
+        p.finishIntroVideo();
+        p.beginScenePresentation();
+        assert.equal(p.introVideo, null);
+        p.displayed.intro_video_repeat = true;
+        p.beginScenePresentation();
+        assert.equal(p.introVideo.id, 'video');
+        p.finishIntroVideo();
+        p.beginScenePresentation();
+        assert.equal(p.introVideo.id, 'video');
+        p.finishIntroVideo();
+        p.displayed.intro_video_repeat = false;
+        p.startPreview();
+        assert.equal(p.introVideo.id, 'video');
+    } finally {
+        p.destroy();
+        globalThis.window = original;
+    }
 });
