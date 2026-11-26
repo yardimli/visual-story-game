@@ -75,6 +75,7 @@
                             ></span></span>
                     </label></template>
             </div>
+            @include('studio.public-play')
             <footer class="flex items-center justify-between gap-3 border-t border-stone-200 p-4 dark:border-stone-700">
                 <span
                     class="text-sm"

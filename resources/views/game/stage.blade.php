@@ -64,11 +64,14 @@
             aria-label="Loading scene"
             @click.stop
             @pointerdown.stop
-        ><span
-                x-show="transitionPhase==='loading'"
-                class="scene-loading-spinner"
-                aria-hidden="true"
-            ></span><span class="sr-only">Loading sceneâ€¦</span></div>
+        >
+            <div x-show="transitionPhase==='loading'" class="flex w-72 flex-col items-center gap-3 text-white">
+                <span class="scene-loading-spinner" aria-hidden="true"></span>
+                <span x-text="'Loading scene… ' + sceneLoadProgress.percent + '%' "></span>
+                <progress class="h-3 w-full" max="100" :value="sceneLoadProgress.percent" aria-label="Scene download progress"></progress>
+                <span class="text-sm" x-text="sceneLoadProgress.completed + ' / ' + sceneLoadProgress.total + ' files ready'"></span>
+            </div>
+        </div>
         <button
             type="button"
             class="fixed right-4 top-3 z-50 rounded-lg border border-white/50 bg-black/70 px-3 py-2 text-sm text-white"

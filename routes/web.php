@@ -21,7 +21,12 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
+Route::get('/p/{token}', [\App\Http\Controllers\PlayController::class, 'publicShow'])->where('token', '[A-Za-z0-9_-]{22}')->name('public.play');
+Route::get('/p/{token}/{kind}/{id}', [\App\Http\Controllers\PublicPlayController::class, 'media'])->where('token', '[A-Za-z0-9_-]{22}')->whereIn('kind', ['image', 'audio', 'video'])->name('public.play.media');
+
 Route::middleware('auth')->group(function () {
+    Route::post('/stories/{story}/public-play', [\App\Http\Controllers\PublicPlayController::class, 'enable'])->name('public.play.enable');
+    Route::delete('/stories/{story}/public-play', [\App\Http\Controllers\PublicPlayController::class, 'disable']);
     Route::get('/stories/{story}/characters', [\App\Http\Controllers\CharacterController::class, 'index'])->name('characters.index');
     Route::post('/stories/{story}/characters', [\App\Http\Controllers\CharacterController::class, 'save']);
     Route::put('/stories/{story}/characters/{character}', [\App\Http\Controllers\CharacterController::class, 'save']);

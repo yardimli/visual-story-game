@@ -36,6 +36,7 @@ export function gamePlayer(game) {
             },
             destroy() {
                 this.closePreview();
+                this.disposeMediaCache();
                 if (window.vsgPlayer === this) delete window.vsgPlayer;
             },
         }),

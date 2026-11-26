@@ -13,7 +13,7 @@ export class GameAudio {
     }
     play(sound, volume = 1, loop = false) {
         if (!sound?.url || typeof Audio === 'undefined') return null;
-        const audio = new Audio(sound.url);
+        const audio = new Audio(this.resolveUrl?.(sound.url) || sound.url);
         audio.volume = 1;
         audio.muted = this.muted;
         audio.loop = loop;

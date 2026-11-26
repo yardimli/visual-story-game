@@ -24,7 +24,7 @@
                 type="button"
                 class="btn-primary"
                 @click="begin()"
-            >Start playtest</button>
+            >{{ ($publicPlay ?? false) ? 'Start game' : 'Start playtest' }}</button>
         </div>
         @include('game.stage')
     </main><x-toasts />

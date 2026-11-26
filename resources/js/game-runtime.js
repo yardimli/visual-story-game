@@ -1,10 +1,14 @@
+import { SceneMediaCache, sceneMedia } from './scene-media-cache.js';
 import { containerVisible } from './game-geometry.js';
 import { contrastText } from './scene-colors.js';
 import { notify } from './toasts.js';
 
 // Shared playback rules. No editor, generation or authoring dependencies.
 export function gameRuntime() {
+    const mediaCache = new SceneMediaCache();
     return {
+        sceneLoadProgress: { percent: 0, completed: 0, total: 0 },
+        disposeMediaCache() { mediaCache.dispose(); },
         videos: [],
         introVideo: null,
         seenSceneVideos: {},
@@ -34,7 +38,7 @@ export function gameRuntime() {
                 )
                 .map(([, audio]) => audio);
             this.pausedVideoAudio.forEach((audio) => audio.pause());
-            this.introVideo = video;
+            this.introVideo = { ...video, url: mediaCache.url(video.url) };
         },
         async playIntroVideo(element) {
             if (!this.introVideo) return;
@@ -262,7 +266,8 @@ export function gameRuntime() {
             );
         },
         asset(id) {
-            return this.assets.find((a) => a.id === Number(id));
+            const asset = this.assets.find((a) => a.id === Number(id));
+            return asset ? { ...asset, url: mediaCache.url(asset.url) } : asset;
         },
         dialogPalette(v) {
             return {
@@ -826,6 +831,7 @@ export function gameRuntime() {
             }
         },
         clearSceneTransition() {
+            mediaCache.cancel();
             this.transitionRequest++;
             clearTimeout(this.transitionTimer);
             clearTimeout(this.modalTimer);
@@ -860,6 +866,13 @@ export function gameRuntime() {
             return { pageId, sceneId };
         },
         preloadScene(scene) {
+            if (typeof document !== 'undefined' && typeof fetch === 'function') {
+                if (this.soundPlayer) this.soundPlayer.resolveUrl = (url) => mediaCache.url(url);
+                const request = this.transitionRequest;
+                return mediaCache.load(sceneMedia(this, scene), (progress) => {
+                    if (request === this.transitionRequest) this.sceneLoadProgress = progress;
+                });
+            }
             if (typeof Image === 'undefined') return null;
             const ids = [
                 scene.asset_id,
@@ -1048,8 +1061,25 @@ export function gameRuntime() {
             const entry = this.resolveSceneEntry(this.previewPageId, this.previewId);
             this.previewPageId = entry.pageId;
             this.previewId = entry.sceneId;
-            this.soundPlayer?.start(this.audioSettings, this.audioSounds);
-            this.beginScenePresentation(skipFirstVideo);
+            const request = this.transitionRequest;
+            const present = () => {
+                if (request !== this.transitionRequest || !this.preview) return;
+                this.sceneTransition = false;
+                this.transitionPhase = null;
+                this.soundPlayer?.start(this.audioSettings, this.audioSounds);
+                this.beginScenePresentation(skipFirstVideo);
+            };
+            const loading = this.preloadScene(this.displayed);
+            if (loading) {
+                this.sceneTransition = true;
+                this.transitionPhase = 'loading';
+                loading.then(present).catch(() => {
+                    if (request !== this.transitionRequest) return;
+                    this.closePreview();
+                    this.$refs?.previewDialog?.close();
+                    notify(this.gameplayMessage('scene_load_error').text, 'error');
+                });
+            } else present();
             this.inventoryOpen = false;
             this.collected = [];
             this.modal = null;
