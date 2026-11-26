@@ -199,6 +199,7 @@
     >
         <div class="field">
             <textarea
+                class="companion-message-input"
                 aria-label="Message"
                 x-model="prompt"
                 @input="savePrompt($event.target.value)"

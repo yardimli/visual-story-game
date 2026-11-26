@@ -162,7 +162,12 @@ textarea {
     resize: none;
     overflow-wrap: anywhere;
 }
-/* Keep a long companion message accessible without shrinking its textarea. */
+.companion-message-input {
+    max-height: 250px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+/* Keep the composer controls accessible while the message input scrolls. */
 .companion-panel {
     overflow-y: auto;
 }
