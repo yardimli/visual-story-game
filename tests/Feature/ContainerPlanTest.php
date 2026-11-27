@@ -7,6 +7,20 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class ContainerPlanTest extends TestCase {
  use RefreshDatabase;
+ public function test_reused_preview_recovers_its_own_generation_prompt_not_the_empty_state():void {
+  [$s,$p,$data,$asset]=$this->fixture();
+  $plan=$this->postJson(route('containers.index',[$s,$p]),$data)->assertCreated()->json();
+  $batch=SceneExtraction::findOrFail($plan['extraction_id']);$outputs=$batch->outputs;
+  $outputs[1]['accepted_asset_id']=$asset->id;
+  $outputs[1]['source_parent']=['state_asset_id'=>999];
+  $outputs[1]['prompt']='Extract the selected items from the existing changed state.';
+  $batch->update(['outputs'=>$outputs]);
+  $base=['user_id'=>$s->user_id,'story_id'=>$s->id,'story_page_id'=>$p->id,'visual_id'=>$data['visual_id'],'kind'=>'scene','name'=>'Door','status'=>'completed','references'=>[],'pricing'=>[]];
+  \App\Models\ImageGeneration::create($base+['request_key'=>(string)Str::uuid(),'asset_ids'=>[$asset->id],'payload'=>['prompt'=>'Open the door 45 degrees and place the key in its lock.']]);
+  \App\Models\ImageGeneration::create($base+['request_key'=>(string)Str::uuid(),'asset_ids'=>[999],'payload'=>['prompt'=>'Remove only the key.']]);
+  $shown=app(\App\Services\ContainerPlans::class)->present(ContainerPlan::findOrFail($plan['id']));
+  $this->assertSame('Open the door 45 degrees and place the key in its lock.',$shown['batch']['outputs'][1]['recreation_prompt']);
+ }
  public function test_recreated_plan_keeps_output_prompts_through_reload_and_contents_preparation():void {
   [$s,$p,$data,$asset]=$this->fixture();
   $key=$data['contents'][0]['object_id'];$coin=$data['contents'][1]['object_id'];

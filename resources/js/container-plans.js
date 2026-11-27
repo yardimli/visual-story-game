@@ -92,12 +92,15 @@ export function containerPlans(options) {
                 .map(o => ({ type: o.type, object_id: p.contents.find(c => c.area_id === o.area_id)?.object_id || null,
                     prompt: this.containerPrompts[o.id] ?? o.prompt }));
             if (!this.containerCopiedPrompts.length) this.containerCopiedPrompts = JSON.parse(JSON.stringify(preview?.inherited_prompts || []));
-            this.containerPrompt = this.containerPrompts[preview?.id] ?? preview?.prompt ?? p.prompt;
+            const savedPreviewPrompt = preview?.recreation_prompt || preview?.prompt || p.prompt || '';
+            const editedPreviewPrompt = this.containerPrompts[preview?.id];
+            this.containerPrompt = editedPreviewPrompt !== undefined && editedPreviewPrompt !== preview?.prompt
+                ? editedPreviewPrompt : savedPreviewPrompt;
             this.containerRevisionName = p.name;
             // A revised margin must crop the current scene, never reuse an old
             // changed-state patch whose dimensions belong to the previous plan.
             this.containerReuseState = false;
-            this.containerUserPrompt = this.containerUserPrompt || p.user_prompt || p.prompt || '';
+            this.containerUserPrompt = p.user_prompt || savedPreviewPrompt;
             this.containerPromptModel = p.prompt_model || '';
             this.containerPadding = { top: 0, right: 0, bottom: 0, left: 0, ...p.padding };
             this.containerPaddingDraft = { ...this.containerPadding };

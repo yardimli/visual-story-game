@@ -65,7 +65,18 @@ class ContainerPlans {
    return ContainerPlan::create(['story_id'=>$story->id,'story_page_id'=>$page->id,'visual_id'=>$v['id'],'area_id'=>$a['id'],'name'=>$d['name'],'prompt'=>$prompt,'bounds'=>$b,'crop_bounds'=>$cropBounds,'padding'=>$padding,'equal_padding'=>$d['equal_padding']??true,'user_prompt'=>$d['user_prompt']??null,'prompt_model'=>$d['prompt_model']??null,'contents'=>$contents,'source_asset_id'=>$crop->id,'extraction_id'=>$batch->id]);
   });
  }
- public function present(ContainerPlan $plan):array {return $plan->toArray()+['batch'=>app(SceneExtractionService::class)->present(SceneExtraction::findOrFail($plan->extraction_id))];}
+ public function present(ContainerPlan $plan):array {
+  $batch=app(SceneExtractionService::class)->present(SceneExtraction::findOrFail($plan->extraction_id));
+  foreach($batch['outputs'] as &$output){
+   // Reused changed-state images were generated before the container existed.
+   // Resolve by the preview image itself, not the parent's current (empty) state.
+   if($output['type']!=='container_preview'||empty($output['source_parent'])||!empty($output['versions'])||empty($output['accepted_asset_id']))continue;
+   $generation=\App\Models\ImageGeneration::where('story_id',$plan->story_id)->where('status','completed')->whereJsonContains('asset_ids',(int)$output['accepted_asset_id'])->latest('id')->first();
+   $prompt=$generation?->payload['_base_prompt']??$generation?->payload['prompt']??null;
+   if(is_string($prompt)&&trim($prompt)!=='')$output['recreation_prompt']=$prompt;
+  }unset($output);
+  return $plan->toArray()+['batch'=>$batch];
+ }
  public function prepare(Story $story,ContainerPlan $plan,array $data):ContainerPlan {
   $d=Validator::make($data,['preview_asset_id'=>'required|integer','contents'=>'required|array|min:1|max:12','contents.*.area_id'=>'required|uuid|distinct','contents.*.bounds'=>'required|array:x,y,width,height','contents.*.bounds.x'=>'required|numeric|min:0|max:1','contents.*.bounds.y'=>'required|numeric|min:0|max:1','contents.*.bounds.width'=>'required|numeric|min:0.005|max:1','contents.*.bounds.height'=>'required|numeric|min:0.005|max:1'])->validate();
   return DB::transaction(function()use($story,$plan,$d){$p=ContainerPlan::whereKey($plan->id)->lockForUpdate()->firstOrFail();if($p->stage!=='preview')$this->fail('Contents are already prepared. Create a new plan to change their areas.');$b=SceneExtraction::whereKey($p->extraction_id)->lockForUpdate()->firstOrFail();$preview=collect($b->outputs)->firstWhere('type','container_preview');if(\App\Models\ImageGeneration::whereIn('id',$preview['versions']??[])->whereIn('status',['queued','running'])->exists())$this->fail('Wait for the open-container render to finish before approving it.');if(($preview['accepted_asset_id']??null)!==$d['preview_asset_id'])$this->fail('Choose and approve the completed open-container preview first.');if(count($p->contents)!==count($d['contents']))$this->fail('Mark an area for every item.');

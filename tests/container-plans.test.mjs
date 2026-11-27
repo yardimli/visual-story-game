@@ -369,3 +369,15 @@ test('editor visibility follows authoring switches and ignores game test flags',
     p.overlay_always = false;
     assert.equal(e.editorAreaVisible(c), false);
 });
+
+ test('reused changed-state recreation uses the original preview prompt rather than stale removal instructions', () => {
+    const e = sceneEditor({});
+    e.selected='scene'; e.containerArea='door'; e.containerPlanId=1;
+    e.containerUserPrompt='Remove only the key.';
+    e.containerPlans=[{id:1,visual_id:'scene',area_id:'door',name:'Door',prompt:'Extract the selected items from the existing changed state.',user_prompt:null,contents:[],batch:{outputs:[{id:'preview',type:'container_preview',prompt:'Extract the selected items from the existing changed state.',recreation_prompt:'Open the door and add the key.'}]}}];
+    e.containerPrompts={preview:'Extract the selected items from the existing changed state.'};
+    e.loadContainerSource=()=>{};
+    e.copyContainerPlan();
+    assert.equal(e.containerPrompt,'Open the door and add the key.');
+    assert.equal(e.containerUserPrompt,'Open the door and add the key.');
+ });
