@@ -7,6 +7,43 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class CompanionTest extends TestCase {
     use RefreshDatabase;
+    public function test_response_limit_defaults_and_user_preferences_reach_provider(): void {
+        $u=$this->userAndProvider('Done');
+        $this->actingAs($u)->postJson(route('companion.store'),$this->payload())->assertOk();
+        Http::assertSent(fn($r)=>$r['max_tokens']===16384);
+        $this->put(route('ai.preferences'),['chat_max_output_tokens'=>32768])->assertRedirect();
+        $this->assertSame(32768,$u->fresh()->chat_max_output_tokens);
+        $this->postJson(route('companion.store'),$this->payload())->assertOk();
+        Http::assertSent(fn($r)=>$r['max_tokens']===32768);
+        $models=Cache::get('openrouter.models');$models[0]['top_provider']['max_completion_tokens']=8192;Cache::put('openrouter.models',$models,600);
+        $this->postJson(route('companion.store'),$this->payload())->assertOk();
+        Http::assertSent(fn($r)=>$r['max_tokens']===8192);
+        $this->get(route('ai.edit'))->assertOk()->assertSee('Maximum response tokens')->assertSee('32768');
+        foreach([0,131073,1.5] as $bad)$this->putJson(route('ai.preferences'),['chat_max_output_tokens'=>$bad])->assertUnprocessable()->assertJsonValidationErrors('chat_max_output_tokens');
+        $this->assertSame(32768,$u->fresh()->chat_max_output_tokens);
+    }
+    public function test_token_limited_replies_fail_without_actionable_proposals_and_keep_usage(): void {
+        foreach([false,true] as $streaming){
+            $u=$this->userAndProvider('');
+            $text='Partial proposal ```json {"changes":[';
+            $body=['id'=>'limited','choices'=>[['message'=>['content'=>$text],'finish_reason'=>'length']],'usage'=>['prompt_tokens'=>1000,'completion_tokens'=>500]];
+            $wire='data: '.json_encode(['choices'=>[['delta'=>['content'=>$text],'finish_reason'=>'length']]])."\n\n";
+            $wire.='data: '.json_encode(['choices'=>[],'usage'=>$body['usage']])."\n\ndata: [DONE]\n\n";
+            Http::swap(new \Illuminate\Http\Client\Factory());
+            Http::fake(['*/chat/completions'=>Http::response($streaming?$wire:$body)]);
+            $response=$this->actingAs($u)->postJson(route('companion.store'),$this->payload()+['stream'=>$streaming]);
+            if($streaming){$response->assertOk();$out=$response->streamedContent();$this->assertStringContainsString('event: error',$out);$this->assertStringNotContainsString('event: complete',$out);}
+            else $response->assertUnprocessable();
+            $message=CompanionMessage::where('user_id',$u->id)->first();
+            $this->assertSame('failed',$message->response_status);
+            $this->assertStringContainsString('token limit',$message->response_error);
+            $this->assertSame($text,$message->response_partial);
+            $this->assertSame(0,CompanionMessage::where('user_id',$u->id)->where('role','assistant')->count());
+            $this->assertSame(500,LlmRequest::where('user_id',$u->id)->first()->completion_tokens);
+            $this->assertSame(2000,$u->fresh()->llm_spent);
+            Http::assertSentCount(1);
+        }
+    }
     public function test_context_filtering_preserves_the_last_ten_messages_verbatim_without_extra_ai_calls(): void {
         $user=$this->userAndProvider('Done.');
         $story=Story::create(['user_id'=>$user->id,'title'=>'History','premise'=>'Keep wording']);

@@ -117,6 +117,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/ai/image-endpoints',[ChatController::class,'imageEndpoints'])->middleware('throttle:120,1,image-catalog:')->name('ai.image-endpoints');
     Route::get('/ai/models',[ChatController::class,'models'])->middleware('throttle:30,1,model-catalog:')->name('ai.models');
     Route::get('/ai/settings',[AiSettingsController::class,'edit'])->name('ai.edit');
+    Route::put('/ai/settings/preferences',[AiSettingsController::class,'preferences'])->name('ai.preferences');
     Route::get('/ai/calls/{call}',[AiSettingsController::class,'call'])->whereNumber('call')->name('ai.calls.show');
     Route::put('/ai/settings',[AiSettingsController::class,'update'])->middleware('throttle:6,1,ai-settings:')->name('ai.update');
     Route::delete('/ai/settings',[AiSettingsController::class,'destroy'])->middleware('throttle:6,1,ai-settings:')->name('ai.destroy');

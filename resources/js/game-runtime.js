@@ -782,6 +782,14 @@ export function gameRuntime() {
                 pending.pageId !== this.previewPageId
             )
                 return;
+            if (pending.effectsApplied && !pending.placement && pending.rule?.target_id) {
+                const destination = this.pageSceneDestinations.find((d) => d.sceneId === pending.rule.target_id);
+                this.transitionScene(pending.rule.target_id, destination?.pageId ?? this.previewPageId);
+            }
+        },
+        applyInventoryUseEffects(pending) {
+            if (!pending || pending.effectsApplied) return;
+            pending.effectsApplied = true;
             const index = this.inventory.findIndex((i) => (i.inventoryId || i.id) === pending.inventoryId);
             if (index < 0) return;
             const item = this.inventory[index];
@@ -811,10 +819,6 @@ export function gameRuntime() {
             if (pending.rule?.consume) this.inventory.splice(index, 1);
             this.applyFlagEffects(pending.area);
             this.applyFlagEffects(pending.rule);
-            if (pending.rule?.target_id) {
-                const destination = this.pageSceneDestinations.find((d) => d.sceneId === pending.rule.target_id);
-                this.transitionScene(pending.rule.target_id, destination?.pageId ?? this.previewPageId);
-            }
             if (!pending.rule?.consume) this.animatePickup(item, pending.point);
         },
         cancelInventoryUse() {
@@ -910,6 +914,7 @@ export function gameRuntime() {
                     pageId: this.previewPageId,
                     key: this.previewId + ':' + this.narrationVersion,
                 };
+                this.applyInventoryUseEffects(this.pendingInventoryUse);
                 if (!this.narration.text) this.completeInventoryUse();
                 return;
             }
@@ -934,6 +939,7 @@ export function gameRuntime() {
                 pageId: this.previewPageId,
                 key: this.previewId + ':' + this.narrationVersion,
             };
+            this.applyInventoryUseEffects(this.pendingInventoryUse);
             if (!this.narration.text) this.completeInventoryUse();
         },
         chooseAreaAction(index) {

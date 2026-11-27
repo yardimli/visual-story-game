@@ -948,7 +948,7 @@ test('inventory areas match carried object states, show fallback, consume keys a
     editor.completeInventoryUse();
     editor.useInventoryOnArea('slot2', lock);
     assert.equal(editor.previewId, 'porch');
-    assert.equal(editor.inventory.length, 3);
+    assert.equal(editor.inventory.length, 2);
     assert.equal(editor.narration.text, 'The door unlocks.');
     editor.finishInventoryText(editor.pendingInventoryUse.key);
     t.mock.timers.tick(1199);
@@ -2125,6 +2125,7 @@ test('first pickup waits for the closed inventory tray to become measurable', (t
 
 test('pointer drag threshold preserves clicks and drop targets follow area layering', () => {
     const e = sceneEditor({});
+    e.animatePickup = () => {};
     e.preview = true;
     e.previewId = 'scene';
     e.selected = 'scene';

@@ -29,6 +29,11 @@ class AiSettingsController extends Controller {
             'images'=>$assets->map(fn($asset)=>['id'=>$asset->id,'name'=>$asset->name,'url'=>route('assets.show',$asset)])->values(),
         ]))->header('Cache-Control','private, no-store');
     }
+    public function preferences(Request $request) {
+        $data=$request->validate(['chat_max_output_tokens'=>'required|integer|min:1024|max:131072']);
+        $request->user()->forceFill($data)->save();
+        return back()->with('status','Chat response limit saved.');
+    }
     public function update(Request $request) {
         $request->validate(['openrouter_key'=>'required|string|min:10|max:500|regex:/^sk-or-[A-Za-z0-9_-]+$/','current_password'=>'required|current_password']);
         $request->user()->forceFill(['openrouter_key'=>$request->openrouter_key])->save();

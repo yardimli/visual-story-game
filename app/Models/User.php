@@ -52,5 +52,6 @@ class User extends Authenticatable
         'openrouter_key' => 'encrypted',
         'llm_spent' => 'integer',
         'llm_reserved' => 'integer',
+        'chat_max_output_tokens' => 'integer',
     ];
 }

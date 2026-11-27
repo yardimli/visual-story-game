@@ -375,7 +375,7 @@ test('placement uses story defaults and timeouts while preserving custom respons
     }
 });
 
-test('inventory action sound waits for item use and local switches sound in both directions', () => {
+test('inventory action sound plays on drop and local switches sound in both directions', () => {
     const old = globalThis.window;
     globalThis.window = {};
     const p = gamePlayer(data());
@@ -401,7 +401,7 @@ test('inventory action sound waits for item use and local switches sound in both
         assert.deepEqual(calls, []);
         assert.equal(p.inventoryOpen, true);
         p.useInventoryOnArea('coin-item', h);
-        assert.deepEqual(calls, []);
+        assert.deepEqual(calls, ['coin-item']);
         p.completeInventoryUse();
         assert.deepEqual(calls, ['coin-item']);
         Object.assign(h, { action: 'state_v2', state_flag: 'open', state_asset_id: 2, state_description: '' });
@@ -489,7 +489,7 @@ test('rejected drop restores its visible inventory slot without waiting for mess
     }
 });
 
-test('accepted placement waits for the response before committing its layer', () => {
+test('accepted placement commits its layer before the response and completion does not repeat it', () => {
     const old = globalThis.window;
     globalThis.window = {};
     const p = gamePlayer(data());
@@ -508,8 +508,10 @@ test('accepted placement waits for the response before committing its layer', ()
         p.flags.empty = true;
         p.inventory = [{ id: 'coin-item', asset_id: 2 }];
         p.useInventoryOnArea('coin-item', h);
-        assert.equal(p.inventory.length, 1);
-        assert.equal(p.flags.empty, true);
+        assert.equal(p.inventory.length, 0);
+        assert.equal(p.flags.empty, false);
+        assert.equal(p.areaImage(h).id, 2);
+        assert.notEqual(p.narration.revealed, true);
         p.stopNarration();
         assert.equal(p.inventory.length, 0);
         assert.equal(p.flags.empty, false);

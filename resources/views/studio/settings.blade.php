@@ -42,6 +42,18 @@
             </ul>
             <div class="mt-3">{{ $credits->links() }}</div>
         </section>
+        <section class="mb-8 rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 p-7">
+            <h2 class="font-serif text-2xl">Chat responses</h2>
+            <form method="POST" action="{{ route('ai.preferences') }}" class="mt-5 space-y-4">
+                @csrf @method('PUT')
+                <label class="field">Maximum response tokens
+                    <input type="number" name="chat_max_output_tokens" min="1024" max="131072" step="1" required
+                        value="{{ old('chat_max_output_tokens', $user->chat_max_output_tokens ?? config('story.max_output_tokens')) }}">
+                </label>
+                <p class="text-sm text-stone-500 dark:text-stone-400">Default: 16,384 tokens (16K). Includes the reply and proposed changes. A higher limit allows longer proposals and increases the maximum credit reservation. The selected model may have a lower output limit.</p>
+                <button class="btn-primary">Save response limit</button>
+            </form>
+        </section>
         <section class="rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 p-7">
             <div class="flex justify-between gap-3">
                 <h2 class="font-serif text-2xl">Your OpenRouter key</h2><span

@@ -51,4 +51,5 @@
                         </template>
                     </select></label></template></div>
     </template>
+    <p class="text-xs text-stone-500 dark:text-stone-400">For scene images, use 16:9 or match your video's aspect ratio to reduce cropping and framing changes between images and videos.</p>
 </div>

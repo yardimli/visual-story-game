@@ -7,5 +7,5 @@ return [
     'openrouter_referer' => env('OPENROUTER_HTTP_REFERER', 'https://vsg.playground.computer'),
     'openrouter_url' => 'https://openrouter.ai/api/v1',
     'allowance' => (int) env('LLM_ALLOWANCE_MICRO_USD', 5000000),
-    'max_output_tokens' => 2048,
+    'max_output_tokens' => 16384,
 ];

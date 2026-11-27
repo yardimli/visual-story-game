@@ -95,7 +95,7 @@ class OpenRouter {
         $response=$this->authenticated($key)->withOptions(['stream'=>true,'read_timeout'=>240])
             ->post(config('story.openrouter_url').'/chat/completions',$payload+['stream'=>true,'stream_options'=>['include_usage'=>true]]);
         if(!$response->successful())return $response;
-        $stream=$response->toPsrResponse()->getBody();$buffer='';$content='';$body=[];$done=false;$started=microtime(true);
+        $stream=$response->toPsrResponse()->getBody();$buffer='';$content='';$body=[];$done=false;$started=microtime(true);$finishReason=null;
         try {
             while(!$stream->eof() && !$done){
                 if(microtime(true)-$started>240)throw new \RuntimeException('Stream deadline exceeded.');
@@ -108,6 +108,7 @@ class OpenRouter {
                     if(!is_array($chunk))throw new \RuntimeException('Invalid stream event.');
                     if(isset($chunk['id']))$body['id']=$chunk['id'];
                     if(isset($chunk['usage']))$body['usage']=$chunk['usage'];
+                    if(data_get($chunk,'choices.0.finish_reason')!==null)$finishReason=data_get($chunk,'choices.0.finish_reason');
                     if(isset($chunk['error']) || data_get($chunk,'choices.0.finish_reason')==='error')throw new \RuntimeException('Provider stream failed.');
                     $text=data_get($chunk,'choices.0.delta.content');
                     if(is_string($text) && $text!==''){$content.=$text;if(strlen($content)>1000000)throw new \RuntimeException('Response too large.');$onText($text);}
@@ -115,7 +116,7 @@ class OpenRouter {
             }
             if(!$done)throw new \RuntimeException('Stream ended before completion.');
         } finally {$stream->close();}
-        $body['choices']=[['message'=>['role'=>'assistant','content'=>$content]]];
+        $body['choices']=[['message'=>['role'=>'assistant','content'=>$content],'finish_reason'=>$finishReason]];
         return new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200,['Content-Type'=>'application/json'],json_encode($body,JSON_THROW_ON_ERROR)));
     }
 }

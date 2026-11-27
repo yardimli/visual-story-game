@@ -106,10 +106,13 @@ class ChatController extends Controller {
         $messages[]=['role'=>'user','content'=>$data['message']];
         $contextBytes=strlen(json_encode($messages));
         if($contextBytes>250000 && !$request->boolean('allow_large_context'))return response()->json(['code'=>'context_confirmation_required','context_bytes'=>$contextBytes,'threshold_bytes'=>250000,'message'=>'This context is large. Continue sending or compact the context.'],409);
-        [$reserve,$provider]=$user->openrouter_key ? [0,['allow_fallbacks'=>false]] : $budget->quotation($model,$messages,null,array_sum(array_column($attachments,'estimated_tokens')));
+        $maxOutputTokens=$user->chat_max_output_tokens ?? config('story.max_output_tokens');
+        $modelOutputLimit=data_get($model,'top_provider.max_completion_tokens');
+        if(is_numeric($modelOutputLimit) && $modelOutputLimit>0)$maxOutputTokens=min($maxOutputTokens,(int)$modelOutputLimit);
+        [$reserve,$provider]=$user->openrouter_key ? [0,['allow_fallbacks'=>false]] : $budget->quotation($model,$messages,$maxOutputTokens,array_sum(array_column($attachments,'estimated_tokens')));
         $ledger=$budget->reserve($user,$story,$data['request_key'],$data['model'],$reserve);
         if($attachments)$messages[count($messages)-1]['content']=array_merge([['type'=>'text','text'=>$data['message']]],array_column($attachments,'part'));
-        $callPayload=['model'=>$data['model'],'messages'=>$messages,'max_tokens'=>config('story.max_output_tokens'),'provider'=>$provider];
+        $callPayload=['model'=>$data['model'],'messages'=>$messages,'max_tokens'=>$maxOutputTokens,'provider'=>$provider];
         if($request->boolean('stream'))$callPayload+=['stream'=>true,'stream_options'=>['include_usage'=>true]];
         $ledger->update(['pricing_snapshot'=>$model['pricing'] ?? [],'request_content'=>\App\Services\AiCallContents::clean($callPayload)]);
         $userMessage=(clone $conversation)->create(array_merge(['role'=>'user','content'=>$data['message'],'response_status'=>'running'],$story ? ['revision'=>$story->revision] : ['user_id'=>$user->id]));
@@ -143,6 +146,10 @@ class ChatController extends Controller {
         $budget->settle($ledger,$cost,'completed',$body['id']??null);
         if($ledger->fresh()->status==='failed')throw ValidationException::withMessages(['message'=>'Request exceeded the four-minute limit. Reserved credit was released. Please try again.']);
         $content=data_get($body,'choices.0.message.content');
+        if(data_get($body,'choices.0.finish_reason')==='length') {
+            $userMessage->update(['response_partial'=>is_string($content)?$content:null]);
+            throw ValidationException::withMessages(['message'=>'The response reached its token limit and is incomplete. No partial proposal can be applied. Increase Maximum response tokens in AI settings or request fewer changes, then try again.']);
+        }
         if(!is_string($content)||$content==='')throw ValidationException::withMessages(['message'=>'The provider returned no text. Check usage in AI settings before trying again.']);
         $proposal=null;
         if(preg_match('/```json\s*(\{.*?\})\s*```/s',$content,$match)) {
