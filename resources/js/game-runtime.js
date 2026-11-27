@@ -115,7 +115,8 @@ export function gameRuntime() {
                 return;
             }
             this.activate({ ...h, _executeAction: true, show_hover_text: true });
-            if (h.action === 'state_v2' && !h.auto_state?.enabled && !this.sceneTransition) this.presentArea(h);
+            if (h.action === 'state_v2' && !h.auto_state?.enabled && !this.sceneTransition && this.flags[h.state_flag])
+                this.presentArea(h);
         },
         sceneLoadProgress: { percent: 0, completed: 0, total: 0 },
         disposeMediaCache() {
@@ -1513,7 +1514,7 @@ export function gameRuntime() {
                 this.syncAutomaticStates();
                 this.soundPlayer?.action(h, null, this.audioSounds);
                 this.soundPlayer?.channel?.('voice', null);
-                if (!h._executeAction && !this.descriptionRead(h)) this.showAreaDescription(h);
+                if (changed && !h._executeAction && !this.descriptionRead(h)) this.showAreaDescription(h);
                 return;
             }
             if (h.action === 'page') {

@@ -867,3 +867,31 @@ test('scene video keeps the outgoing scene and its state until playback finishes
     assert.deepEqual(resumed, ['music']);
     assert.equal(player.pendingVideoScene, null);
 });
+
+
+test('closing a local switch waits for another area click before reading its original description', () => {
+    const old = globalThis.window;
+    globalThis.window = {};
+    const p = gamePlayer(data());
+    try {
+        p.init();
+        p.begin();
+        const h = p.displayed.hotspots[1];
+        Object.assign(h, { action: 'state_v2', state_flag: 'open', state_asset_id: 2,
+            state_description: 'The box is open.', description: 'The box is closed.', click_behavior: 'describe' });
+        p.flags.open = true;
+        p.executeAreaAction(h);
+        assert.equal(p.flags.open, false);
+        assert.equal(p.narration, null);
+        p.tapArea(h);
+        assert.equal(p.flags.open, false);
+        assert.equal(p.narration.text, 'The box is closed.');
+        p.narration.revealed = true;
+        p.executeAreaAction(h);
+        assert.equal(p.flags.open, true);
+        assert.equal(p.narration.text, 'The box is open.');
+    } finally {
+        p.destroy();
+        globalThis.window = old;
+    }
+});
