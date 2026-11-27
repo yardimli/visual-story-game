@@ -17,6 +17,7 @@ export function containerPlans(options) {
         containerArea: '',
         containerPlanId: '',
         containerRevisionName: '',
+        containerCopiedPrompts: [],
         containerBusy: false,
         containerError: '',
         containerName: '',
@@ -86,12 +87,17 @@ export function containerPlans(options) {
             const p = this.containerPlan;
             if (!p) return;
             const preview = this.containerOutputs.find((o) => o.type === 'container_preview');
+            this.containerCopiedPrompts = this.containerOutputs
+                .filter(o => ['switch_on', 'layer', 'inventory'].includes(o.type))
+                .map(o => ({ type: o.type, object_id: p.contents.find(c => c.area_id === o.area_id)?.object_id || null,
+                    prompt: this.containerPrompts[o.id] ?? o.prompt }));
+            if (!this.containerCopiedPrompts.length) this.containerCopiedPrompts = JSON.parse(JSON.stringify(preview?.inherited_prompts || []));
             this.containerPrompt = this.containerPrompts[preview?.id] ?? preview?.prompt ?? p.prompt;
             this.containerRevisionName = p.name;
             // A revised margin must crop the current scene, never reuse an old
             // changed-state patch whose dimensions belong to the previous plan.
             this.containerReuseState = false;
-            this.containerUserPrompt = p.user_prompt || p.prompt || '';
+            this.containerUserPrompt = this.containerUserPrompt || p.user_prompt || p.prompt || '';
             this.containerPromptModel = p.prompt_model || '';
             this.containerPadding = { top: 0, right: 0, bottom: 0, left: 0, ...p.padding };
             this.containerPaddingDraft = { ...this.containerPadding };
@@ -263,6 +269,7 @@ export function containerPlans(options) {
         },
         newContainerPlan() {
             this.containerRevisionName = '';
+            this.containerCopiedPrompts = [];
             this.containerPlanId = '';
             this.containerItems = [];
             this.containerName =
@@ -317,6 +324,7 @@ export function containerPlans(options) {
                     prompt_model: this.containerPromptModel,
                     padding: this.containerPadding,
                     equal_padding: this.containerEqualPadding,
+                    output_prompts: this.containerCopiedPrompts,
                     contents: this.containerItems.map((c) => ({ object_id: c.object_id })),
                 });
                 this.containerPlanId = p.id;

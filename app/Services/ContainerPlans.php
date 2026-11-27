@@ -32,7 +32,7 @@ class ContainerPlans {
  }
  private function fail($text):never {throw \Illuminate\Validation\ValidationException::withMessages(['container'=>$text]);}
  public function validate(Story $story,StoryPage $page,array $data):array {
-  $d=Validator::make($data,['reuse_changed_state'=>'sometimes|boolean','visual_id'=>'required|uuid','area_id'=>'required|uuid','name'=>'required|string|max:160','prompt'=>'required_unless:reuse_changed_state,true|nullable|string|max:10000','contents'=>'required|array|min:1|max:12','contents.*'=>'required|array:object_id,name,description','contents.*.object_id'=>'required|uuid|distinct','contents.*.name'=>'sometimes|string|max:160','contents.*.description'=>'nullable|string|max:3000','padding'=>'sometimes|array:top,right,bottom,left','padding.*'=>'integer|min:0|max:500','equal_padding'=>'sometimes|boolean','user_prompt'=>'nullable|string|max:10000','prompt_model'=>'nullable|string|max:200'])->validate();
+  $d=Validator::make($data,['output_prompts'=>'sometimes|array|max:25','output_prompts.*'=>'array:type,object_id,prompt','output_prompts.*.type'=>'required|in:switch_on,layer,inventory','output_prompts.*.object_id'=>'nullable|uuid','output_prompts.*.prompt'=>'required|string|max:10000','reuse_changed_state'=>'sometimes|boolean','visual_id'=>'required|uuid','area_id'=>'required|uuid','name'=>'required|string|max:160','prompt'=>'required_unless:reuse_changed_state,true|nullable|string|max:10000','contents'=>'required|array|min:1|max:12','contents.*'=>'required|array:object_id,name,description','contents.*.object_id'=>'required|uuid|distinct','contents.*.name'=>'sometimes|string|max:160','contents.*.description'=>'nullable|string|max:3000','padding'=>'sometimes|array:top,right,bottom,left','padding.*'=>'integer|min:0|max:500','equal_padding'=>'sometimes|boolean','user_prompt'=>'nullable|string|max:10000','prompt_model'=>'nullable|string|max:200'])->validate();
   $v=collect($page->visual_document['visuals']??[])->firstWhere('id',$d['visual_id']);$a=collect($v['hotspots']??[])->firstWhere('id',$d['area_id']);
   if(!$v||!$v['asset_id']||!$a||!empty($a['container_parent_id']))$this->fail('Draw a container area on this scene first, then select it.');
   foreach($d['contents'] as &$c){$item=collect($story->inventory_document['visuals']??[])->firstWhere('id',$c['object_id']);if(!$item)$this->fail('Choose an Inventory item from this game.');$c=['object_id'=>$item['id'],'name'=>$item['name'],'description'=>$item['description']??''];}unset($c);return $d;
@@ -61,7 +61,7 @@ class ContainerPlans {
    $refs=[$crop->id];$contents=[];
    foreach($d['contents'] as $c){$item=collect($story->inventory_document['visuals']??[])->firstWhere('id',$c['object_id']);if(!empty($item['asset_id']))$refs[]=$item['asset_id'];$contents[]=$c+['new_item'=>false,'area_id'=>(string)Str::uuid()];}
    $prompt=$d['prompt']??'Extract the selected items from the existing changed state.';
-   $batch=SceneExtraction::create(['story_id'=>$story->id,'story_page_id'=>$page->id,'visual_id'=>$v['id'],'source_asset_id'=>$crop->id,'mode'=>'container','outputs'=>[$this->output('switch_off',$d['name'].' closed','Original cropped container.',[$crop->id],$crop->id),array_merge($this->output('container_preview',$d['name'].' open with contents',$prompt,array_values(array_unique($refs)),$reuse?$a['state_asset_id']:null),$reuse?['source_parent'=>$a]:[])]]);
+   $batch=SceneExtraction::create(['story_id'=>$story->id,'story_page_id'=>$page->id,'visual_id'=>$v['id'],'source_asset_id'=>$crop->id,'mode'=>'container','outputs'=>[$this->output('switch_off',$d['name'].' closed','Original cropped container.',[$crop->id],$crop->id),array_merge($this->output('container_preview',$d['name'].' open with contents',$prompt,array_values(array_unique($refs)),$reuse?$a['state_asset_id']:null),$reuse?['source_parent'=>$a]:[],['inherited_prompts'=>$d['output_prompts']??[]])]]);
    return ContainerPlan::create(['story_id'=>$story->id,'story_page_id'=>$page->id,'visual_id'=>$v['id'],'area_id'=>$a['id'],'name'=>$d['name'],'prompt'=>$prompt,'bounds'=>$b,'crop_bounds'=>$cropBounds,'padding'=>$padding,'equal_padding'=>$d['equal_padding']??true,'user_prompt'=>$d['user_prompt']??null,'prompt_model'=>$d['prompt_model']??null,'contents'=>$contents,'source_asset_id'=>$crop->id,'extraction_id'=>$batch->id]);
   });
  }
@@ -74,7 +74,15 @@ class ContainerPlans {
    foreach($contents as &$c){$sel=collect($d['contents'])->firstWhere('area_id',$c['area_id']);if(!$sel)$this->fail('Missing content area.');$r=$sel['bounds'];if($r['x']+$r['width']>1.00001||$r['y']+$r['height']>1.00001)$this->fail('Keep item areas inside the container crop.');if($r['width']*($p->crop_bounds??$p->bounds)['width']<.005||$r['height']*($p->crop_bounds??$p->bounds)['height']<.005)$this->fail('Item areas must be at least 0.5% of the full scene width and height. Enlarge the item boundary.');$c['bounds']=$r;$crop=$this->crop($story,$source,$r,$c['name'].' container item reference');$item=collect($story->inventory_document['visuals']??[])->firstWhere('id',$c['object_id']);
     $outputs[]=array_merge($this->output('layer',$c['name'].' container layer','Extract only '.$c['name'].' on transparent PNG with true alpha. Preserve exact position, scale, pose, lighting and crop dimensions. Remove surrounding background, not item details. Do not center or enlarge it.',[$crop->id]),['area_id'=>$c['area_id'],'bounds'=>$r]);
     $outputs[]=array_merge($this->output('inventory',$c['name'].' inventory','Isolated inventory render of '.$c['name'].'. '.($c['description']??'').' Center the entire item, transparent PNG, no scenery or text.',[$crop->id],$item['asset_id']??null),['area_id'=>$c['area_id']]);
-   }unset($c);$b->update(['outputs'=>$outputs]);$p->update(['contents'=>$contents,'preview_asset_id'=>$source->id,'stage'=>'contents']);return $p;
+   }unset($c);
+   // Match item prompts by inventory identity; regenerated areas have fresh IDs.
+   foreach($outputs as &$output){
+    if(!in_array($output['type'],['switch_on','layer','inventory'],true))continue;
+    $objectId=collect($contents)->firstWhere('area_id',$output['area_id']??null)['object_id']??null;
+    $inherited=collect($preview['inherited_prompts']??[])->first(fn($row)=>$row['type']===$output['type']&&($row['object_id']??null)===$objectId);
+    if($inherited)$output['prompt']=$inherited['prompt'];
+   }unset($output);
+   $b->update(['outputs'=>$outputs]);$p->update(['contents'=>$contents,'preview_asset_id'=>$source->id,'stage'=>'contents']);return $p;
   });
  }
  public function activate(Story $story,StoryPage $page,ContainerPlan $plan,int $revision,int $inventoryRevision):void {

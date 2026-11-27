@@ -7,6 +7,22 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class ContainerPlanTest extends TestCase {
  use RefreshDatabase;
+ public function test_recreated_plan_keeps_output_prompts_through_reload_and_contents_preparation():void {
+  [$s,$p,$data,$asset]=$this->fixture();
+  $key=$data['contents'][0]['object_id'];$coin=$data['contents'][1]['object_id'];
+  $data['output_prompts']=[['type'=>'switch_on','object_id'=>null,'prompt'=>'My exact empty-state prompt'],['type'=>'layer','object_id'=>$key,'prompt'=>'My exact key layer prompt'],['type'=>'inventory','object_id'=>$coin,'prompt'=>'My exact coin inventory prompt']];
+  $plan=$this->postJson(route('containers.index',[$s,$p]),$data)->assertCreated()->json();
+  $batch=SceneExtraction::findOrFail($plan['extraction_id']);$outputs=$batch->outputs;
+  foreach($outputs as &$o)if($o['type']==='container_preview')$o['accepted_asset_id']=$asset->id;unset($o);$batch->update(['outputs'=>$outputs]);
+  $marks=array_map(fn($c)=>['area_id'=>$c['area_id'],'bounds'=>['x'=>.1,'y'=>.1,'width'=>.3,'height'=>.3]],$plan['contents']);
+  $prepared=$this->postJson(route('containers.prepare',[$s,$p,$plan['id']]),['preview_asset_id'=>$asset->id,'contents'=>$marks])->assertOk()->json();
+  $outputs=collect($prepared['batch']['outputs']);
+  $this->assertSame('My exact empty-state prompt',$outputs->firstWhere('type','switch_on')['prompt']);
+  $keyArea=$plan['contents'][0]['area_id'];$coinArea=$plan['contents'][1]['area_id'];
+  $this->assertSame('My exact key layer prompt',$outputs->first(fn($o)=>$o['type']==='layer'&&$o['area_id']===$keyArea)['prompt']);
+  $this->assertSame('My exact coin inventory prompt',$outputs->first(fn($o)=>$o['type']==='inventory'&&$o['area_id']===$coinArea)['prompt']);
+  $this->assertNotSame('My exact key layer prompt',$outputs->first(fn($o)=>$o['type']==='layer'&&$o['area_id']===$coinArea)['prompt']);
+ }
  public function test_revised_margins_create_a_matching_closed_reference_without_changing_the_active_scene():void {
   [$s,$p,$data]=$this->fixture();
   $original=$this->postJson(route('containers.index',[$s,$p]),$data)->assertCreated()->json();
