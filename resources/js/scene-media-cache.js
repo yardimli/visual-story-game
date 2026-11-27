@@ -118,7 +118,14 @@ export function sceneMedia(player, scene) {
         if (narration) speech.add(normalized);
         if (narration || sounds.has(sound.id)) entries.push({ url: sound.url, kind: 'audio' });
     }
-    const video = player.videos.find((item) => item.id === scene.intro_video_id);
-    if (video?.url) entries.push({ url: video.url, kind: 'video' });
+    // Actions may become available after flags or inventory change. Load every
+    // video assigned to this scene before enabling play, not just its intro.
+    const videoIds = new Set([
+        scene.intro_video_id,
+        ...(scene.hotspots || []).map((area) => area.action_video_id),
+    ].filter(Boolean));
+    for (const video of player.videos || []) {
+        if (videoIds.has(video.id) && video.url) entries.push({ url: video.url, kind: 'video' });
+    }
     return entries.filter((entry) => entry.url);
 }

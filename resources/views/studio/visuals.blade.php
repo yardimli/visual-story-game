@@ -1247,7 +1247,7 @@
             </div>
         </template>
     </div>
-    <dialog
+    <dialog @toggle="editorDialogOpen.sceneCaptureDialog=$el.open"
         x-ref="sceneCaptureDialog"
         class="image-form-dialog dialog-panel rounded-2xl border bg-white p-6 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
     >
@@ -1267,7 +1267,7 @@
                 class="mb-3 text-sm text-red-700"
             ></p>
             <img
-                :src="sceneCapture?.preview"
+                :src="editorDialogOpen.sceneCaptureDialog ? (sceneCapture?.preview) : null"
                 alt="Scene image without click-area outlines"
                 class="mb-4 max-h-[55vh] w-full object-contain"
             >
@@ -1407,7 +1407,7 @@
                 >Delete area</button></div>
         </div>
     </dialog>
-    <dialog
+    <dialog @toggle="editorDialogOpen.interactionImagePicker=$el.open"
         x-ref="interactionImagePicker"
         class="reference-dialog rounded-xl bg-white text-stone-900 dark:bg-stone-900 dark:text-stone-100"
         aria-labelledby="interaction-picker-title"
@@ -1438,7 +1438,7 @@
                         @click="selectInventoryItem(item.id)"
                     ><img
                             x-show="asset(item.asset_id)"
-                            :src="$thumbnail(asset(item.asset_id)?.url)"
+                            :src="editorDialogOpen.interactionImagePicker ? ($thumbnail(asset(item.asset_id)?.url)) : null"
                             :alt="item.name"
                             loading="lazy"
                             class="aspect-square w-full object-contain"
@@ -1467,7 +1467,7 @@
                         @click="if(hotspot){hotspot.target_id=v.id;changed();$refs.interactionImagePicker.close();}"
                     ><img
                             x-show="asset(v.asset_id)"
-                            :src="$thumbnail(asset(v.asset_id)?.url)"
+                            :src="editorDialogOpen.interactionImagePicker ? ($thumbnail(asset(v.asset_id)?.url)) : null"
                             :alt="v.name"
                             loading="lazy"
                             class="aspect-square w-full object-contain"
@@ -1488,7 +1488,7 @@
                 x-text="pickerKind==='object'?'No object image':'Keep current scene'"
             ></button></footer>
     </dialog>
-    <dialog
+    <dialog @toggle="editorDialogOpen.visualImagePicker=$el.open"
         x-ref="visualImagePicker"
         class="image-picker-dialog reference-dialog rounded-2xl border border-stone-200 bg-white text-stone-900 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
         aria-labelledby="visual-image-picker-title"
@@ -1524,7 +1524,7 @@
                             @click="selectPickerImage(a.id)"
                         >
                             <img
-                                :src="$thumbnail(a.url)"
+                                :src="editorDialogOpen.visualImagePicker ? ($thumbnail(a.url)) : null"
                                 :alt="a.name"
                                 loading="lazy"
                                 class="aspect-square w-full bg-stone-100 object-contain dark:bg-stone-950"
@@ -1554,7 +1554,7 @@
     </dialog>
     @include('studio.preview')
 
-    <dialog
+    <dialog @toggle="editorDialogOpen.skipItemsDialog=$el.open"
         x-ref="skipItemsDialog"
         class="reference-dialog rounded-xl bg-white text-stone-900 dark:bg-stone-900 dark:text-stone-100"
         aria-label="Choose skip rule inventory items"
@@ -1577,7 +1577,7 @@
                         class="cursor-pointer rounded-lg border border-stone-200 p-3 dark:border-stone-700"
                         :class="skipItemSelection.includes(item.id) ? 'ring-2 ring-amber-500' : ''"
                     ><template x-if="asset(item.asset_id)"><img
-                                :src="$thumbnail(asset(item.asset_id).url)"
+                                :src="editorDialogOpen.skipItemsDialog ? ($thumbnail(asset(item.asset_id).url)) : null"
                                 :alt="item.name"
                                 class="h-28 w-full object-contain mb-2"
                             ></template><span class="flex gap-2 items-start"><input
@@ -1627,7 +1627,7 @@
     @include('studio.containers')
 
     <template x-teleport="body">
-        <dialog
+        <dialog @toggle="editorDialogOpen.introVideoPicker=$el.open"
             x-ref="introVideoPicker"
             class="image-picker-dialog reference-dialog rounded-2xl bg-white p-5 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
             aria-label="Choose scene intro video"
@@ -1670,12 +1670,12 @@
                         ></strong>
                         <div class="grid grid-cols-2 gap-4">
                             <div><span class="mb-1 block text-sm">First frame</span><img
-                                    :src="$thumbnail(video.first_frame_url)"
+                                    :src="editorDialogOpen.introVideoPicker ? ($thumbnail(video.first_frame_url)) : null"
                                     alt="First frame"
                                     class="h-40 w-full object-contain"
                                 ></div>
                             <div x-show="video.last_frame_url"><span class="mb-1 block text-sm">Last frame</span><img
-                                    :src="$thumbnail(video.last_frame_url || null)"
+                                    :src="editorDialogOpen.introVideoPicker ? ($thumbnail(video.last_frame_url || null)) : null"
                                     alt="Last frame"
                                     class="h-40 w-full object-contain"
                                 ></div>

@@ -68,7 +68,7 @@
             @click="updateExtractionPlan()"
         >Update with new areas</button></div>
 </dialog>
-<dialog
+<dialog @toggle="editorDialogOpen.extractionDialog=$el.open"
     x-ref="extractionDialog"
     class="extraction-dialog rounded-xl border border-stone-200 bg-white text-stone-900 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
     @cancel="if(extractionBusy)$event.preventDefault();else clearInterval(extractionTimer)"
@@ -271,7 +271,7 @@
                     <div class="relative mx-auto max-w-3xl"><img
                             loading="lazy"
                             decoding="async"
-                            :src="$thumbnail(asset(extractionSource).url)"
+                            :src="editorDialogOpen.extractionDialog ? ($thumbnail(asset(extractionSource).url)) : null"
                             class="w-full rounded"
                             alt="Original scene"
                         ><template
@@ -442,8 +442,8 @@
                         <div class="relative w-full overflow-hidden rounded"><img
                                 loading="lazy"
                                 decoding="async"
-                                :src="$thumbnail(asset(extractionPreview === 'original' ? extractionBatch.source_asset_id : (
-                                    extractionBackground || extractionBatch.source_asset_id))?.url)"
+                                :src="editorDialogOpen.extractionDialog ? ($thumbnail(asset(extractionPreview === 'original' ? extractionBatch.source_asset_id : (
+                                    extractionBackground || extractionBatch.source_asset_id))?.url)) : null"
                                 class="block h-auto w-full"
                                 :alt="extractionPreview === 'original' ? 'Original scene preserved' :
                                     'Accepted composition preview'"
@@ -454,7 +454,7 @@
                                     loading="lazy"
                                     decoding="async"
                                     x-show="extractionPreview==='composition'"
-                                    :src="$thumbnail(asset(o.accepted_asset_id)?.url)"
+                                    :src="editorDialogOpen.extractionDialog ? ($thumbnail(asset(o.accepted_asset_id)?.url)) : null"
                                     :style="style(o.bounds)"
                                     class="pointer-events-none absolute"
                                     alt="Scene item layer"
@@ -536,7 +536,7 @@
                                                     :aria-label="'Enlarge ' + ref.name"
                                                     @click.stop="$dispatch('vsg-image',ref)"
                                                 ><img
-                                                        :src="$thumbnail(ref.url)"
+                                                        :src="editorDialogOpen.extractionDialog ? ($thumbnail(ref.url)) : null"
                                                         :alt="ref.name"
                                                         class="h-28 w-32 object-contain"
                                                         loading="lazy"
@@ -562,7 +562,7 @@
                                     ><img
                                             loading="lazy"
                                             decoding="async"
-                                            :src="$thumbnail(asset(ref)?.url)"
+                                            :src="editorDialogOpen.extractionDialog ? ($thumbnail(asset(ref)?.url)) : null"
                                             class="h-24 w-32 rounded object-contain"
                                             alt="Generation reference"
                                         ><span
@@ -614,7 +614,7 @@
                                                 ><img
                                                         loading="lazy"
                                                         decoding="async"
-                                                        :src="$thumbnail(asset(id)?.url)"
+                                                        :src="editorDialogOpen.extractionDialog ? ($thumbnail(asset(id)?.url)) : null"
                                                         class="h-32 w-full object-contain"
                                                         alt="Generated candidate"
                                                     ></button><button

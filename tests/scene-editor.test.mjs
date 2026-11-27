@@ -1595,6 +1595,12 @@ test('interaction page navigation saves and chooses first scene rather than firs
         assert.equal(url.searchParams.get('tab'), 'visuals');
         await e.selectNavigationScene(14, 'second');
         assert.equal(new URL(destination).searchParams.get('visual'), 'second');
+        e.editorPageId = 14;
+        e.document.visuals = e.previewPages[0].visuals;
+        e.selected = 'first';
+        await e.selectNavigationScene(14, 'second');
+        assert.equal(new URL(destination).searchParams.get('visual'), 'second');
+        assert.equal(e.selected, 'first', 'same-page navigation must reload rather than swapping the scene');
         destination = null;
         e.flush = async () => false;
         await e.navigateInteractionPage(14);

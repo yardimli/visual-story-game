@@ -2,6 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { studioAutosave } from '../resources/js/autosave.js';
 
+test('tab and page navigation save first and perform a full page load', async () => {
+    const previous = globalThis.window;
+    const navigations = [];
+    globalThis.window = { location: { href: 'https://example.test/stories/4/edit?page=12&tab=visuals&visual=scene', assign: (url) => navigations.push(new URL(url)) } };
+    try {
+        const state = studioAutosave(1, { tabs: true, pageId: 12 });
+        state.tab = 'visuals';
+        let saved = false;
+        state.flush = async () => saved;
+        await state.switchTab('video');
+        await state.navigatePage(13);
+        assert.equal(navigations.length, 0);
+        saved = true;
+        await state.switchTab('video');
+        assert.equal(navigations[0].searchParams.get('tab'), 'video');
+        assert.equal(state.tab, 'visuals');
+        await state.navigatePage(13);
+        assert.equal(navigations[1].searchParams.get('page'), '13');
+        assert.equal(navigations[1].searchParams.has('visual'), false);
+    } finally { globalThis.window = previous; }
+});
+
 test('serializes page and story saves and uses returned revisions', async () => {
     const original = globalThis.FormData;
     globalThis.FormData = class {

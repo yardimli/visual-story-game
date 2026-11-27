@@ -1,5 +1,5 @@
 <template x-teleport="body">
-    <dialog
+    <dialog @toggle="editorDialogOpen.previewInventoryDialog=$el.open"
         x-ref="previewInventoryDialog"
         class="image-picker-dialog reference-dialog rounded-2xl border border-stone-200 bg-white text-stone-900 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
         aria-labelledby="preview-inventory-title"
@@ -62,7 +62,7 @@
                             loading="lazy"
                             decoding="async"
                             x-show="asset(item.asset_id)"
-                            :src="$thumbnail(asset(item.asset_id)?.url)"
+                            :src="editorDialogOpen.previewInventoryDialog ? ($thumbnail(asset(item.asset_id)?.url)) : null"
                             alt=""
                             class="h-16 w-20 shrink-0 rounded object-contain"
                         >

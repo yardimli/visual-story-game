@@ -98,30 +98,29 @@ export function studioAutosave(initialRevision, options = {}) {
             });
         },
         async switchTab(next) {
-            if (next === 'visuals' && this.activePageId && this.activePageId !== options.pageId) {
-                if (await this.flush()) {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('page', this.activePageId);
-                    url.searchParams.delete('visual');
-                    url.searchParams.set('tab', 'visuals');
-                    window.location.assign(url.href);
-                }
-                return;
-            }
-            if (typeof window !== 'undefined' && window.vsgInventory && !(await window.vsgInventory.flush())) return;
-            if (next === 'inventory') {
-                if (!(await this.flush())) return;
-                window.dispatchEvent(new CustomEvent('vsg-inventory-refresh'));
-            }
-            if (window.vsgFlags && !(await window.vsgFlags.flush())) return;
-            this.tab = next;
+            if (next === this.tab || !['page','story','visuals','inventory','audio','video'].includes(next)) return;
+            if (!(await this.flush())) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', next);
+            if (this.activePageId) url.searchParams.set('page', this.activePageId);
+            if (this.activePageId !== options.pageId) url.searchParams.delete('visual');
+            url.searchParams.delete('test');
+            window.location.assign(url.href);
+        },
+        async navigatePage(id) {
+            if (Number(id) === this.activePageId || !(await this.flush())) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', id);
+            url.searchParams.delete('visual');
+            url.searchParams.delete('test');
+            window.location.assign(url.href);
         },
         async openImages() {
             if (!(await this.flush())) return;
             window.location.assign(options.imageBase + '/' + this.activePageId + '/image-studio');
         },
         async testActivePage() {
-            if (this.activePageId !== options.pageId) {
+            if (this.activePageId !== options.pageId || !window.vsgSceneEditor) {
                 if (await this.flush()) {
                     const url = new URL(window.location.href);
                     url.searchParams.set('tab', 'visuals');

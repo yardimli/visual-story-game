@@ -25,7 +25,8 @@ class StudioController extends Controller {
         $story->setRelation('assets',\App\Models\Asset::withGenerationNames($story->assets,$story->id));
         $page=$request->filled('page') ? $story->pages->firstWhere('id',(int)$request->page) : $story->pages->first();
         abort_unless($page,404);
-        return view('studio.edit',['story'=>$story,'page'=>$page,'messages'=>$story->messages()->latest()->limit(40)->get()->reverse()]);
+        $activeTab=in_array($request->query('tab'),['page','story','visuals','inventory','audio','video'],true)?$request->query('tab'):'page';
+        return view('studio.edit',['story'=>$story,'page'=>$page,'activeTab'=>$activeTab,'messages'=>$story->messages()->latest()->limit(40)->get()->reverse()]);
     }
     public function update(Request $request,Story $story,StoryDraft $draft) {
         $this->owner($request,$story);

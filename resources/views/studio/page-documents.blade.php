@@ -3,7 +3,15 @@
     class="space-y-5"
     aria-label="Story pages"
 >
-    @foreach ($story->pages as $p)
+    <label class="field">Current page
+        <select @change="navigatePage($event.target.value)">
+            @foreach($story->pages as $navigationPage)
+                <option value="{{ $navigationPage->id }}" @selected($navigationPage->id === $page->id)>{{ $navigationPage->position }}. {{ $navigationPage->title }}</option>
+            @endforeach
+        </select>
+    </label>
+    <p class="text-xs text-stone-400">Changes save automatically.</p>
+    @foreach ([$page] as $p)
         <article
             data-page-id="{{ $p->id }}"
             class="page-document rounded-xl border border-stone-200 p-4 dark:border-stone-700"
@@ -44,8 +52,8 @@
                             class="btn-secondary page-action"
                             aria-label="{{ ['up' => 'Move page up', 'down' => 'Move page down', 'remove' => 'Remove page', 'insert' => 'Insert blank page after'][$action] }}"
                             @disabled(
-                                ($action === 'up' && $loop->parent->first) ||
-                                    ($action === 'down' && $loop->parent->last) ||
+                                ($action === 'up' && $p->id === $story->pages->first()->id) ||
+                                    ($action === 'down' && $p->id === $story->pages->last()->id) ||
                                     ($action === 'remove' && $story->pages->count() === 1) ||
                                     ($action === 'insert' && $story->pages->count() >= 100))
                         >{{ $label }}</button></form>

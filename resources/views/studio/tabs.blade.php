@@ -14,7 +14,7 @@
                 <a
                     class="whitespace-nowrap border-b-2 border-transparent pb-1 text-stone-400"
                     href="{{ route('images.studio', [$story, $page]) }}"
-                    @click.prevent="if(tab==='page' || activePageId!=={{ $page->id }}){openImages();}else{window.vsgSceneEditor?.openGeneration('{{ route('images.studio', [$story, $page]) }}');}"
+                    @click.prevent="if(tab==='page' || activePageId!=={{ $page->id }} || !window.vsgSceneEditor){openImages();}else{window.vsgSceneEditor.openGeneration('{{ route('images.studio', [$story, $page]) }}');}"
                 >{{ $label }}</a>
             @else
                 <button

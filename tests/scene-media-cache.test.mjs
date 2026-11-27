@@ -64,3 +64,38 @@ test('manifest includes scene layers, inventory, default effects, newest speech 
     const files = sceneMedia(player, { asset_id: 1, description: 'The hall.', intro_video_id: 'intro', hotspots: [{ state_asset_id: 2 }] });
     assert.deepEqual(files.map((f) => f.url), ['/image1', '/image2', '/image3', '/music', '/click', '/new', '/key', '/no-effect', '/intro.mp4']);
 });
+
+test('scene action videos preload once, including conditional areas, without loading other scenes', async (t) => {
+    const requested = [];
+    t.mock.method(globalThis, 'fetch', async (url) => {
+        requested.push(url);
+        return new Response('video bytes', { headers: { 'Content-Type': 'video/mp4' } });
+    });
+    const player = {
+        assets: [], gameObjects: [], audioSounds: [],
+        videos: [
+            { id: 'intro', url: '/intro.mp4' },
+            { id: 'reset', url: '/reset.mp4' },
+            { id: 'other-scene', url: '/other.mp4' },
+            { id: 'unfinished', url: null },
+        ],
+    };
+    const scene = { intro_video_id: 'intro', hotspots: [
+        { action_video_id: 'reset', conditions: [{ flag: 'ready', value: true }] },
+        { action_video_id: 'reset' },
+        { action_video_id: 'intro' },
+        { action_video_id: 'unfinished' },
+        { action_video_id: 'missing' },
+    ] };
+    const cache = new SceneMediaCache();
+    try {
+        const progress = [];
+        await cache.load(sceneMedia(player, scene), (p) => progress.push(p));
+        assert.deepEqual(requested.sort(), ['/intro.mp4', '/reset.mp4']);
+        assert.match(cache.url('/reset.mp4'), /^blob:/);
+        assert.deepEqual(progress.at(-1), { total: 2, completed: 2, percent: 100 });
+        await cache.load(sceneMedia(player, scene), () => {});
+        assert.equal(requested.length, 2);
+        assert.deepEqual(sceneMedia(player, { hotspots: [{ action_video_id: 'reset' }] }), [{ url: '/reset.mp4', kind: 'video' }]);
+    } finally { cache.dispose(); }
+});

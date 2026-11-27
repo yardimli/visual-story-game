@@ -191,6 +191,7 @@ export function sceneEditor(options) {
             renamingId: '',
             labelDraft: '',
             pickerKind: 'object',
+            editorDialogOpen: {},
             deleteAreaId: '',
             suppressImageClick: false,
             inventoryOpen: false,
@@ -758,10 +759,11 @@ export function sceneEditor(options) {
                     });
             },
             selectNavigationScene(pageId, sceneId) {
-                if (pageId !== this.editorPageId) return this.navigateInteractionPage(pageId, sceneId);
-                this.choose(sceneId);
-                this.visualMenuOpen = false;
-                this.$refs.visualMenuButton.focus();
+                if (Number(pageId) === Number(this.editorPageId) && sceneId === this.selected) {
+                    this.visualMenuOpen = false;
+                    return;
+                }
+                return this.navigateInteractionPage(pageId, sceneId);
             },
             async navigateInteractionPage(id, sceneId = null) {
                 const page = this.previewPages.find((p) => Number(p.id) === Number(id));

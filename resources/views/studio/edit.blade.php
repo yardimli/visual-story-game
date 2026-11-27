@@ -8,7 +8,7 @@
         x-data="studioAutosave({{ $story->revision }}, { tabs: true, pageId: {{ $page->id }}, position: {{ $page->position }}, imageBase: '{{ url('/stories/' . $story->id . '/pages') }}' })"
         @input="changed($event)"
         @change="changed($event)"
-        @companion-filled.window="tab=$event.detail.tab || tab"
+        @companion-filled.window="if($event.detail.tab)switchTab($event.detail.tab)"
     >
         @include('studio.story-header')
         <div class="story-editor-grid grid grid-cols-1">
@@ -23,7 +23,10 @@
                     class="story-editor-content min-w-0 p-5 lg:p-8"
                     :style="tab === 'visuals' ? 'padding-top: 0' : null"
                 >
+                    @if($activeTab === 'page')
                     @include('studio.page-documents')
+                    @endif
+                    @if($activeTab === 'story')
                     <section
                         x-show="tab==='story'"
                         x-cloak
@@ -193,10 +196,16 @@
                         <div x-show="bibleTab==='characters'">@include('studio.characters')</div>
                         @include('studio.audio-settings')
                     </section>
-                    @include('studio.visuals')
-                    @include('studio.inventory')
-                    @include('studio.audio')
-                    @include('studio.video')
+                    @endif
+                    @if($activeTab === 'visuals')
+                        @include('studio.visuals')
+                    @elseif($activeTab === 'inventory')
+                        @include('studio.inventory')
+                    @elseif($activeTab === 'audio')
+                        @include('studio.audio')
+                    @elseif($activeTab === 'video')
+                        @include('studio.video')
+                    @endif
                     @include('studio.speech')
 
                 </main>
