@@ -27,6 +27,19 @@ export function sceneExtraction(options) {
                 (h) => h.action === 'state_v2' && !h.is_container && !h.container_parent_id,
             );
         },
+        get containerSwitches() {
+            return (this.visual?.hotspots || []).filter(h => h.action === 'state_v2' && h.is_container && !h.container_parent_id);
+        },
+        async openSwitchContainer(area) {
+            if (!(await this.openContainers(false, area.id))) return;
+            const plan = this.selectedContainerPlans.find(p => p.id === area.container_plan_id) ||
+                this.selectedContainerPlans.find(p => p.stage === 'active') || this.selectedContainerPlans[0];
+            this.$refs.extractionDialog.close();
+            if (plan) {
+                this.containerPlanId = plan.id;
+                this.chooseContainerPlan(true);
+            }
+        },
         switchPrompt(area) {
             return (
                 'Edit only the local state of ' +

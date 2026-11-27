@@ -3,6 +3,30 @@ import assert from 'node:assert/strict';
 import { sceneExtraction } from '../resources/js/scene-extraction.js';
 import { sceneEditor } from '../resources/js/scene-editor.js';
 
+test('container-backed switches explain their owner and open the assigned plan without changing gameplay', async () => {
+    const e = sceneEditor({});
+    const door = { id: 'door', action: 'state_v2', is_container: true, container_plan_id: 5 };
+    const child = { id: 'key', action: 'pickup_v2', container_parent_id: 'door' };
+    e.document.visuals = [{ id: 'scene', kind: 'scene', hotspots: [door, child] }];
+    e.selected = 'scene';
+    assert.deepEqual(e.currentSwitches, []);
+    assert.deepEqual(e.containerSwitches, [door]);
+    e.containerArea = 'door';
+    e.containerPlans = [{ id: 5, visual_id: 'scene', area_id: 'door', stage: 'active' }];
+    const calls = [];
+    e.openContainers = async (...args) => { calls.push(args); return true; };
+    e.$refs = { extractionDialog: { close: () => calls.push('close') } };
+    e.chooseContainerPlan = existing => calls.push(['choose', existing]);
+    await e.openSwitchContainer(door);
+    assert.equal(e.containerPlanId, 5);
+    assert.deepEqual(calls, [[false, 'door'], 'close', ['choose', true]]);
+    assert.deepEqual(e.visual.hotspots, [door, child]);
+    e.openContainers = async () => false;
+    calls.length = 0;
+    await e.openSwitchContainer(door);
+    assert.deepEqual(calls, []);
+});
+
 test('integrated editor resolves selected extraction and output state dynamically', () => {
     const editor = sceneEditor({});
     assert.equal(editor.extractionBatch, undefined);

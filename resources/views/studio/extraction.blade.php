@@ -141,9 +141,17 @@
                     </div>
                 </template>
                 <p
-                    x-show="!currentSwitches.length"
+                    x-show="!currentSwitches.length && !containerSwitches.length"
                     class="text-sm"
                 >Add a Change state area to this scene first.</p>
+                <template x-for="area in containerSwitches" :key="'container-'+area.id">
+                    <div class="space-y-3 rounded-lg border p-3">
+                        <h4 class="font-semibold" x-text="area.label"></h4>
+                        <p class="text-sm">This switch is managed by a container plan because it includes separate item layers. Regenerate its changed-state image in that plan, or create a new container plan to rebuild the image with its contents.</p>
+                        <button type="button" class="btn-secondary" :disabled="extractionBusy || extractionRun || containerBusy"
+                            @click="$busy($el, async () => openSwitchContainer(area))">Open container plan</button>
+                    </div>
+                </template>
                 <template x-if="extractionBatch && extractionMode==='switches'">
                     <p
                         class="rounded border p-3 text-sm"

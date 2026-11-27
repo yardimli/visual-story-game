@@ -206,13 +206,13 @@ export function containerPlans(options) {
         containerPending(o) {
             return o.jobs?.some((j) => ['queued', 'running'].includes(j.status));
         },
-        async openContainers(reuseState = false) {
+        async openContainers(reuseState = false, areaId = null) {
             this.containerReuseState = reuseState;
             if (!(await this.flush())) return;
             this.containerError = '';
             this.containerModel = this.model;
-            this.containerArea =
-                this.hotspot && !this.hotspot.container_parent_id ? this.hotspot.id : this.containerAreas[0]?.id || '';
+            this.containerArea = areaId ||
+                (this.hotspot && !this.hotspot.container_parent_id ? this.hotspot.id : this.containerAreas[0]?.id || '');
             this.containerPlanId = '';
             await this.refreshContainers();
             this.newContainerPlan();
@@ -220,6 +220,7 @@ export function containerPlans(options) {
                 this.containerPlanId = this.selectedContainerPlans[0]?.id || '';
                 this.$refs.containerPlanDialog.showModal();
             } else this.$refs.containerDialog.showModal();
+            return true;
         },
         closeContainers() {
             clearTimeout(this.containerTimer);
