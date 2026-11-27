@@ -309,9 +309,13 @@ export function sceneExtraction(options) {
         async refreshExtraction(force = false) {
             if ((!force && !this.$refs.extractionDialog?.open) || this.extractionBusy || this.extractionRefreshing)
                 return;
+            if (globalThis.document?.hidden) { this.scheduleExtractionRefresh(); return; }
             this.extractionRefreshing = true;
             try {
-                const data = await this.request(options.extractionUrl);
+                const query = !force && this.extractionPollVersion ? '?poll_version=' + this.extractionPollVersion : '';
+                const data = await this.request(options.extractionUrl + query);
+                this.extractionPollVersion = data.version;
+                if (data.unchanged) return;
                 this.extractionBatches = data.batches.map((b) => ({
                     ...b,
                     outputs: b.outputs.map((o) => ({ ...o, bounds: this.extractionBounds[o.id] ?? o.bounds })),

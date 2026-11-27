@@ -2,13 +2,47 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { animatedDescription, hoverDescription, areaDescriptionBounds } from '../resources/js/animated-description.js';
 
-test('words reveal progressively, click reveals all, then fade after ten seconds', (t) => {
+test('letters reveal within words and bold emphasis moves only when the next word begins', (t) => {
+    t.mock.timers.enable({apis:['setTimeout']});
+    const d=animatedDescription({persistent:true});
+    d.play('Hi there','top','letters');
+    assert.equal(d.visibleWord(0),'H');
+    assert.equal(d.pendingWord(0),'i ');
+    assert.equal(d.activeWord(0),true);
+    t.mock.timers.tick(25);
+    assert.equal(d.visibleWord(0),'Hi');
+    t.mock.timers.tick(25);
+    assert.equal(d.activeWord(0),true);
+    assert.equal(d.activeWord(1),false);
+    t.mock.timers.tick(25);
+    assert.equal(d.visibleWord(1),'t');
+    assert.equal(d.activeWord(0),false);
+    assert.equal(d.activeWord(1),true);
+    d.reveal();
+    assert.equal(d.pendingWord(1),'');
+    assert.equal(d.activeWord(1),false);
+    d.destroy();
+});
+
+test('accented letters and joined emoji reveal as whole characters', (t) => {
+    t.mock.timers.enable({apis:['setTimeout']});
+    const d=animatedDescription({persistent:true});
+    d.play('e\u0301 👨‍👩‍👧‍👦!');
+    assert.equal(d.visibleWord(0),'e\u0301');
+    t.mock.timers.tick(25);
+    t.mock.timers.tick(25);
+    assert.equal(d.visibleWord(1),'👨‍👩‍👧‍👦');
+    assert.equal(d.pendingWord(1),'!');
+    d.destroy();
+});
+
+test('letters reveal progressively, click reveals all, then fade after ten seconds', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const d = animatedDescription();
     d.play('One two three', 'bottom', 'scene');
-    assert.equal(d.count, 1);
+    assert.equal(d.letterCount, 1);
     assert.equal(d.placement, 'bottom');
-    t.mock.timers.tick(110);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.equal(d.count, 2);
     d.reveal();
     assert.equal(d.count, 3);
@@ -26,13 +60,13 @@ test('outside dismissal cancels typing and new messages restart, capped at 250px
     assert.equal(d.height, 250);
     d.dismiss();
     t.mock.timers.tick(1000);
-    assert.equal(d.count, 1);
+    assert.equal(d.letterCount, 1);
     d.play('New message', undefined, 'next');
     assert.equal(d.placement, 'top');
     assert.equal(d.visible, true);
     d.destroy();
     t.mock.timers.tick(1000);
-    assert.equal(d.count, 1);
+    assert.equal(d.letterCount, 1);
 });
 
 test('hover text stays beyond five seconds, hides on exit and returns instantly', (t) => {
@@ -40,9 +74,9 @@ test('hover text stays beyond five seconds, hides on exit and returns instantly'
     const d = hoverDescription();
     const area = { id: 'a', description: 'One two three', action: 'page', animate_hover_text: true };
     d.hoverArea(area, 1, 'scene');
-    assert.equal(d.count, 1);
-    t.mock.timers.tick(110);
-    t.mock.timers.tick(110);
+    assert.equal(d.letterCount, 1);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     t.mock.timers.tick(6000);
     assert.equal(d.visible, true);
     d.leaveArea();
@@ -62,8 +96,8 @@ test('click completes typing despite pointer exit then runs action exactly once'
     d.leaveArea();
     assert.equal(d.visible, true);
     assert.equal(calls, 0);
-    t.mock.timers.tick(110);
-    t.mock.timers.tick(110);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.equal(d.count, 3);
     assert.equal(d.visible, false);
     assert.equal(calls, 1);
@@ -77,7 +111,7 @@ test('hover without text does not block action and examine does not repeat hover
     const area = { id: 'a', description: 'One two', action: 'examine', animate_hover_text: true };
     d.hoverArea(area, 1, 'scene');
     d.clickArea(area, () => calls++);
-    t.mock.timers.tick(110);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.equal(calls, 1);
     assert.equal(d.visible, false);
 });
@@ -117,7 +151,7 @@ test('hover text appears in full by default and only types when explicitly enabl
     assert.equal(d.count, 3);
     assert.equal(d.visible, true);
     d.hoverArea({ id: 'b', description: 'One two three', animate_hover_text: true }, 1, 'scene');
-    assert.equal(d.count, 1);
+    assert.equal(d.letterCount, 1);
     d.destroy();
 });
 
@@ -127,12 +161,12 @@ test('movement inside a newly entered scene reveals hover text without restartin
     const area = { id: 'area', description: 'One two three', animate_hover_text: true };
     d.hoverArea(area, 1, 'old');
     d.hoverArea(area, 2, 'new');
-    assert.equal(d.count, 1);
-    t.mock.timers.tick(110);
+    assert.equal(d.letterCount, 1);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.equal(d.count, 2);
     d.hoverArea(area, 2, 'new');
     assert.equal(d.count, 2);
-    t.mock.timers.tick(110);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.equal(d.count, 3);
     assert.equal(d.visible, true);
     d.destroy();
@@ -160,8 +194,8 @@ test('new descriptions replace scene text and cancel its animation immediately',
     item.hoverArea({ id: 'one', description: 'First item' }, 1, 'scene');
     assert.equal(scene.visible, false);
     assert.equal(scene.instantHide, true);
-    t.mock.timers.tick(110);
-    assert.equal(scene.count, 1);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
+    assert.equal(scene.letterCount, 1);
     item.hoverArea({ id: 'two', description: 'Second item' }, 1, 'scene');
     assert.equal(item.words.join(''), 'Second item');
     assert.equal(scene.visible, false);
@@ -198,7 +232,7 @@ test('replacing a speaking box with silent text stops only the old voice and can
         assert.equal(stopped, 1);
         assert.equal(sound.speaking, false);
         t.mock.timers.tick(500);
-        assert.equal(first.count, 1);
+        assert.equal(first.letterCount, 1);
         first.destroy();
         assert.equal(next.visible, true);
         next.destroy();
@@ -218,8 +252,8 @@ test('full-text layout fixes height before words finish and keeps upward anchor 
     const top = d.boxStyle.top;
     assert.equal(d.height, 120);
     assert.equal(d.measured, true);
-    assert.equal(d.count, 1);
-    t.mock.timers.tick(110);
+    assert.equal(d.letterCount, 1);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.equal(d.height, 120);
     assert.equal(d.boxStyle.top, top);
     d.reveal();
@@ -304,9 +338,9 @@ test('text completion is emitted only after the final word and once per response
     };
     d.play('One two three', 'top', 'response', true);
     assert.deepEqual(completed, []);
-    t.mock.timers.tick(110);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.deepEqual(completed, []);
-    t.mock.timers.tick(110);
+    for (let i = 0; i < 7; i++) t.mock.timers.tick(25);
     assert.deepEqual(completed, ['response']);
     d.reveal();
     assert.deepEqual(completed, ['response']);
@@ -333,7 +367,7 @@ test('clicking narration reveals every word and stops speech', (t) => {
     try {
         const d = animatedDescription();
         d.play('One two three');
-        assert.equal(d.count, 1);
+        assert.equal(d.letterCount, 1);
         d.skipSpeech();
         assert.equal(d.count, 3);
         assert.equal(stopped, 1);
@@ -404,7 +438,7 @@ test('source-area clicks use the same reveal and dismiss state as text-box click
     const d = animatedDescription();
     d.play('One two three', 'top', 'scene:1');
     d.clickFromArea('scene:2');
-    assert.equal(d.count, 1);
+    assert.equal(d.letterCount, 1);
     d.clickFromArea('scene:1');
     assert.equal(d.count, 3);
     assert.equal(d.visible, true);
@@ -424,13 +458,13 @@ test('narrated text follows playback progress, waits for metadata and buffering,
     try {
         d.play('One two three four five', 'top', 'timed');
         t.mock.timers.tick(2000);
-        assert.equal(d.count, 1, 'loading audio does not race through the text');
+        assert.equal(d.letterCount, 1, 'loading audio does not race through the text');
         audio.duration = 8;
         audio.currentTime = 4;
         t.mock.timers.tick(50);
-        assert.equal(d.count, 3);
+        assert.equal(d.count, 2);
         t.mock.timers.tick(2000);
-        assert.equal(d.count, 3, 'paused or buffering playback holds its text position');
+        assert.equal(d.count, 2, 'paused or buffering playback holds its text position');
         audio.currentTime = 7.9;
         t.mock.timers.tick(50);
         assert.equal(d.count, 4);

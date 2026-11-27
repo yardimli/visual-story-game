@@ -60,6 +60,20 @@ class VideoController extends Controller
         return response()->json($drafts->save($story, $request->all())->presentation(), 201);
     }
 
+    public function statuses(Request $request, Story $story)
+    {
+        $this->owner($request, $story);
+        $data=$request->validate(['ids'=>'required|array|min:1|max:50','ids.*'=>'required|uuid|distinct']);
+        $jobs=VideoGeneration::where('story_id',$story->id)->whereIn('id',$data['ids'])
+            ->get(['id','story_id','status','progress','error','sync_error','queued_at','started_at','heartbeat_at','completed_at']);
+        return response()->json([
+            'jobs'=>$jobs->map(fn($job)=>array_intersect_key($job->presentation(),array_flip([
+                'id','status','progress','error','sync_error','queued_at','started_at','heartbeat_at','completed_at','worker_offline','url',
+            ])))->values(),
+            'missing_ids'=>array_values(array_diff($data['ids'],$jobs->modelKeys())),
+        ])->header('Cache-Control','private, no-store');
+    }
+
     public function update(Request $request, Story $story, VideoGeneration $video, VideoDrafts $drafts)
     {
         $this->owner($request, $story, $video);
@@ -93,6 +107,12 @@ class VideoController extends Controller
                 $document = $page->visual_document;
                 $changed = false;
                 foreach ($document['visuals'] ?? [] as $index => $visual) {
+                    foreach ($visual['hotspots'] ?? [] as $areaIndex => $area) {
+                        if (($area['action_video_id'] ?? null) === $job->id) {
+                            $document['visuals'][$index]['hotspots'][$areaIndex]['action_video_id'] = null;
+                            $changed = true;
+                        }
+                    }
                     if (($visual['intro_video_id'] ?? null) === $job->id) {
                         $document['visuals'][$index]['intro_video_id'] = null;
                         $changed = true;

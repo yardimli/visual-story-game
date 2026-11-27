@@ -102,19 +102,13 @@
                                     @click="form.last_asset_id=''"
                                 >Remove last frame</button>
                             </div>
-                            <button
-                                type="button"
-                                x-show="asset(form[frame+'_asset_id'])"
-                                @click="zoom=asset(form[frame+'_asset_id'])?.url"
-                                class="block w-full"
-                                :aria-label="'Enlarge ' + frame + ' frame'"
-                            ><img
+                            <div class="relative" x-show="asset(form[frame+'_asset_id'])"><img
                                     loading="lazy"
                                     decoding="async"
                                     :src="$thumbnail(asset(form[frame + '_asset_id'])?.url)"
                                     :alt="frame + ' frame'"
                                     class="h-40 w-full object-contain"
-                                ></button>
+                                ><button type="button" class="image-zoom-button" :aria-label="'Enlarge ' + frame + ' frame'" @click.stop="$dispatch('vsg-image',asset(form[frame+'_asset_id']))" title="Zoom image"><x-zoom-icon /></button></div>
                             <label class="field text-xs">Upload image<input
                                     type="file"
                                     accept="image/png,image/jpeg,image/webp"
@@ -131,9 +125,7 @@
                         <template x-for="(id,index) in form.reference_asset_ids" :key="id">
                             <div class="space-y-2 rounded border border-stone-300 p-2">
                                 <strong class="text-sm" x-text="'<Picture '+(index+1)+'>'"></strong>
-                                <button type="button" class="block w-full" @click="zoom=asset(id)?.url" :aria-label="'Enlarge reference '+(index+1)">
-                                    <img :src="$thumbnail(asset(id)?.url)" :alt="asset(id)?.name || 'Reference image'" class="h-28 w-full object-contain">
-                                </button>
+                                <div class="relative"><img :src="$thumbnail(asset(id)?.url)" :alt="asset(id)?.name || 'Reference image'" class="h-28 w-full object-contain"><button type="button" class="image-zoom-button" :aria-label="'Enlarge reference '+(index+1)" @click.stop="$dispatch('vsg-image',asset(id))" title="Zoom image"><x-zoom-icon /></button></div>
                                 <p class="text-xs" x-text="asset(id)?.name || 'Image unavailable'"></p>
                                 <button type="button" class="text-xs underline" @click="form.reference_asset_ids.splice(index,1)">Remove</button>
                             </div>
@@ -240,19 +232,27 @@
                                     class="mb-1 text-xs"
                                     x-text="frame==='first'?'First frame':'Last frame'"
                                 ></p>
-                                <button
-                                    type="button"
-                                    class="block w-full"
-                                    @click="zoom=job[frame+'_frame_url']"
-                                    :aria-label="'Enlarge ' + frame + ' frame of ' + job.name"
-                                >
-                                    <img
+                                <div class="relative"><img
                                         :src="$thumbnail(job[frame + '_frame_url'])"
                                         :alt="frame + ' frame of ' + job.name"
                                         loading="lazy"
                                         class="h-32 w-full rounded-lg object-contain"
-                                    >
-                                </button>
+                                    ><button type="button" class="image-zoom-button" :aria-label="'Enlarge ' + frame + ' frame of ' + job.name" @click.stop="$dispatch('vsg-image',{url: job[frame+'_frame_url'], name: frame+' frame of '+job.name})" title="Zoom image"><x-zoom-icon /></button></div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3" x-show="job.reference_asset_ids?.length">
+                        <template x-for="(id,index) in (job.reference_asset_ids || [])" :key="index">
+                            <div class="min-w-0">
+                                <p class="mb-1 text-xs" x-text="'Reference '+(index+1)+' · Picture '+(index+1)"></p>
+                                <div class="relative" x-show="asset(id)?.url">
+                                    <img :src="$thumbnail(asset(id)?.url)" :alt="asset(id)?.name || 'Reference '+(index+1)"
+                                        loading="lazy" class="h-32 w-full rounded-lg object-contain">
+                                    <button type="button" class="image-zoom-button" title="Zoom image"
+                                        :aria-label="'Enlarge reference '+(index+1)+' of '+job.name"
+                                        @click.stop="$dispatch('vsg-image',asset(id))"><x-zoom-icon /></button>
+                                </div>
+                                <p class="text-xs text-stone-500" x-show="!asset(id)?.url">Reference image unavailable</p>
                             </div>
                         </template>
                     </div>
@@ -296,7 +296,8 @@
                             class="btn-primary"
                             :disabled="busy"
                             @click="edit(job)"
-                        >Generate</button>
+                            x-text="job.sync_error ? 'Retry sending' : 'Generate'"
+                        ></button>
                         <button
                             type="button"
                             x-show="job.status==='draft'"
@@ -374,10 +375,11 @@
                         x-for="image in frameImages"
                         :key="image.id"
                     >
+                        <div class="relative">
                         <button
                             type="button"
                             @click="chooseFrame(image)"
-                            class="min-w-0 rounded-lg border border-stone-300 p-2 text-left"
+                            class="w-full min-w-0 rounded-lg border border-stone-300 p-2 text-left"
                             :class="form[framePicker + '_asset_id'] == image.id ? 'ring-2 ring-amber-500' : ''"
                         >
                             <img
@@ -395,28 +397,12 @@
                                 x-text="image.composition?(image.composition.description || 'Combined: '+image.composition.sources.map(s=>s.name).join(' + ')):''"
                             ></span>
                         </button>
+<button type="button" class="image-zoom-button" :aria-label="'Enlarge '+image.name" @click.stop="$dispatch('vsg-image',image)" title="Zoom image"><x-zoom-icon /></button>
+</div>
                     </template>
                 </div>
             </div>
         </div>
     </dialog>
-    <dialog
-        x-effect="if(zoom && !$el.open)$el.showModal();else if(!zoom && $el.open)$el.close()"
-        @close="zoom=null"
-        @click.self="zoom=null"
-        class="image-form-dialog rounded-xl bg-stone-900 p-8"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Frame preview"
-    ><button
-            type="button"
-            @click="zoom=null"
-            class="absolute right-5 top-5 btn-secondary"
-        >Close</button><img
-            loading="lazy"
-            decoding="async"
-            :src="zoom"
-            alt="Video frame preview"
-            class="max-h-full max-w-full object-contain"
-        ></dialog>
+
 </section>

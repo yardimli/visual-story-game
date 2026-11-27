@@ -13,6 +13,11 @@ class SceneController extends Controller {
  }
  public function show(Request $r,Story $story,StoryPage $page) {
   $this->owner($r,$story,$page);
+  if($r->has('status_ids')){
+   $d=$r->validate(['status_ids'=>'required|array|min:1|max:50','status_ids.*'=>'required|integer|distinct']);
+   $jobs=ImageGeneration::where('story_id',$story->id)->whereIn('id',$d['status_ids'])->get(['id','status','error','asset_ids','started_at']);
+   return response()->json(['jobs'=>$jobs,'missing_ids'=>array_values(array_diff($d['status_ids'],$jobs->modelKeys()))])->header('Cache-Control','private, no-store');
+  }
   $uses=[];$assetPages=[];
   $pageLabels=$story->pages()->get(['id','position','title'])->mapWithKeys(function($p){$label='Page '.$p->position;$title=trim($p->title??'');return [$p->id=>!$title||strcasecmp($title,$label)===0?$label:$label.' · '.$title];});
   foreach(ImageGeneration::where('story_id',$story->id)->where('status','completed')->get(['story_page_id','asset_ids']) as $job)foreach($job->asset_ids??[] as $id)$assetPages[$id][]=$job->story_page_id;

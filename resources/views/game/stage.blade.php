@@ -14,20 +14,24 @@
     >
         <template x-if="introVideo">
             <div
-                class="fixed inset-0 z-[100] flex items-center justify-center bg-black"
+                class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black"
                 @click.stop
                 @pointerdown.stop
             >
+                <div class="relative overflow-hidden" :style="videoSceneImage ? {} : {width:'calc(100vw - 2rem)',height:'calc(100dvh - 2rem)'}">
+                <template x-if="videoSceneImage">
+                    <img :src="videoSceneImage" alt="" class="preview-scene-image invisible" aria-hidden="true" draggable="false">
+                </template>
                 <template x-if="loadingSceneImage">
-                    <img :src="loadingSceneImage" alt="" class="absolute inset-0 h-full w-full object-contain" draggable="false">
+                    <img x-show="introVideoLoading" :src="loadingSceneImage" alt="" class="absolute inset-0 h-full w-full object-contain" draggable="false">
                 </template>
                 <video
                     x-ref="introVideoPlayer"
                     :src="introVideo.url"
                     :aria-label="introVideo.name"
-                    class="h-full w-full object-contain"
-                    :style="{opacity: introVideoLoading ? 0 : 1, position: 'relative'}"
-                    @waiting="introVideoLoading=true"
+                    class="game-scene-video"
+                    :style="{opacity: introVideoLoading ? 0 : 1}"
+                    @waiting="if($el.currentTime === 0)introVideoLoading=true"
                     @playing="introVideoLoading=false"
                     playsinline
                     preload="auto"
@@ -35,6 +39,7 @@
                     @ended="finishIntroVideo()"
                     x-on:error="introVideoFailed=true"
                 ></video>
+                </div>
                 <div class="absolute right-4 top-4 flex gap-3">
                     <button
                         type="button"
@@ -299,11 +304,14 @@
                         >
                             <div class="dialog-content-scroll inventory-content-scroll" x-ref="scroll">
                             <img x-show="modal.url" :src="modal.url" :alt="modal.label" class="preview-object-image">
-                            <div x-show="modal.text" class="game-item-description" x-ref="words"><template
+                            <div x-show="modal.text" class="game-item-description" x-ref="words">
+                                <div class="inventory-text-layout">
+                                    <div class="inventory-text-size" aria-hidden="true" x-text="modal.text"></div>
+                                    <div class="inventory-text-reveal"><template
                                 x-for="(word,index) in words" :key="signature + ':' + index"
-                            ><span :class="index < count ? 'description-word' : 'description-word-pending'"
-                                :aria-hidden="index >= count" x-text="word"
-                            ></span></template></div>
+                            ><span data-description-word><span :class="{'description-typing-word': activeWord(index)}" x-text="visibleWord(index)"></span><span class="description-word-pending" aria-hidden="true" x-text="pendingWord(index)"></span></span></template></div>
+                                </div>
+                            </div>
                             </div>
                         </div>
                         <footer class="description-actions inventory-inspection-actions" @click.stop>

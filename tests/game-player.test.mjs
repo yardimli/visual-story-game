@@ -5,6 +5,44 @@ import { animatedDescription } from '../resources/js/animated-description.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { sceneEditor } from '../resources/js/scene-editor.js';
+import { gameRuntime } from '../resources/js/game-runtime.js';
+
+test('a different area finishes current text/audio before a second click switches areas', () => {
+    const oldWindow = globalThis.window;
+    const oldEvent = globalThis.CustomEvent;
+    globalThis.CustomEvent = class { constructor(type, options) { this.type = type; this.detail = options.detail; } };
+    try {
+        for (const [revealed, speaking] of [[false, true], [false, false], [true, true]]) {
+            const player = gameRuntime();
+            player.previewId = 'room';
+            player.narration = { sourceAreaId: 'first', text: 'Current message', revealed };
+            player.soundPlayer = { speaking, channel() { this.speaking = false; }, click() {} };
+            player.areaDisabled = () => false;
+            player.areaDescription = () => 'Next message';
+            let opened = 0, finished = 0;
+            player.presentArea = () => opened++;
+            globalThis.window = { dispatchEvent(event) {
+                assert.equal(event.type, 'description-area-click');
+                assert.equal(event.detail.key, 'room:' + player.narrationVersion);
+                finished++;
+                player.narration.revealed = true;
+                player.stopNarration();
+            } };
+            const next = { id: 'second', action: 'examine' };
+            player.tapArea(next);
+            assert.equal(finished, 1);
+            assert.equal(opened, 0);
+            assert.equal(player.narration.sourceAreaId, 'first');
+            assert.equal(player.narrationSpeaking, false);
+            player.tapArea(next);
+            assert.equal(opened, 1);
+            assert.equal(finished, 1);
+        }
+    } finally {
+        globalThis.window = oldWindow;
+        globalThis.CustomEvent = oldEvent;
+    }
+});
 
 function data() {
     return {

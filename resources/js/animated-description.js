@@ -38,6 +38,24 @@ export function animatedDescription(options = {}) {
         signature: null,
         measured: false,
         words: [],
+        letters: [],
+        wordStarts: [],
+        letterCount: 0,
+        totalLetters: 0,
+        visibleWord(index) {
+            return (this.letters[index] || []).slice(0, Math.max(0, this.letterCount - this.wordStarts[index])).join('');
+        },
+        pendingWord(index) {
+            return (this.letters[index] || []).slice(Math.max(0, this.letterCount - this.wordStarts[index])).join('');
+        },
+        activeWord(index) {
+            return !this.completed && this.letterCount > this.wordStarts[index] &&
+                (index === this.words.length - 1 || this.letterCount <= this.wordStarts[index + 1]);
+        },
+        setLetters(count) {
+            this.letterCount = Math.min(count, this.totalLetters);
+            this.count = this.wordStarts.filter((start, i) => start + this.letters[i].length <= this.letterCount).length;
+        },
         count: 0,
         visible: false,
         placement: 'top',
@@ -100,6 +118,11 @@ export function animatedDescription(options = {}) {
             this.anchor = area;
             this.updateBounds();
             this.words = String(text || '').match(/\S+\s*/g) || [];
+            const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, {granularity: 'grapheme'}) : null;
+            this.letters = this.words.map(word => segmenter ? Array.from(segmenter.segment(word), item => item.segment) : Array.from(word));
+            this.totalLetters = 0;
+            this.wordStarts = this.letters.map(letters => { const start = this.totalLetters; this.totalLetters += letters.length; return start; });
+            this.letterCount = 0;
             this.count = 0;
             this.height = 0;
             this.measured = false;
@@ -128,13 +151,12 @@ export function animatedDescription(options = {}) {
                 const progress = Number.isFinite(duration) && duration > 0
                     ? Math.max(0, Math.min(1, (Number(audio.currentTime) || 0) / duration))
                     : 0;
-                this.count = Math.max(this.count, Math.min(this.words.length,
-                    1 + Math.floor(progress * (this.words.length - 1))));
+                this.setLetters(Math.max(this.letterCount, 1 + Math.floor(progress * (this.totalLetters - 1))));
             } else {
-                this.count = Math.min(this.count + 1, this.words.length);
+                this.setLetters(this.letterCount + 1);
             }
             this.measure();
-            if (this.count < this.words.length) this.wordTimer = setTimeout(() => this.step(), audio ? 50 : 110);
+            if (this.count < this.words.length) this.wordTimer = setTimeout(() => this.step(), audio ? 16 : 25);
             else this.scheduleHide();
         },
         measure() {
@@ -151,7 +173,7 @@ export function animatedDescription(options = {}) {
                     this.measured = true;
                     this.syncSceneSpace();
                     const box = this.$refs.scroll || this.$refs.textBox || this.$refs.box,
-                        word = content.querySelectorAll?.('span')[this.count - 1];
+                        word = content.querySelectorAll?.('[data-description-word]')[Math.max(0, this.wordStarts.findLastIndex(start => start < this.letterCount))];
                     if (box && word) {
                         const bottom = word.getBoundingClientRect && box.getBoundingClientRect
                             ? word.getBoundingClientRect().bottom - box.getBoundingClientRect().top + box.scrollTop
@@ -255,6 +277,7 @@ export function animatedDescription(options = {}) {
         },
         reveal() {
             clearTimeout(this.wordTimer);
+            this.letterCount = this.totalLetters;
             this.count = this.words.length;
             this.measure();
             this.scheduleHide();

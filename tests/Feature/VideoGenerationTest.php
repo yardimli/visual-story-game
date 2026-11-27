@@ -24,6 +24,24 @@ class VideoGenerationTest extends TestCase
 
     private array $fields;
 
+    public function test_status_poll_returns_only_requested_status_fields_and_checks_ownership(): void
+    {
+        $job=$this->queued();
+        $other=app(VideoDrafts::class)->save($this->story,$this->fields);
+        DB::enableQueryLog();
+        $response=$this->getJson(route('videos.status',[$this->story,'ids'=>[$job->id]]))->assertOk()
+            ->assertJsonCount(1,'jobs')->assertJsonPath('jobs.0.id',$job->id)->assertJsonMissingPath('jobs.0.prompt')
+            ->assertJsonMissingPath('jobs.0.parameters')->assertJsonMissingPath('assets')->assertJsonMissingPath('engines');
+        $this->assertStringNotContainsString($other->id,$response->getContent());
+        $queries=collect(DB::getQueryLog())->pluck('query')->filter(fn($sql)=>str_contains($sql,'from "video_generations"'))->implode(' ');
+        $this->assertNotEmpty($queries);
+        $this->assertStringNotContainsString('"prompt"',$queries);
+        $this->assertStringNotContainsString('select *',$queries);
+        $this->getJson(route('videos.status',[$this->story,'ids'=>[(string)Str::uuid()]]))->assertOk()->assertJsonCount(1,'missing_ids');
+        $this->getJson(route('videos.status',[$this->story,'ids'=>['invalid']]))->assertUnprocessable();
+        $this->actingAs(User::factory()->create())->getJson(route('videos.status',[$this->story,'ids'=>[$job->id]]))->assertNotFound();
+    }
+
     public function test_lightning_mode_is_boolean_and_legacy_step_counts_are_removed_when_queued(): void
     {
         $fields=array_replace($this->fields,['engine'=>'minimax_h3_reference']);
@@ -198,9 +216,11 @@ class VideoGenerationTest extends TestCase
         $video = $this->queued();
         $video->update(['status' => 'completed', 'output_path' => 'videos/'.$video->id.'/result.mp4']);
         $visual = ['id' => (string) Str::uuid(), 'kind' => 'scene', 'name' => 'Hall', 'asset_id' => null,
-            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id, 'intro_video_repeat' => true, 'intro_video_pause_music' => true];
+            'prompt' => '', 'hotspots' => [['id'=>(string) Str::uuid(),'label'=>'Watch','action'=>'examine','overlay'=>false,'x'=>0,'y'=>0,'width'=>0.2,'height'=>0.2,'action_video_id'=>$video->id,'action_video_pause_music'=>true]], 'intro_video_id' => $video->id, 'intro_video_repeat' => true, 'intro_video_pause_music' => true];
         $document = app(\App\Services\SceneDocument::class)->validate($this->story, ['visuals' => [$visual]]);
         $this->assertTrue($document['visuals'][0]['intro_video_repeat']);
+        $this->assertSame($video->id,$document['visuals'][0]['hotspots'][0]['action_video_id']);
+        $this->assertTrue($document['visuals'][0]['hotspots'][0]['action_video_pause_music']);
         $this->assertTrue($document['visuals'][0]['intro_video_pause_music']);
         $page = $this->story->pages()->create(['position' => 1, 'title' => 'Hall', 'visual_document' => $document]);
         $this->get(route('stories.play', [$this->story, 'page' => $page->id, 'skip_first_video' => 1]))
@@ -210,13 +230,14 @@ class VideoGenerationTest extends TestCase
         $this->get(route('videos.frame', [$this->story, $video, 'last']))->assertNotFound();
         $this->deleteJson('/stories/'.$this->story->id.'/videos/'.$video->id)->assertNoContent();
         $this->assertNull($page->fresh()->visual_document['visuals'][0]['intro_video_id']);
+        $this->assertNull($page->fresh()->visual_document['visuals'][0]['hotspots'][0]['action_video_id']);
     }
 
     public function test_scene_rejects_unfinished_and_foreign_videos(): void
     {
         $video = $this->queued();
         $visual = ['id' => (string) Str::uuid(), 'kind' => 'scene', 'name' => 'Hall', 'asset_id' => null,
-            'prompt' => '', 'hotspots' => [], 'intro_video_id' => $video->id];
+            'prompt' => '', 'hotspots' => [['id'=>(string) Str::uuid(),'label'=>'Watch','action'=>'examine','overlay'=>false,'x'=>0,'y'=>0,'width'=>0.2,'height'=>0.2,'action_video_id'=>$video->id,'action_video_pause_music'=>true]], 'intro_video_id' => $video->id];
         foreach (['queued', 'foreign'] as $case) {
             if ($case === 'foreign') $video->update(['status' => 'completed', 'story_id' => Story::create([
                 'user_id' => $this->story->user_id, 'title' => 'Other', 'premise' => 'Other'])->id]);
@@ -225,6 +246,7 @@ class VideoGenerationTest extends TestCase
                 $this->fail('Invalid video was accepted');
             } catch (\Illuminate\Validation\ValidationException $error) {
                 $this->assertArrayHasKey('visuals.0.intro_video_id', $error->errors());
+                $this->assertArrayHasKey('visuals.0.hotspots.0.action_video_id', $error->errors());
             }
         }
         $this->get(route('videos.frame', [$this->story, $video, 'first']))->assertNotFound();
@@ -392,6 +414,23 @@ class VideoGenerationTest extends TestCase
         config(['video.mode' => 'hub']);
         app(VideoRelay::class)->sync($job);
         Http::assertSentCount(3);
+    }
+
+    public function test_rejected_relay_import_stops_until_explicit_retry(): void
+    {
+        config(['video.mode'=>'relay','video.relay_token'=>'local','video.hub_url'=>'https://hub.example']);
+        $job=$this->queued();
+        Http::fake(['*'=>Http::response(['message'=>'The parameters field must be an array.'],422)]);
+        app(VideoRelay::class)->sync($job);
+        $this->assertSame('draft',$job->fresh()->status);
+        $this->assertNull($job->fresh()->queued_at);
+        $this->assertSame('The parameters field must be an array.',$job->fresh()->sync_error);
+        app(VideoRelay::class)->sync($job);
+        Http::assertSentCount(1);
+        app(VideoDrafts::class)->queue($job->fresh());
+        $this->assertSame('forwarding',$job->fresh()->status);
+        $this->assertNull($job->fresh()->sync_error);
+        $this->assertDatabaseCount('video_generations',1);
     }
 
     public function test_invalid_upload_and_engine_version_do_not_complete_or_claim_job(): void

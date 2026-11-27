@@ -115,7 +115,10 @@ test('generation immediately prepends a placeholder and retains accepted job if 
         editor.selected = 'scene';
         editor.jobs = [{ id: 1, status: 'completed' }];
         editor.flush = async () => true;
-        editor.$refs = { imageResults: { scrollTop: 500 } };
+        let closed = 0;
+        editor.$refs = { imageResults: { scrollTop: 500 }, imageFormDialog: {
+            open: true, close() { this.open=false; closed++; }, showModal() { this.open=true; },
+        } };
         editor.$nextTick = (fn) => fn();
         let submitted, finish;
         const waiting = new Promise((resolve) => {
@@ -131,6 +134,9 @@ test('generation immediately prepends a placeholder and retains accepted job if 
             throw new Error('Status unavailable');
         };
         const generation = editor.generate();
+        assert.equal(closed, 1);
+        assert.equal(editor.$refs.imageFormDialog.open, false);
+        assert.equal(editor.status, 'Submitting image…');
         await waiting;
         assert.equal(editor.jobs[0].status, 'submitting');
         assert.equal(editor.jobs[0].prompt, 'A porch');
@@ -144,10 +150,33 @@ test('generation immediately prepends a placeholder and retains accepted job if 
         assert.equal(editor.jobs[0].status, 'queued');
         assert.equal(editor.error, '');
         assert.equal(editor.generating, false);
+        assert.equal(editor.$refs.imageFormDialog.open, false);
     } finally {
         if (originalWindow === undefined) delete globalThis.window;
         else globalThis.window = originalWindow;
     }
+});
+
+test('image submission failure restores the form for an explicit retry with the same request key', async () => {
+    const oldWindow=globalThis.window;
+    globalThis.window={};
+    try {
+        const editor=sceneEditor({generate:'/generate',url:'/visuals'});
+        editor.document={visuals:[{id:'scene',name:'Room',prompt:'A room'}]};
+        editor.selected='scene';
+        editor.flush=async()=>true;
+        editor.$nextTick=fn=>fn();
+        const dialog={open:true,close(){this.open=false;},showModal(){this.open=true;}};
+        editor.$refs={imageFormDialog:dialog};
+        const key=editor.requestKey;
+        editor.request=async()=>{throw new Error('Submission failed');};
+        await editor.generate();
+        assert.equal(dialog.open,true);
+        assert.equal(editor.generating,false);
+        assert.equal(editor.error,'Submission failed');
+        assert.equal(editor.requestKey,key);
+        assert.equal(editor.visual.prompt,'A room');
+    } finally {globalThis.window=oldWindow;}
 });
 
 test('area movement and resizing stay within bounds, cancel restores, and deletion requires confirmation', () => {
@@ -823,6 +852,29 @@ test('scene crossfade waits another 250ms before inspection and closing cancels 
     assert.equal(editor.modal, null);
     assert.equal(editor.pendingModal, null);
     assert.equal(editor.sceneTransition, false);
+});
+
+test('archive and restore update live cards even when polling replaces the asset during save', async () => {
+    const editor = sceneEditor({assetBase:'/assets'});
+    editor.assets = [{id:1,name:'Room',archived:false,url:'/assets/1'}];
+    editor.jobs = [{id:10,status:'completed',asset_ids:[1]}];
+    let finish;
+    editor.request = () => new Promise(resolve => {finish=resolve;});
+    const saving = editor.updateAsset(1,{archived:true});
+    editor.assets = [{...editor.assets[0],url:'/assets/1?fresh=1'}];
+    finish({name:'Room',archived:true});
+    await saving;
+    assert.equal(editor.visibleJobs.length,0);
+    assert.equal(editor.archivedCount,1);
+    assert.equal(editor.assets[0].url,'/assets/1?fresh=1');
+    editor.request = async () => ({name:'Renamed room',archived:false});
+    await editor.updateAsset(1,{archived:false});
+    assert.equal(editor.visibleJobs.length,1);
+    assert.equal(editor.jobTitle(editor.jobs[0]),'Renamed room');
+    editor.request = async () => {throw new Error('Archive failed');};
+    await editor.updateAsset(1,{archived:true});
+    assert.equal(editor.visibleJobs.length,1);
+    assert.equal(editor.error,'Archive failed');
 });
 
 test('image sidebar filters archived assets without losing assignments', () => {

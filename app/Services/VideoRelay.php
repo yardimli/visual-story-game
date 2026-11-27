@@ -73,11 +73,16 @@ class VideoRelay
                     $job->update($fields + ['sync_error' => null]);
                 }
             } catch (\Throwable $exception) {
-                // Retry transport failures on the next sync, retaining the same remote job identity.
+                // A rejected import never started rendering. Stop polling and let
+                // the creator fix/retry the same draft, rather than spin forever.
+                $rejected = !$job->remote_id && $exception instanceof \Illuminate\Http\Client\RequestException
+                    && in_array($exception->response->status(), [400, 401, 403, 404, 413, 415, 422, 426]);
+                // Uncertain transport failures retain the same remote identity.
                 $message = $exception instanceof \Illuminate\Http\Client\RequestException
                     ? ($exception->response->json('message') ?? 'Video hub request failed (HTTP '.$exception->response->status().').')
                     : $exception->getMessage();
-                $job->update(['sync_error' => mb_substr($message, 0, 2000)]);
+                $job->update(['sync_error' => mb_substr($message, 0, 2000)] + ($rejected
+                    ? ['status'=>'draft', 'queued_at'=>null, 'progress'=>0] : []));
             }
         });
     }

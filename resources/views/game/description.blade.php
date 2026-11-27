@@ -19,11 +19,7 @@
 >
         <div class="description-text-panel" x-ref="textBox" :style="{height: height + 'px'}">
         <div class="dialog-content-scroll" x-ref="scroll">
-    <div x-ref="words"><template x-for="(word,index) in words" :key="signature + ':' + index"><span
-        :class="index < count ? 'description-word' : 'description-word-pending'"
-        :aria-hidden="index >= count"
-        x-text="word"
-    ></span></template></div>
+    <div x-ref="words"><template x-for="(word,index) in words" :key="signature + ':' + index"><span data-description-word><span :class="{'description-typing-word': activeWord(index)}" x-text="visibleWord(index)"></span><span class="description-word-pending" aria-hidden="true" x-text="pendingWord(index)"></span></span></template></div>
         </div>
         </div>
     @if (!empty($actionButtons))

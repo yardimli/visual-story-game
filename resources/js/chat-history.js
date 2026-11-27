@@ -20,7 +20,7 @@ export function recoverChatMessages(current, snapshot) {
         const saved = { ...existing.get(message.id), ...message };
         const running = pending.get(message.id);
         return running
-            ? [saved, { id: 'pending:' + message.id, role: 'assistant', content: running.content, streaming: true }]
+            ? [saved, { id: 'pending:' + message.id, role: 'assistant', content: running.content, streaming: true, created_at: message.created_at }]
             : [saved];
     });
 }

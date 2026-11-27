@@ -25,10 +25,11 @@ export function storyVideo(url, uploadUrl) {
         editing: null,
         busy: false,
         loading: false,
+        polling: false,
+        destroyed: false,
         error: '',
         notice: '',
         now: Date.now(),
-        zoom: null,
         init() {
             this.onTab = (event) => {
                 if (event.detail.tab === 'video') this.load();
@@ -38,10 +39,11 @@ export function storyVideo(url, uploadUrl) {
             if (new URL(location.href).searchParams.get('tab') === 'video') this.load();
             this.timer = setInterval(() => {
                 this.now = Date.now();
-                if (window.vsgAutosave?.tab === 'video' && !document.hidden) this.load();
+                if (window.vsgAutosave?.tab === 'video' && !document.hidden) this.pollStatuses();
             }, 5000);
         },
         destroy() {
+            this.destroyed = true;
             clearInterval(this.timer);
             window.removeEventListener('vsg-editor-tab', this.onTab);
         },
@@ -78,6 +80,28 @@ export function storyVideo(url, uploadUrl) {
                 this.error = error.message;
             } finally {
                 this.loading = false;
+            }
+        },
+        async pollStatuses() {
+            if (this.destroyed || this.polling || this.loading || this.busy) return;
+            const ids = this.jobs.filter(job => !['draft', 'completed', 'failed'].includes(job.status)).map(job => job.id);
+            if (!ids.length) return;
+            this.polling = true;
+            try {
+                for (let i = 0; i < ids.length; i += 50) {
+                    if (this.destroyed || this.loading || this.busy) return;
+                    const query = new URLSearchParams();
+                    ids.slice(i, i + 50).forEach(id => query.append('ids[]', id));
+                    const data = await this.request('/status?' + query);
+                    if (this.destroyed || this.loading || this.busy) return;
+                    const updates = new Map(data.jobs.map(job => [job.id, job]));
+                    const missing = new Set(data.missing_ids || []);
+                    this.jobs = this.jobs.filter(job => !missing.has(job.id)).map(job => ({ ...job, ...updates.get(job.id) }));
+                }
+            } catch (error) {
+                this.error = error.message;
+            } finally {
+                this.polling = false;
             }
         },
         selectEngine() {

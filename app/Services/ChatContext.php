@@ -4,6 +4,14 @@ namespace App\Services;
 
 class ChatContext
 {
+    public function recentImageIds(\App\Models\Story $story): array
+    {
+        // Creation, uploads, combined-image saves and library edits update this
+        // timestamp. Archived images remain available through explicit references.
+        return $story->assets()->whereNull('archived_at')->where('mime', 'like', 'image/%')
+            ->orderByDesc('updated_at')->orderByDesc('id')->limit(10)->pluck('id')->all();
+    }
+
     public function compact(array $context, array $families, string $message): array
     {
         // Keep canonical HTML (including formatting); editor deltas repeat it.
@@ -28,7 +36,7 @@ class ChatContext
                     foreach ($value as $k=>$v) $collect($v, (string)$k);
                 } elseif (str_ends_with($key, 'asset_id') && is_numeric($value)) $used[(int)$value] = true;
             };
-            foreach (['pages','inventory_items','characters','extraction_plans','container_plans','image_drafts','video_jobs','current_image_draft','selected_reference_ids'] as $key) $collect($context[$key] ?? [], $key);
+            foreach (['pages','neighbor_scenes','connected_scenes','inventory_items','characters','extraction_plans','container_plans','image_drafts','video_jobs','current_image_draft','selected_reference_ids'] as $key) $collect($context[$key] ?? [], $key);
             $context['image_jobs'] = array_values(array_filter($context['image_jobs'] ?? [], function ($job) use ($used, $message) {
                 return in_array($job['status'] ?? '', ['draft','queued','running'])
                     || array_intersect($job['asset_ids'] ?? [], array_keys($used))
@@ -91,9 +99,29 @@ class ChatContext
     {
         $current = collect($context['pages'] ?? [])->firstWhere('id', $pageId);
         $visuals = $current['visual_document']['visuals'] ?? [];
-        $context['scene_directory'] = collect($context['pages'] ?? [])->flatMap(fn ($page) =>
+        $orderedPages = collect($context['pages'] ?? [])->sortBy('position');
+        $context['scene_directory'] = $orderedPages->flatMap(fn ($page) =>
             collect($page['visual_document']['visuals'] ?? [])->where('kind', 'scene')->map(fn ($scene) =>
                 ['page_id'=>$page['id'], 'id'=>$scene['id'], 'name'=>$scene['name'] ?? '']))->values()->all();
+        // Keep immediate neighbors as read-only scene data, not entire adjacent
+        // pages. Preserve this block when compaction scopes an already scoped input.
+        if (!array_key_exists('neighbor_scenes', $context)) {
+            $context['neighbor_scenes'] = [];
+            $index = collect($context['scene_directory'])->search(fn ($scene) =>
+                $scene['page_id'] === $pageId && $scene['id'] === $visualId);
+            if ($index !== false) foreach (['previous'=>-1, 'next'=>1] as $relation=>$offset) {
+                $neighbor = $context['scene_directory'][$index+$offset] ?? null;
+                if (!$neighbor || $neighbor['page_id'] === $pageId) continue;
+                $page = $orderedPages->firstWhere('id', $neighbor['page_id']);
+                $scene = collect($page['visual_document']['visuals'] ?? [])->firstWhere('id', $neighbor['id']);
+                $context['neighbor_scenes'][] = ['relation'=>$relation,'page_id'=>$page['id'],
+                    'read_only'=>true,'scene'=>$scene];
+            }
+        }
+        if (!array_key_exists('scene_connections', $context)) {
+            $context = array_merge($context, app(SceneConnections::class)->context(
+                $orderedPages->values()->all(), $pageId, $visualId, $context['neighbor_scenes']));
+        }
         $context['pages'] = array_map(function ($page) use ($pageId) {
             if ($page['id'] !== $pageId) unset($page['visual_document'], $page['visual_revision']);
             return $page;
@@ -115,13 +143,16 @@ class ChatContext
             } elseif (is_string($value) || is_numeric($value)) {
                 if (str_ends_with($key, 'asset_id') && is_numeric($value)) $assets[(int)$value] = true;
                 if ((str_ends_with($key, 'sound_id') || in_array($key, ['music_id','click','action'])) && is_numeric($value)) $sounds[(int)$value] = true;
-                if ($key === 'intro_video_id') $videos[(string)$value] = true;
+                if (in_array($key, ['intro_video_id','action_video_id'])) $videos[(string)$value] = true;
                 if (is_string($value)) $texts[trim(preg_replace('/\s+/u', ' ', $value))] = true;
             }
         };
         $walk($visuals);
+        $walk($context['neighbor_scenes']);
+        $walk($context['connected_scenes'] ?? []);
         foreach (['extraction_plans','container_plans','image_jobs','image_drafts'] as $key) $walk($context[$key] ?? [], $key);
         $pageAssets = $assets;
+        foreach ($context['recent_image_ids'] ?? [] as $id) $assets[(int)$id] = true;
         foreach (['inventory_items','characters','audio_settings','story','current_image_draft','selected_reference_ids'] as $key) $walk($context[$key] ?? [], $key);
         foreach ($context['attached_images'] ?? [] as $image) $assets[$image['id']] = true;
         // Video is a story-wide library, not a page editor. Its visible drafts

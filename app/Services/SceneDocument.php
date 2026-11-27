@@ -12,6 +12,8 @@ class SceneDocument {
    $stateRules[$path.'.sound_volume']='sometimes|numeric|min:0|max:1';
   }
   $stateRules['visuals.*.intro_video_repeat']='sometimes|boolean';
+  $stateRules['visuals.*.hotspots.*.action_video_id']=['sometimes','nullable','uuid',\Illuminate\Validation\Rule::exists('video_generations','id')->where('story_id',$story->id)->where('status','completed')];
+  $stateRules['visuals.*.hotspots.*.action_video_pause_music']='sometimes|boolean';
   $stateRules['visuals.*.intro_video_pause_music']='sometimes|boolean';
   $stateRules['visuals.*.intro_video_id']=['sometimes','nullable','uuid',\Illuminate\Validation\Rule::exists('video_generations','id')->where('story_id',$story->id)->where('status','completed')];
   $stateRules['visuals.*.music_mode']='sometimes|in:keep,replace,stop';
@@ -61,7 +63,7 @@ class SceneDocument {
    'visuals.*.actions.*.flag_effects.*.value'=>'required|boolean',
    'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id,flag_effects','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
    'visuals.*.hotspots.*.is_container'=>'sometimes|boolean','visuals.*.hotspots.*.container_parent_id'=>'sometimes|uuid','visuals.*.hotspots.*.container_plan_id'=>'sometimes|integer',
-   'visuals.*.hotspots.*'=>'array:changed_unavailable_text,click_behavior,action_preset,action_label,changed_action_label,restart_game,auto_state,visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*'=>'array:action_video_id,action_video_pause_music,changed_unavailable_text,click_behavior,action_preset,action_label,changed_action_label,restart_game,auto_state,visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
    'visuals.*.hotspots.*.initial_empty'=>'sometimes|boolean',
    'visuals.*.hotspots.*.placement_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.collectible_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],

@@ -1003,6 +1003,15 @@
                                         x-show="hotspot.action==='state_v2' && hotspot.state_asset_id"
                                         @click="openContainers(true)"
                                     >Extract collectibles from changed state</button>
+                                    <div class="field min-w-0">
+                                        <span>Action video (optional)</span>
+                                        <button type="button" class="btn-secondary justify-start" @click="openIntroVideoPicker(hotspot)"
+                                            x-text="introVideos.find(v=>v.id===hotspot.action_video_id)?.name || (hotspot.action_video_id ? 'Selected video' : 'No action video')"></button>
+                                        <p class="text-xs">Plays before the action. When it finishes or is skipped, the action continues: stay here, change state, collect an item, or move to the configured scene.</p>
+                                        <label class="flex items-center gap-2" x-show="hotspot.action_video_id">
+                                            <input type="checkbox" :checked="hotspot.action_video_pause_music === true" @change="hotspot.action_video_pause_music=$event.target.checked;changed()">Pause game music during this video
+                                        </label>
+                                    </div>
                                     <div
                                         class="field min-w-0"
                                         x-show="['inspect','pickup','pickup_v2','transition'].includes(hotspot.action)"
@@ -1625,7 +1634,7 @@
             @click="if($event.target===$el)$el.close()"
         >
             <header class="mb-4 flex items-center justify-between gap-3">
-                <h2 class="font-serif text-xl">Scene intro video</h2><button
+                <h2 class="font-serif text-xl" x-text="videoPickerAreaId ? 'Action video' : 'Scene intro video'"></h2><button
                     type="button"
                     class="btn-secondary"
                     @click="$refs.introVideoPicker.close()"
@@ -1635,7 +1644,7 @@
                 type="button"
                 class="btn-secondary mb-4"
                 @click="selectIntroVideo(null)"
-            >No intro video</button>
+            >No video</button>
             <p x-show="introVideosLoading">Loading videos…</p>
             <p
                 x-show="introVideosError"
@@ -1653,7 +1662,7 @@
                         type="button"
                         class="block w-full rounded-xl border border-stone-300 p-4 text-left dark:border-stone-600"
                         @click="selectIntroVideo(video.id)"
-                        :aria-pressed="visual?.intro_video_id === video.id"
+                        :aria-pressed="(videoPickerAreaId ? visual?.hotspots.find(h=>h.id===videoPickerAreaId)?.action_video_id : visual?.intro_video_id) === video.id"
                     >
                         <strong
                             class="mb-3 block"

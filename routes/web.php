@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/stories/{story}/characters/{character}/draft', [\App\Http\Controllers\CharacterController::class, 'draft']);
 
     Route::get('/stories/{story}/videos', [\App\Http\Controllers\VideoController::class, 'index'])->name('videos.index');
+    Route::get('/stories/{story}/videos/status', [\App\Http\Controllers\VideoController::class, 'statuses'])->name('videos.status');
     Route::post('/stories/{story}/videos', [\App\Http\Controllers\VideoController::class, 'store']);
     Route::patch('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'update']);
     Route::delete('/stories/{story}/videos/{video}', [\App\Http\Controllers\VideoController::class, 'destroy']);

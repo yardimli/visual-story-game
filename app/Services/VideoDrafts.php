@@ -63,6 +63,8 @@ class VideoDrafts
             $references[] = $path;
         }
         $job->reference_paths = $references;
+        $job->sync_error = null;
+        $job->error = null;
         $job->status = config('video.mode') === 'relay' ? 'forwarding' : 'queued';
         $job->queued_at = now();
         $job->save();

@@ -6,6 +6,51 @@ use Tests\TestCase;
 
 class ChatContextTest extends TestCase
 {
+    public function test_neighbors_follow_page_and_scene_order_and_survive_compaction(): void
+    {
+        $scene=fn($id)=>['id'=>$id,'kind'=>'scene','description'=>'Description '.$id,
+            'hotspots'=>[['id'=>'door-'.$id,'flag_conditions'=>[['key'=>'unlocked','value'=>true]],'state_description'=>'Open']]];
+        $context=['pages'=>[
+            ['id'=>30,'position'=>3,'visual_document'=>['visuals'=>[$scene('next'),$scene('distant')]]],
+            ['id'=>10,'position'=>1,'visual_document'=>['visuals'=>[$scene('earlier'),$scene('previous'),['id'=>'item','kind'=>'object']]]],
+            ['id'=>20,'position'=>2,'visual_document'=>['visuals'=>[$scene('current')]]],
+        ]];
+        $service=app(ChatContext::class);
+        $scoped=$service->scope($context,20,'current',null);
+        $result=$service->compact($scoped,['scene'],'Change this description');
+        $this->assertSame(['previous','next'],array_column($result['neighbor_scenes'],'relation'));
+        $this->assertSame([10,30],array_column($result['neighbor_scenes'],'page_id'));
+        $this->assertSame([$scene('previous'),$scene('next')],array_column($result['neighbor_scenes'],'scene'));
+        $this->assertSame([true,true],array_column($result['neighbor_scenes'],'read_only'));
+        $this->assertSame($scoped['neighbor_scenes'],$result['neighbor_scenes']);
+        $this->assertArrayNotHasKey('visual_document',$result['pages'][0]);
+        // A neighbor already included on the current page is not duplicated.
+        $first=$service->scope($context,10,'earlier',null);
+        $this->assertSame([],$first['neighbor_scenes']);
+        $last=$service->scope($context,30,'distant',null);
+        $this->assertSame([],$last['neighbor_scenes']);
+        $none=$service->scope($context,20,null,null);
+        $this->assertSame([],$none['neighbor_scenes']);
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $service->assertSceneChange(['scope'=>'visual','page_id'=>10,'visual_id'=>'previous'], $result['selection'], collect());
+    }
+
+    public function test_recent_images_survive_page_scope_and_compaction_without_importing_other_scenes(): void
+    {
+        $service=app(ChatContext::class);
+        $context=['pages'=>[
+            ['id'=>18,'visual_document'=>['visuals'=>[['id'=>'open','kind'=>'scene','asset_id'=>165]]]],
+            ['id'=>17,'visual_document'=>['visuals'=>[['id'=>'closed','kind'=>'scene','asset_id'=>34]]]],
+        ],'recent_image_ids'=>[176],
+            'references'=>[['id'=>165],['id'=>176,'name'=>'Staircase chest — sockets slotted and lock is open','role'=>'state_composite'],['id'=>34]],
+            'image_jobs'=>[['id'=>112,'story_page_id'=>17,'status'=>'completed','asset_ids'=>[176]]]];
+        $result=$service->compact($service->scope($context,18,'open',null),['video'],'Create a video');
+        $this->assertSame([165,176,34],array_column($result['references'],'id'));
+        $this->assertSame($context['references'][1],$result['references'][1]);
+        $this->assertSame([],$result['image_jobs']);
+        $this->assertArrayNotHasKey('visual_document',$result['pages'][1]);
+    }
+
     public function test_video_library_survives_page_filtering_and_compaction_with_saved_last_frame(): void
     {
         $context=['active_tab'=>'video','pages'=>[['id'=>1,'visual_document'=>['visuals'=>[]]]],
@@ -87,9 +132,9 @@ class ChatContextTest extends TestCase
         $this->assertArrayNotHasKey('visual_document',$result['pages'][1]);
         $this->assertSame('Hall prose',$result['pages'][1]['narrative']);
         $this->assertCount(2,$result['scene_directory']);
-        $this->assertSame([1,3,4,5,7],array_column($result['references'],'id'));
-        $this->assertSame([1,3,8],array_column($result['sounds'],'id'));
-        $this->assertSame(['v1'],array_column($result['video_jobs'],'id'));
+        $this->assertSame([1,2,3,4,5,7],array_column($result['references'],'id'));
+        $this->assertSame([1,2,3,8],array_column($result['sounds'],'id'));
+        $this->assertSame(['v1','v2'],array_column($result['video_jobs'],'id'));
         $this->assertCount(1,$result['extraction_plans']);
         $this->assertCount(1,$result['container_plans']);
         $this->assertSame('porch',$result['selection']['visual_id']);

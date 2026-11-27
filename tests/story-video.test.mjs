@@ -2,6 +2,33 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { storyVideo } from '../resources/js/story-video.js';
 
+test('status polling requests only active jobs and preserves prompts while merging completion', async () => {
+    const video=storyVideo('/videos','/assets');
+    video.jobs=[{id:'old',status:'completed'},{id:'draft',status:'draft'},{id:'active',status:'running',prompt:'Keep full prompt',parameters:{seconds:5}}];
+    const requests=[];
+    video.request=async path=>{requests.push(path);return {jobs:[{id:'active',status:'completed',progress:100,url:'/result.mp4'}],missing_ids:[]};};
+    await video.pollStatuses();
+    assert.equal(requests.length,1);
+    assert.equal(new URLSearchParams(requests[0].split('?')[1]).get('ids[]'),'active');
+    assert.equal(video.jobs[2].prompt,'Keep full prompt');
+    assert.equal(video.jobs[2].url,'/result.mp4');
+    await video.pollStatuses();
+    assert.equal(requests.length,1);
+});
+
+test('status polling batches active jobs and releases its lock after failure', async () => {
+    const video=storyVideo('/videos','/assets');
+    video.jobs=Array.from({length:51},(_,i)=>({id:String(i),status:'queued'}));
+    const sizes=[];
+    video.request=async path=>{sizes.push(new URLSearchParams(path.split('?')[1]).getAll('ids[]').length);return {jobs:[],missing_ids:[]};};
+    await video.pollStatuses();
+    assert.deepEqual(sizes,[50,1]);
+    video.request=async()=>{throw new Error('Disconnected');};
+    await video.pollStatuses();
+    assert.equal(video.polling,false);
+    assert.equal(video.error,'Disconnected');
+});
+
 test('old reference drafts get normal mode and no editable steps; lightning survives editing', () => {
     const video=storyVideo('/videos','/assets');
     video.engines={minimax_h3_reference:{parameters:{lightning:{type:'boolean',default:false}}}};

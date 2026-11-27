@@ -712,6 +712,16 @@ textarea {
     position: relative;
     z-index: 2;
 }
+.game-scene-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    object-fit: cover;
+    object-position: center;
+    background: #000;
+}
 .preview-hotspot {
     z-index: 3;
 }
@@ -2073,6 +2083,7 @@ dialog.dialog-panel {
 
 html .object-preview-dialog.inventory-inspection-dialog,
 html.paper .object-preview-dialog.inventory-inspection-dialog {
+    width: min(720px, calc(100vw - 2rem));
     background: transparent;
     border: 0;
     overflow: visible;
@@ -2095,6 +2106,25 @@ html.paper .object-preview-dialog.inventory-inspection-dialog {
 .object-preview-dialog .inventory-inspection-panel * { cursor: pointer !important; }
 .inventory-inspection-panel .game-item-description { white-space: normal; max-height: none; overflow: visible; }
 .inventory-inspection-panel .game-item-description span { white-space: pre-wrap; }
+.inventory-text-layout { position: relative; }
+/* Reserve the complete text at its widest (bold) weight. The animated layer
+   never participates in sizing, so changing the active word cannot move the box. */
+.inventory-text-size {
+    visibility: hidden;
+    white-space: pre-wrap;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+.inventory-text-reveal {
+    position: absolute;
+    inset: 0;
+    overflow-wrap: anywhere;
+}
+.object-preview-dialog .inventory-inspection-panel .preview-object-image {
+    max-width: min(480px, 100%);
+    max-height: 42dvh;
+    object-fit: contain;
+}
 
 /* Optional manifest artwork; the default text theme never matches these rules. */
 .png-ui .description-actions:has(.game-choice) { padding-top: var(--ui-action-gap, 8px); }
@@ -2161,17 +2191,16 @@ html.paper .object-preview-dialog.inventory-inspection-dialog {
     --panel-corner-height: var(--ui-inventory-corner-height);
     --panel-corner-mask: var(--ui-inventory-corner-mask);
     --panel-corner-tint: var(--ui-inventory-corner-tint);
-    border: 0;
+    border: var(--ui-inventory-border, 0);
     border-radius: 0;
-    background-color: transparent;
-    background-image: var(--ui-inventory-image);
-    background-size: var(--ui-inventory-size);
-    background-position: var(--ui-inventory-position);
+    background-color: var(--ui-inventory-background, transparent);
+    background-image: linear-gradient(to bottom, var(--ui-inventory-header) 0 20px, transparent 20px), var(--ui-inventory-image);
+    background-size: 100% 100%, var(--ui-inventory-size);
+    background-position: 0 0, var(--ui-inventory-position);
     background-repeat: no-repeat;
     padding: var(--ui-inventory-padding);
     color: var(--ui-inventory-text);
 }
-.png-ui .inventory-inspection-panel .preview-object-image { max-width: 100%; }
 .png-ui .inventory-inspection-panel .game-item-description { padding: 12px 0 0; }
 .png-ui .description-word { color: inherit; text-shadow: none; }
 .png-ui .game-choice {
@@ -2287,3 +2316,5 @@ html.paper .object-preview-dialog.inventory-inspection-dialog {
 .gui-theme-preview .description-text-panel { height: auto; }
 .gui-theme-preview .game-choice:enabled { cursor: pointer; }
 .gui-theme-preview-hint { margin: 14px 0 0; color: #d6d3d1; font-size: 12px; }
+
+.description-typing-word { font-weight: 700; }

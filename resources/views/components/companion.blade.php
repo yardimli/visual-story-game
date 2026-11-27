@@ -52,6 +52,11 @@
                 :class="item.role === 'user' ? 'bg-stone-100 dark:bg-stone-800 ml-4' : 'bg-amber-50/50 dark:bg-stone-950'"
             >
 
+                <time class="mb-1 block text-xs text-stone-500 dark:text-stone-400"
+                    x-show="item.created_at"
+                    :datetime="messageTime(item.created_at, messageClock).iso"
+                    :title="messageTime(item.created_at, messageClock).exact"
+                    x-text="messageTime(item.created_at, messageClock).label"></time>
                 <button
                     type="button"
                     x-show="Number.isInteger(item.id) && !item.streaming"

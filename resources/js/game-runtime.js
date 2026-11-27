@@ -28,6 +28,7 @@ export function gameRuntime() {
             return actionLabel(h, this.actionState(h));
         },
         canPresentAction(h) {
+            if (h.action_video_id) return true;
             if (h.action === 'inventory') return false;
             if (h.action === 'pickup_v2' && this.collectibleEmpty(h)) return false;
             return this.hasAreaAction(h);
@@ -43,13 +44,16 @@ export function gameRuntime() {
                 persistent: true,
                 animate: true,
                 descriptionKey: this.pickupKey(h),
-                readEffects: action && h.action === 'examine' && !h.move_after_examine,
+                readEffects: action && h.action === 'examine' && !h.move_after_examine && !h.action_video_id,
                 actionAreaId: action && this.canPresentAction(h) ? h.id : null,
             });
         },
         tapArea(h) {
-            if (this.sceneTransition || this.pendingInventoryUse || this.inventoryDrag?.active) return;
-            if (this.hasAreaMessage(h)) {
+            if (this.introVideo || this.sceneTransition || this.pendingInventoryUse || this.inventoryDrag?.active) return;
+            // Any area click first finishes the current message. Switching areas
+            // is only allowed on a later click, after both text and audio finish.
+            if (this.hasAreaMessage(h) || (this.narration?.sourceAreaId &&
+                (!this.narration.revealed || this.narrationSpeaking))) {
                 globalThis.window?.dispatchEvent(
                     new CustomEvent('description-area-click', {
                         detail: { key: this.previewId + ':' + this.narrationVersion },
@@ -74,7 +78,7 @@ export function gameRuntime() {
             else if (text.trim()) this.presentArea(h, text, false);
         },
         areaInputLocked(h) {
-            if (this.sceneTransition) return true;
+            if (this.introVideo || this.sceneTransition) return true;
             if (this.pendingInventoryUse) return !this.hasAreaMessage(h);
             return this.narrationSpeaking && !this.narration?.sourceAreaId;
         },
@@ -84,8 +88,8 @@ export function gameRuntime() {
             const h = this.currentHotspots.find((h) => h.id === this.narration.actionAreaId);
             if (h) this.executeAreaAction(h);
         },
-        executeAreaAction(h) {
-            if (this.narrationSpeaking || this.sceneTransition || this.pendingInventoryUse || this.areaDisabled(h))
+        executeAreaAction(h, videoFinished = false) {
+            if (this.introVideo || this.narrationSpeaking || this.sceneTransition || this.pendingInventoryUse || this.areaDisabled(h))
                 return;
             if (!this.actionAllowed(h)) {
                 const text =
@@ -96,8 +100,19 @@ export function gameRuntime() {
             }
             this.narration = null;
             this.narrationVersion++;
+            const video = !videoFinished && this.videos.find(v => v.id === h.action_video_id && v.url);
+            if (video) {
+                this.pendingVideoAction = { ...h };
+                this.loadingSceneImage = this.asset(this.displayed?.asset_id)?.url || null;
+                this.beginVideoPlayback(video, h.action_video_pause_music === true);
+                return;
+            }
             if (h.restart_game) {
                 this.startPreview([], h.target_page_id + ':' + h.target_scene_id, null);
+                return;
+            }
+            if (h.action === 'examine' && !h.move_after_examine && h.action_video_id) {
+                this.applyFlagEffects(h);
                 return;
             }
             this.activate({ ...h, _executeAction: true, show_hover_text: true });
@@ -109,6 +124,20 @@ export function gameRuntime() {
         },
         videos: [],
         introVideo: null,
+        pendingVideoAction: null,
+        get videoSceneImage() {
+            const action = this.pendingVideoAction;
+            let scene = this.displayed;
+            if (action) {
+                const targetId = action.action === 'state_v2' ? this.automaticDestination(action)
+                    : action.target_scene_id || action.target_id;
+                const pages = this.previewPages.map(page => ({ ...page,
+                    visuals: page.id === this.editorPageId ? this.document.visuals : page.visuals }));
+                if (targetId) scene = pages.flatMap(page => page.visuals || []).find(v => v.kind === 'scene' && v.id === targetId) || scene;
+                else if (action.target_page_id) scene = pages.find(page => Number(page.id) === Number(action.target_page_id))?.visuals?.find(v => v.kind === 'scene') || scene;
+            }
+            return this.asset(scene?.asset_id)?.url || null;
+        },
         loadingSceneImage: null,
         introVideoLoading: true,
         seenSceneVideos: {},
@@ -127,6 +156,9 @@ export function gameRuntime() {
                 return;
             }
             this.sceneIntroText = '';
+            this.beginVideoPlayback(video, this.displayed?.intro_video_pause_music === true);
+        },
+        beginVideoPlayback(video, pauseMusic = false) {
             this.introVideoBlocked = false;
             this.introVideoFailed = false;
             this.introVideoLoading = true;
@@ -135,7 +167,7 @@ export function gameRuntime() {
                     ([channel, audio]) =>
                         audio &&
                         !audio.paused &&
-                        (channel !== 'music' || this.displayed?.intro_video_pause_music === true),
+                        (channel !== 'music' || pauseMusic),
                 )
                 .map(([, audio]) => audio);
             this.pausedVideoAudio.forEach((audio) => audio.pause());
@@ -159,6 +191,12 @@ export function gameRuntime() {
                 audio.play()?.catch(() => {});
             });
             this.pausedVideoAudio = [];
+            if (this.pendingVideoAction) {
+                const action = this.pendingVideoAction;
+                this.pendingVideoAction = null;
+                this.executeAreaAction(action, true);
+                return;
+            }
             this.prepareSceneIntro();
             this.soundPlayer?.enter(this.displayed, this.audioSounds);
             if (this.pendingModal) this.deliverPreviewMessage(this.pendingModal);
@@ -473,6 +511,7 @@ export function gameRuntime() {
             };
         },
         hasAreaAction(h) {
+            if (h.action_video_id) return true;
             if (h.action === 'state_v2' && h.auto_state?.enabled)
                 return this.preview
                     ? !!this.automaticDestination(h)
@@ -1208,6 +1247,7 @@ export function gameRuntime() {
         closePreview() {
             this.$refs?.introVideoPlayer?.pause();
             this.introVideo = null;
+            this.pendingVideoAction = null;
             this.pausedVideoAudio = [];
             this.seenSceneIntros = {};
             this.seenSceneVideos = {};

@@ -1,3 +1,4 @@
+import { generationStatuses } from './generation-poll.js';
 import { notify } from './toasts.js';
 export const audioActions = {
     examine: 'Examine',
@@ -211,6 +212,7 @@ export function storyAudio(url) {
             await this.load();
         },
         destroy() {
+            this.destroyed = true;
             clearTimeout(this.timer);
             this.$el?.querySelectorAll('audio').forEach((a) => a.pause());
         },
@@ -243,9 +245,30 @@ export function storyAudio(url) {
                 window.dispatchEvent(new CustomEvent('vsg-audio', { detail: this.sounds }));
                 window.dispatchEvent(new CustomEvent('vsg-audio-settings', { detail: data.settings }));
                 if (this.jobs.some((j) => ['queued', 'submitting', 'running'].includes(j.status)))
-                    this.timer = setTimeout(() => this.load(), 5000);
+                    this.timer = setTimeout(() => this.pollStatuses(), 5000);
             } catch (e) {
                 this.error = e.message;
+            }
+        },
+        async pollStatuses() {
+            if (this.destroyed || this.statusPolling) return;
+            if (document.hidden) {
+                this.timer = setTimeout(() => this.pollStatuses(), 5000);
+                return;
+            }
+            this.statusPolling = true;
+            try {
+                const result = await generationStatuses(this.jobs, path => this.request(path));
+                if (this.destroyed) return;
+                this.jobs = result.jobs;
+                if (result.finished) await this.load();
+                else if (this.jobs.some(job => ['queued','submitting','running'].includes(job.status)))
+                    this.timer = setTimeout(() => this.pollStatuses(), 5000);
+            } catch (error) {
+                this.error = error.message;
+                if (!this.destroyed) this.timer = setTimeout(() => this.pollStatuses(), 10000);
+            } finally {
+                this.statusPolling = false;
             }
         },
         async search(page = 1) {

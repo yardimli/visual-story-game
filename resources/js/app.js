@@ -3,6 +3,7 @@ import { characterLibrary } from './character-library.js';
 import { guiThemePreview } from './gui-theme.js';
 import { storyCover } from './story-cover';
 import { recoverChatMessages, fetchChatHistory, historyPollDelay } from './chat-history';
+import { messageTime } from './chat-time.js';
 import { storyVideo } from './story-video.js';
 import { audioSettings, storySpeech, audioPreview } from './audio-settings';
 import { storyAudio } from './story-audio.js';
@@ -121,6 +122,8 @@ Alpine.data('creativeCompanion', (options) => ({
     modelLabel,
     displayMessage,
     streamingMessage,
+    messageTime,
+    messageClock: Date.now(),
     messages: recoverChatMessages([], { messages: options.messages, pending: options.pending || [] }),
     models: [],
     model: options.model,
@@ -184,6 +187,7 @@ Alpine.data('creativeCompanion', (options) => ({
         this.model = rememberedModel('vsg-writing-model', options.model);
         this.loadModels();
         this.historyListener = () => {
+            this.messageClock = Date.now();
             if (!document.hidden) this.refreshHistory();
         };
         this.historyWakeListener = () => {
@@ -365,8 +369,8 @@ Alpine.data('creativeCompanion', (options) => ({
             }
             if (response.headers.get('Content-Type')?.includes('text/event-stream')) {
                 this.messages.push(
-                    { role: 'user', content: message },
-                    { id: 'stream:' + crypto.randomUUID(), role: 'assistant', content: '', streaming: true },
+                    { role: 'user', content: message, created_at: new Date().toISOString() },
+                    { id: 'stream:' + crypto.randomUUID(), role: 'assistant', content: '', streaming: true, created_at: new Date().toISOString() },
                 );
                 streamingIndex = this.messages.length - 1;
                 this.waitingForResponse = false;
@@ -388,7 +392,7 @@ Alpine.data('creativeCompanion', (options) => ({
             } else {
                 const data = await response.json();
                 data.message.autoReview = true;
-                this.messages.push(data.user_message || { role: 'user', content: message }, data.message);
+                this.messages.push(data.user_message || { role: 'user', content: message, created_at: new Date().toISOString() }, data.message);
                 this.remaining = data.remaining;
                 this.clearSentDraft(sentDraftKey, message);
             }

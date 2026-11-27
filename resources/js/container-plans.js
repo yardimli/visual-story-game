@@ -227,13 +227,17 @@ export function containerPlans(options) {
         },
         async refreshContainers() {
             clearTimeout(this.containerTimer);
-            const d = await this.request(options.containerUrl);
+            const query = this.containerPollVersion ? '?poll_version=' + this.containerPollVersion : '';
+            const d = await this.request(options.containerUrl + query);
+            this.containerPollVersion = d.version;
+            if (!d.unchanged) {
             this.containerPlans = d.plans;
             this.containerInventoryRevision = d.inventory_revision;
             const images = await this.request(options.url);
             this.assets = images.assets;
             this.jobs = images.jobs;
             this.credit?.(images);
+            }
             if (this.$refs.containerDialog?.open && this.containerOutputs.some((o) => this.containerPending(o)))
                 this.containerTimer = setTimeout(
                     () =>

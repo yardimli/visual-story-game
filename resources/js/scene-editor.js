@@ -1,3 +1,4 @@
+import { generationStatuses } from './generation-poll.js';
 import { gameRuntime } from './game-runtime.js';
 import { containerPlans, containerVisible, containerGeometry } from './container-plans.js';
 import { GameAudio } from './story-audio.js';
@@ -221,6 +222,7 @@ export function sceneEditor(options) {
                 return Math.floor(seconds / 60) + 'm ' + String(seconds % 60).padStart(2, '0') + 's';
             },
             introVideos: [],
+            videoPickerAreaId: null,
             introVideosLoading: false,
             introVideosError: '',
             async loadIntroVideos() {
@@ -238,12 +240,16 @@ export function sceneEditor(options) {
                     this.introVideosLoading = false;
                 }
             },
-            openIntroVideoPicker() {
+            openIntroVideoPicker(area = null) {
+                this.videoPickerAreaId = area?.id || null;
                 this.$refs.introVideoPicker.showModal();
                 this.loadIntroVideos();
             },
             selectIntroVideo(id) {
-                this.visual.intro_video_id = id;
+                if (this.videoPickerAreaId) {
+                    const area = this.visual.hotspots.find(h => h.id === this.videoPickerAreaId);
+                    if (area) area.action_video_id = id;
+                } else this.visual.intro_video_id = id;
                 this.changed();
                 this.$refs.introVideoPicker.close();
             },
@@ -878,6 +884,7 @@ export function sceneEditor(options) {
                 );
             },
             async openImageForm(job = null) {
+                if (this.generating) return;
                 if (job) {
                     if (!(await this.flush())) return;
                     this.fillImageCard(job);
@@ -1159,7 +1166,9 @@ export function sceneEditor(options) {
                 this.assetSaving = { ...this.assetSaving, [id]: true };
                 try {
                     const data = await this.request(asset.update_url || options.assetBase + '/' + id, 'PATCH', changes);
-                    Object.assign(asset, data);
+                    // asset() returns a display copy with a cached media URL.
+                    // Update the current library, including after polling replaces it.
+                    this.assets = this.assets.map(item => item.id === Number(id) ? { ...item, ...data } : item);
                     delete this.assetNames[id];
                     notify(
                         'archived' in changes
@@ -1485,9 +1494,11 @@ export function sceneEditor(options) {
                 this.jobs = [...this.jobs.filter((job) => job.localFailure), ...jobs];
             },
             async refresh() {
-                if (this.generating || !this.jobs.some((j) => ['queued', 'running'].includes(j.status))) return;
+                if (globalThis.document?.hidden || this.statusPolling || this.generating || !this.jobs.some((j) => ['queued', 'running'].includes(j.status))) return;
+                this.statusPolling = true;
                 try {
-                    const d = await this.request(options.url);
+                    const status = await generationStatuses(this.jobs, path => this.request(path), options.url);
+                    const d = status.finished ? await this.request(options.url) : { jobs: status.jobs };
                     for (const job of d.jobs) {
                         const previous = this.jobs.find((j) => j.id === job.id);
                         if (previous && previous.status !== job.status && ['completed', 'failed'].includes(job.status))
@@ -1498,11 +1509,13 @@ export function sceneEditor(options) {
                                 job.status === 'failed' ? 'error' : 'success',
                             );
                     }
-                    this.assets = d.assets;
+                    if (d.assets) this.assets = d.assets;
                     this.mergeJobs(d.jobs);
                     this.credit(d);
                 } catch (_) {
                     /* A later poll can recover; no paid action is repeated. */
+                } finally {
+                    this.statusPolling = false;
                 }
             },
             credit(data) {
@@ -1526,6 +1539,11 @@ export function sceneEditor(options) {
                 if (this.generating) return;
                 this.generating = true;
                 this.error = '';
+                const dialog = this.$refs?.imageFormDialog;
+                const wasOpen = !!dialog?.open;
+                if (wasOpen) dialog.close();
+                this.status = 'Submitting image…';
+                let accepted = false;
                 let pendingId;
                 try {
                     if (window.vsgAutosave && !(await window.vsgAutosave.flush())) return;
@@ -1575,6 +1593,7 @@ export function sceneEditor(options) {
                         references: this.references.map(Number),
                         settings: Object.fromEntries(Object.entries(this.settings).filter(([, v]) => v)),
                     });
+                    accepted = true;
                     this.jobs = this.jobs.map((job) =>
                         job.id === pendingId ? { ...pending, id: result.id, status: result.status } : job,
                     );
@@ -1610,6 +1629,10 @@ export function sceneEditor(options) {
                     this.error = e.message;
                 } finally {
                     this.generating = false;
+                    if (!accepted) {
+                        this.status = '';
+                        if (wasOpen && !dialog.open) dialog.showModal();
+                    }
                 }
             },
             async retryImage(job) {
