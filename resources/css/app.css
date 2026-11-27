@@ -1832,7 +1832,7 @@ html.editor-document,
     z-index: 10000;
     display: grid;
     place-items: center;
-    background: #000;
+    background: transparent;
     cursor: wait;
 }
 .scene-loading-spinner {
@@ -2379,3 +2379,34 @@ html.paper .object-preview-dialog.inventory-inspection-dialog {
 @media (prefers-reduced-motion: reduce) {
     .editor-image-spinner, .button-loading::after { animation: none; }
 }
+
+.scene-loading-overlay.initial-scene-loading { background: #000; }
+.scene-loading-track { width: 100%; height: 18px; padding: 3px; background: #292524; border: 1px solid #a8a29e; overflow: hidden; }
+.scene-loading-fill { height: 100%; background: #e7e5e4; transition: width 150ms linear; }
+.png-ui .scene-loading-panel {
+    border-radius: 0;
+    background-color: var(--ui-dialog-background, #201c1c);
+    background-image: var(--ui-dialog-image);
+    background-size: var(--ui-dialog-size);
+    background-position: var(--ui-dialog-position);
+    background-repeat: no-repeat;
+    color: var(--ui-dialog-text);
+    border: var(--ui-dialog-border);
+    box-shadow: var(--ui-dialog-shadow);
+    padding: 28px 32px;
+}
+.png-ui .scene-loading-track {
+    height: 24px;
+    background-color: var(--ui-scrollbar-track);
+    background-image: var(--ui-choice-normal-image);
+    background-size: var(--ui-choice-normal-size);
+    background-position: var(--ui-choice-normal-position);
+    border-color: var(--ui-scrollbar-thumb);
+}
+.png-ui .scene-loading-fill {
+    background-color: var(--ui-scrollbar-thumb);
+    background-image: var(--ui-choice-hover-image);
+    background-size: var(--ui-choice-hover-size);
+    background-position: var(--ui-choice-hover-position);
+}
+.png-ui .scene-loading-spinner { border-top-color: var(--ui-scrollbar-thumb); }

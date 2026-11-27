@@ -103,7 +103,6 @@ export function gameRuntime() {
             const video = !videoFinished && this.videos.find(v => v.id === h.action_video_id && v.url);
             if (video) {
                 this.pendingVideoAction = { ...h };
-                this.loadingSceneImage = this.asset(this.displayed?.asset_id)?.url || null;
                 this.beginVideoPlayback(video, h.action_video_pause_music === true);
                 return;
             }
@@ -127,7 +126,7 @@ export function gameRuntime() {
         pendingVideoAction: null,
         get videoSceneImage() {
             const action = this.pendingVideoAction;
-            let scene = this.displayed;
+            let scene = this.pendingVideoScene?.scene || this.displayed;
             if (action) {
                 const targetId = action.action === 'state_v2' ? this.automaticDestination(action)
                     : action.target_scene_id || action.target_id;
@@ -138,7 +137,8 @@ export function gameRuntime() {
             }
             return this.asset(scene?.asset_id)?.url || null;
         },
-        loadingSceneImage: null,
+        initialSceneLoading: true,
+        pendingVideoScene: null,
         introVideoLoading: true,
         seenSceneVideos: {},
         introVideoBlocked: false,
@@ -197,6 +197,12 @@ export function gameRuntime() {
                 this.executeAreaAction(action, true);
                 return;
             }
+            if (this.pendingVideoScene) {
+                this.previewPageId = this.pendingVideoScene.pageId;
+                this.previewId = this.pendingVideoScene.scene.id;
+                this.pendingVideoScene = null;
+            }
+            this.initialSceneLoading = false;
             this.prepareSceneIntro();
             this.soundPlayer?.enter(this.displayed, this.audioSounds);
             if (this.pendingModal) this.deliverPreviewMessage(this.pendingModal);
@@ -1002,7 +1008,7 @@ export function gameRuntime() {
             this.transitionPhase = null;
             this.outgoingScene = null;
             this.pendingModal = null;
-            this.loadingSceneImage = null;
+            this.pendingVideoScene = null;
         },
         resolveSceneEntry(pageId, sceneId) {
             const sceneAt = (p, id) =>
@@ -1073,12 +1079,24 @@ export function gameRuntime() {
             if (this.sceneTransition || this.introVideo) return;
             this.armedPickup = null;
             this.clearSceneTransition();
-            this.loadingSceneImage = this.asset(this.displayed?.asset_id)?.url || null;
             const request = this.transitionRequest;
             this.sceneTransition = true;
             this.transitionPhase = 'loading';
             const commit = () => {
                 if (request !== this.transitionRequest || !this.preview) return;
+                const key = nextPageId + ':' + id;
+                const video = this.videos.find(v => v.id === target.intro_video_id);
+                if (video?.url && (!this.seenSceneVideos[key] || target.intro_video_repeat === true)) {
+                    this.seenSceneVideos[key] = true;
+                    this.pendingVideoScene = { pageId: nextPageId, scene: target };
+                    this.modal = null;
+                    this.narration = null;
+                    this.narrationVersion++;
+                    this.sceneTransition = false;
+                    this.transitionPhase = null;
+                    this.beginVideoPlayback(video, target.intro_video_pause_music === true);
+                    return;
+                }
                 this.transitionPhase = 'out';
                 this.transitionTimer = setTimeout(() => {
                     if (request !== this.transitionRequest || !this.preview) return;
@@ -1225,6 +1243,7 @@ export function gameRuntime() {
             const entry = this.resolveSceneEntry(this.previewPageId, this.previewId);
             this.previewPageId = entry.pageId;
             this.previewId = entry.sceneId;
+            this.initialSceneLoading = true;
             const request = this.transitionRequest;
             const present = () => {
                 if (request !== this.transitionRequest || !this.preview) return;
@@ -1232,6 +1251,7 @@ export function gameRuntime() {
                 this.transitionPhase = null;
                 this.soundPlayer?.start(this.audioSettings, this.audioSounds);
                 this.beginScenePresentation(skipFirstVideo);
+                if (!this.introVideo) this.initialSceneLoading = false;
             };
             const loading = this.preloadScene(this.displayed);
             if (loading) {

@@ -832,3 +832,27 @@ test('scene videos play once by default, repeat when enabled, and reset for a ne
         globalThis.window = original;
     }
 });
+
+test('scene video keeps the outgoing scene and its state until playback finishes', async () => {
+    const player = gameRuntime();
+    const first = { id: 'door', kind: 'scene', asset_id: 1, hotspots: [] };
+    const next = { id: 'hall', kind: 'scene', asset_id: 2, intro_video_id: 3, hotspots: [] };
+    player.document = { visuals: [first, next] };
+    player.preview = true;
+    player.editorPageId = player.previewPageId = 1;
+    player.previewId = 'door';
+    player.flags = { door_open: true };
+    player.videos = [{ id: 3, url: '/hall.mp4' }];
+    player.preloadScene = async () => {};
+    player.prepareSceneIntro = () => {};
+    await player.transitionScene('hall');
+    assert.equal(player.previewId, 'door');
+    assert.equal(player.displayed, first);
+    assert.equal(player.flags.door_open, true);
+    assert.equal(player.introVideo.id, 3);
+    assert.equal(player.pendingVideoScene.scene, next);
+    assert.equal(player.sceneTransition, false);
+    player.finishIntroVideo();
+    assert.equal(player.previewId, 'hall');
+    assert.equal(player.pendingVideoScene, null);
+});

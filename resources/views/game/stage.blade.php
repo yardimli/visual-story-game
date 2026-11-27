@@ -14,16 +14,14 @@
     >
         <template x-if="introVideo">
             <div
-                class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black"
+                class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
+                :class="introVideoLoading && !initialSceneLoading ? 'bg-transparent' : 'bg-black'"
                 @click.stop
                 @pointerdown.stop
             >
                 <div class="relative overflow-hidden" :style="videoSceneImage ? {} : {width:'calc(100vw - 2rem)',height:'calc(100dvh - 2rem)'}">
                 <template x-if="videoSceneImage">
                     <img :src="videoSceneImage" alt="" class="preview-scene-image invisible" aria-hidden="true" draggable="false">
-                </template>
-                <template x-if="loadingSceneImage">
-                    <img x-show="introVideoLoading" :src="loadingSceneImage" alt="" class="absolute inset-0 h-full w-full object-contain" draggable="false">
                 </template>
                 <video
                     x-ref="introVideoPlayer"
@@ -68,33 +66,27 @@
         </template>
         <div
             x-cloak
-            x-show="sceneTransition"
+            x-show="sceneTransition || (introVideoLoading && introVideo && !introVideoBlocked && !introVideoFailed)"
             class="scene-loading-overlay"
-            :class="'scene-transition-' + transitionPhase"
+            :class="['scene-transition-' + transitionPhase, {'initial-scene-loading': initialSceneLoading}]"
             role="status"
             aria-live="polite"
             aria-label="Loading scene"
             @click.stop
             @pointerdown.stop
         >
-            <template x-if="transitionPhase==='loading' && loadingSceneImage">
-                <img :src="loadingSceneImage" alt="" class="absolute inset-0 h-full w-full object-contain" draggable="false">
-            </template>
             <div
-                x-show="transitionPhase==='loading'"
-                class="relative flex w-72 flex-col items-center gap-3 rounded-lg bg-black/70 p-4 text-white"
+                x-show="transitionPhase==='loading' || introVideoLoading && introVideo"
+                class="scene-loading-panel relative flex w-72 flex-col items-center gap-3 rounded-lg bg-black/70 p-4 text-white"
             >
                 <span
                     class="scene-loading-spinner"
                     aria-hidden="true"
                 ></span>
                 <span x-text="'Loading scene... ' + sceneLoadProgress.percent + '%' "></span>
-                <progress
-                    class="h-3 w-full"
-                    max="100"
-                    :value="sceneLoadProgress.percent"
-                    aria-label="Scene download progress"
-                ></progress>
+                <div class="scene-loading-track" role="progressbar" aria-label="Scene download progress" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="sceneLoadProgress.percent">
+                    <div class="scene-loading-fill" :style="{width: sceneLoadProgress.percent + '%'}"></div>
+                </div>
                 <span
                     class="text-sm"
                     x-text="sceneLoadProgress.completed + ' / ' + sceneLoadProgress.total + ' files ready'"
@@ -109,7 +101,7 @@
             x-text="audioMuted?'Unmute':'Mute all'"
         ></button>
         <div class="contents">
-            <template x-if="preview && !introVideo && asset(displayed?.asset_id)">
+            <template x-if="preview && !initialSceneLoading && asset(displayed?.asset_id)">
                 <div
                     class="preview-stage"
                     :class="narrationSpeaking ? 'scene-narrating' : ''"
