@@ -122,6 +122,7 @@
                         </select></label></div>
                 <template x-if="!containerPlan">
                     <div class="space-y-4">
+                        <p x-show="containerRevisionName" class="rounded-lg border p-3 text-sm">Recreating <strong x-text="containerRevisionName"></strong>. Adjust the margins and image instructions below. Preparing the revised crop updates the closed reference from the current scene and starts a fresh open-with-contents image. Then mark the items and regenerate their layers. The existing scene stays unchanged until you activate the replacement.</p>
                         <div
                             x-show="!containerReuseState"
                             class="grid min-w-0 gap-5 md:grid-cols-2"
@@ -220,7 +221,7 @@
                             :disabled="containerRun || containerBusy || containerPromptBusy || !containerArea || !containerItems
                                 .length || (!containerReuseState && !containerPrompt.trim())"
                             @click="$busy($el, async () => (createContainerPlan()))"
-                            x-text="containerBusy?'Preparing crop…':'Create plan'"
+                            x-text="containerBusy?'Preparing crop…':containerRevisionName?'Prepare revised crop':'Create plan'"
                         ></button>
                     </div>
                 </template>
@@ -235,7 +236,7 @@
                                 class="btn-secondary"
                                 :disabled="containerRun || containerBusy || containerPromptBusy"
                                 @click="copyContainerPlan()"
-                            >New plan from this setup</button>
+                            >Recreate image &amp; margins</button>
                         </div>
                         <div x-show="containerPlan.stage==='preview' && !containerReuseState">
                             @include('studio.container-prompt')</div>
@@ -399,7 +400,16 @@
                                     :src="editorDialogOpen.containerDialog ? ($thumbnail(asset(o.accepted_asset_id)?.url)) : null"
                                     class="max-h-52 max-w-full object-contain"
                                     :alt="o.name"
-                                ><template
+                                >
+                                <p x-show="o.type==='switch_off'" class="text-sm">This is cropped from the scene, not AI-generated. Use “Recreate image &amp; margins” to change the crop; the closed reference will be updated automatically.</p>
+                                <template x-if="o.type==='container_preview' && containerPlan.stage!=='preview'">
+                                    <div class="space-y-2">
+                                        <p class="text-sm">Recreate this image with its saved instructions and editable margins. The empty state and item layers will be rebuilt from the new preview.</p>
+                                        <button type="button" class="btn-secondary" :disabled="containerRun || containerBusy || containerPromptBusy || containerOutputs.some(output=>containerPending(output))"
+                                            @click="copyContainerPlan()">Recreate image &amp; margins</button>
+                                    </div>
+                                </template>
+                                <template
                                     x-if="o.type!=='switch_off' && !(o.type==='container_preview'&&containerPlan.stage!=='preview')"
                                 >
                                     <div class="space-y-2"><label class="field">Prompt

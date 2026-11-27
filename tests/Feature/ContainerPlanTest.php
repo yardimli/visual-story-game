@@ -7,6 +7,26 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class ContainerPlanTest extends TestCase {
  use RefreshDatabase;
+ public function test_revised_margins_create_a_matching_closed_reference_without_changing_the_active_scene():void {
+  [$s,$p,$data]=$this->fixture();
+  $original=$this->postJson(route('containers.index',[$s,$p]),$data)->assertCreated()->json();
+  ContainerPlan::findOrFail($original['id'])->update(['stage'=>'active']);
+  $scene=$p->fresh()->visual_document;
+  $data['reuse_changed_state']=false;
+  $data['padding']=['top'=>500,'right'=>20,'bottom'=>5,'left'=>5];
+  $revised=$this->postJson(route('containers.index',[$s,$p]),$data)->assertCreated()->json();
+  $this->assertNotSame($original['source_asset_id'],$revised['source_asset_id']);
+  $closed=collect($revised['batch']['outputs'])->firstWhere('type','switch_off');
+  $preview=collect($revised['batch']['outputs'])->firstWhere('type','container_preview');
+  $this->assertSame($revised['source_asset_id'],$closed['accepted_asset_id']);
+  $this->assertSame($revised['source_asset_id'],$preview['references'][0]);
+  $this->assertNull($preview['accepted_asset_id']);
+  $crop=Asset::findOrFail($closed['accepted_asset_id']);
+  $this->assertSame([75,65],array_slice(getimagesizefromstring(Storage::disk('local')->get($crop->path)),0,2));
+  $this->assertSame('active',ContainerPlan::findOrFail($original['id'])->stage);
+  $this->assertSame($scene,$p->fresh()->visual_document);
+  $this->assertDatabaseCount('image_generations',0);
+ }
  private function fixture():array {
   Storage::fake('local');Queue::fake();$u=User::factory()->create();$this->actingAs($u);$s=Story::create(['user_id'=>$u->id,'title'=>'House','premise'=>'Test']);
   $im=imagecreatetruecolor(100,100);ob_start();imagepng($im);$png=ob_get_clean();imagedestroy($im);Storage::disk('local')->put('scene.png',$png);$a=Asset::create(['story_id'=>$s->id,'name'=>'Scene','path'=>'scene.png','mime'=>'image/png','bytes'=>strlen($png),'role'=>'scene']);

@@ -16,6 +16,7 @@ export function containerPlans(options) {
         containerPlans: [],
         containerArea: '',
         containerPlanId: '',
+        containerRevisionName: '',
         containerBusy: false,
         containerError: '',
         containerName: '',
@@ -86,10 +87,22 @@ export function containerPlans(options) {
             if (!p) return;
             const preview = this.containerOutputs.find((o) => o.type === 'container_preview');
             this.containerPrompt = this.containerPrompts[preview?.id] ?? preview?.prompt ?? p.prompt;
+            this.containerRevisionName = p.name;
+            // A revised margin must crop the current scene, never reuse an old
+            // changed-state patch whose dimensions belong to the previous plan.
+            this.containerReuseState = false;
+            this.containerUserPrompt = p.user_prompt || p.prompt || '';
+            this.containerPromptModel = p.prompt_model || '';
+            this.containerPadding = { top: 0, right: 0, bottom: 0, left: 0, ...p.padding };
+            this.containerPaddingDraft = { ...this.containerPadding };
+            this.containerEqualPadding = p.equal_padding !== false;
             this.containerItems = p.contents.map((c) => ({ object_id: c.object_id, name: c.name }));
-            this.containerName = p.name + ' copy';
+            this.containerName = p.name;
             this.containerPlanId = '';
+            this.containerError = '';
+            this.containerHidden = [];
             this.loadContainerSource();
+            this.$nextTick?.(() => this.$refs.containerDialog.querySelector('.overflow-y-auto')?.scrollTo({ top: 0 }));
         },
         async draftContainerPrompt() {
             if (this.containerPromptBusy || this.containerBusy) return;
@@ -249,6 +262,7 @@ export function containerPlans(options) {
                 );
         },
         newContainerPlan() {
+            this.containerRevisionName = '';
             this.containerPlanId = '';
             this.containerItems = [];
             this.containerName =
@@ -263,6 +277,7 @@ export function containerPlans(options) {
             this.loadContainerSource();
         },
         selectContainerPlan() {
+            this.containerRevisionName = '';
             const p = this.containerPlan;
             if (!p) {
                 this.newContainerPlan();

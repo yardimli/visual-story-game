@@ -7,6 +7,34 @@ import {
     containerCropBounds,
     containerPlans,
 } from '../resources/js/container-plans.js';
+
+test('recreating a container carries its settings but recrops rather than reusing the old switch image', () => {
+    const e = sceneEditor({});
+    e.selected = 'scene';
+    e.containerArea = 'door';
+    e.containerPlanId = 5;
+    e.containerReuseState = true;
+    const plan = { id: 5, visual_id: 'scene', area_id: 'door', name: 'Door', stage: 'active',
+        padding: { top: 8, left: 20, right: 9, bottom: 4 }, equal_padding: false,
+        prompt: 'Open the door', user_prompt: 'Door with key', prompt_model: 'writing-model',
+        contents: [{ object_id: 'key', name: 'Key', bounds: { x: .2, y: .2, width: .1, height: .1 } }],
+        batch: { outputs: [{ id: 'preview', type: 'container_preview', prompt: 'Saved image prompt', accepted_asset_id: 77 }] } };
+    e.containerPlans = [plan];
+    const original = JSON.stringify(plan);
+    e.loadContainerSource = () => {};
+    e.copyContainerPlan();
+    assert.equal(e.containerPlanId, '');
+    assert.equal(e.containerReuseState, false);
+    assert.equal(e.containerRevisionName, 'Door');
+    assert.equal(e.containerPrompt, 'Saved image prompt');
+    assert.deepEqual(e.containerPaddingDraft, plan.padding);
+    assert.equal(e.containerEqualPadding, false);
+    assert.equal(e.containerUserPrompt, 'Door with key');
+    assert.deepEqual(e.containerItems, [{ object_id: 'key', name: 'Key' }]);
+    e.changeContainerPadding('left', 35); e.commitContainerPadding();
+    assert.equal(e.containerPadding.left, 35);
+    assert.equal(JSON.stringify(plan), original);
+});
 const parent = () => ({
     id: 'stone',
     is_container: true,
