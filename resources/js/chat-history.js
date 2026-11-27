@@ -1,3 +1,17 @@
+export function historyPollDelay(pending, failed = false) {
+    return failed ? 10000 : pending ? 3000 : 30000;
+}
+
+export async function fetchChatHistory(url, etag) {
+    const response = await fetch(url, {
+        headers: { Accept: 'application/json', ...(etag ? { 'If-None-Match': etag } : {}) },
+        cache: 'no-store',
+    });
+    if (response.status === 304) return { unchanged: true, etag };
+    if (!response.ok) throw new Error('History could not load.');
+    return { data: await response.json(), etag: response.headers.get('ETag') };
+}
+
 // Rebuild from saved messages, retaining local review UI state only for saved IDs.
 export function recoverChatMessages(current, snapshot) {
     const existing = new Map(current.filter((item) => Number.isInteger(item.id)).map((item) => [item.id, item]));

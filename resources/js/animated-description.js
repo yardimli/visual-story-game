@@ -120,9 +120,21 @@ export function animatedDescription(options = {}) {
             this.step();
         },
         step() {
-            this.count = Math.min(this.count + 1, this.words.length);
+            const audio = this.speechAudio;
+            if (audio) {
+                // Follow the playback clock so buffering, pauses and playback-rate
+                // changes cannot make the text run ahead of the narration.
+                const duration = Number(audio.duration);
+                const progress = Number.isFinite(duration) && duration > 0
+                    ? Math.max(0, Math.min(1, (Number(audio.currentTime) || 0) / duration))
+                    : 0;
+                this.count = Math.max(this.count, Math.min(this.words.length,
+                    1 + Math.floor(progress * (this.words.length - 1))));
+            } else {
+                this.count = Math.min(this.count + 1, this.words.length);
+            }
             this.measure();
-            if (this.count < this.words.length) this.wordTimer = setTimeout(() => this.step(), 110);
+            if (this.count < this.words.length) this.wordTimer = setTimeout(() => this.step(), audio ? 50 : 110);
             else this.scheduleHide();
         },
         measure() {
@@ -138,10 +150,12 @@ export function animatedDescription(options = {}) {
                     this.height = Math.min(250, this.boundsHeight ? Math.max(inset, this.boundsHeight - this.actionHeight) : 250, content.scrollHeight + inset);
                     this.measured = true;
                     this.syncSceneSpace();
-                    const box = this.$refs.textBox || this.$refs.box,
+                    const box = this.$refs.scroll || this.$refs.textBox || this.$refs.box,
                         word = content.querySelectorAll?.('span')[this.count - 1];
                     if (box && word) {
-                        const bottom = word.offsetTop + word.offsetHeight;
+                        const bottom = word.getBoundingClientRect && box.getBoundingClientRect
+                            ? word.getBoundingClientRect().bottom - box.getBoundingClientRect().top + box.scrollTop
+                            : word.offsetTop + word.offsetHeight;
                         if (bottom > box.scrollTop + box.clientHeight - 12)
                             box.scrollTop = bottom - box.clientHeight + 12;
                     } else if (box && this.height < 250) box.scrollTop = 0;
@@ -402,7 +416,7 @@ export function hoverDescription() {
 }
 
 export function areaDescriptionBounds(area, width, height, textHeight, position) {
-    const boxWidth = Math.min(width, Math.max(200, (area.width || 0) * width));
+    const boxWidth = Math.min(width, Math.max(400, (area.width || 0) * width));
     const boxHeight = Math.min(textHeight, height);
     const left = Math.max(0, Math.min((area.x || 0) * width, width - boxWidth));
     const desired =

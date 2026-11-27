@@ -3,6 +3,49 @@
 The companion proposes saved application changes; it does not manipulate browser
 controls. Approval applies either field edits or an explicit editor command.
 
+## Chat context and scope
+
+Chat includes all page prose, but full visual documents and extraction/container
+plans only for the current page. A compact scene directory supplies cross-page
+navigation IDs. Selection is included as IDs, not repeated scene documents.
+Image history is page-scoped. Assets, sounds and videos follow references from
+that page, its generation/planning records, shared inventory and characters,
+global audio defaults, and explicit attachments. Narration is matched by text.
+Bible, inventory, flags, characters, settings and recent chat history remain shared.
+
+Every request also applies deterministic filtering; no summarization model is
+called. The last ten conversation messages retain their exact roles and content.
+Canonical page HTML is retained while duplicate Quill deltas are omitted.
+Extraction version lists and previous backgrounds are omitted unless history or
+retry context is relevant. Ordinary scene requests omit unused completed/failed
+image history; assigned media, working jobs, named renders, and page image tasks
+retain their relevant records. Media references are recalculated after filtering.
+Redundant internal character/sound URLs are omitted, keeping their IDs and labels.
+
+`ChatInstructions` consolidates current rules and selects detailed command families
+from the active tab, request and latest exchange. Core authoring rules remain
+available. Ambiguous requests retain all families; history/retry requests preserve
+the broader schemas and historical metadata. This routing changes neither saved
+game data nor conversation history. The manual Compact context button remains a
+placeholder; the deterministic filtering already runs on every send.
+
+Existing scene edits are limited to the scene selected when sending the request.
+The server stores this scope on proposals and checks direct scene/area edits and
+whole-document edits before review. Other scene IDs may be navigation destinations.
+
+Above 250,000 JSON-encoded context bytes, chat returns a confirmation response
+before saving a message, reserving credit or calling the provider. The panel offers
+Cancel, Compact context (currently an alert only), and Continue sending. Continue
+resubmits the captured request once with `allow_large_context=true`; model context
+and credit checks still apply. No automatic retry follows a provider failure.
+
+History refreshes use conditional GETs with a private ETag covering the snapshot.
+Unchanged history returns 304 without a body. The initial page seeds this tag and
+the pending-response state. Visible idle tabs check every 30 seconds; pending
+reply recovery checks every 3 seconds. Hidden tabs and live local sends do not poll,
+and focus/visibility return checks immediately. Changed snapshots still include
+the latest 40 messages so deletions and saved review state reconcile correctly.
+
 ## Core proposals
 
 - `create_character` / `character`: real character profiles with canonical text

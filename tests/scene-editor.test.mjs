@@ -2454,6 +2454,7 @@ test('slow destination images keep the open-door scene intact until loaded, then
             ready = resolve;
         });
     const pending = e.transitionScene('inside');
+    assert.equal(e.loadingSceneImage, '/closed');
     t.mock.timers.tick(5000);
     assert.equal(e.previewId, 'porch');
     assert.equal(e.areaImage(door).url, '/open');
@@ -2467,6 +2468,7 @@ test('slow destination images keep the open-door scene intact until loaded, then
     assert.equal(e.previewId, 'porch');
     t.mock.timers.tick(1);
     assert.equal(e.previewId, 'inside');
+    assert.equal(e.loadingSceneImage, '/closed', 'destination artwork never replaces the loading backdrop');
     assert.equal(e.transitionPhase, 'out');
     t.mock.timers.tick(50);
     assert.equal(e.transitionPhase, 'in');
@@ -2474,6 +2476,7 @@ test('slow destination images keep the open-door scene intact until loaded, then
     t.mock.timers.tick(300);
     assert.equal(e.sceneTransition, false);
     e.closePreview();
+    assert.equal(e.loadingSceneImage, null);
 });
 test('closing preview cancels a destination image load without reopening or navigating', async () => {
     const e = sceneEditor({});

@@ -74,9 +74,9 @@
         "max_references": 0
     },
     "minimax_h3_reference": {
-        "label": "MiniMax H3 Reference (slower)",
+        "label": "MiniMax H3 Reference",
         "description": "First and last frames anchor the scene. Up to 9 separate references guide character appearance, objects, or style; they do not become frames automatically.",
-        "version": 1,
+        "version": 2,
         "workflow": "video_minimax_h3_r2v_api.json",
         "supports_last_frame": true,
         "max_references": 9,
@@ -118,14 +118,12 @@
                 "node": "115",
                 "input": "megapixels"
             },
-            "steps": {
-                "label": "Sampling steps",
-                "type": "integer",
-                "default": 20,
-                "min": 20,
-                "max": 30,
-                "step": 1,
-                "node": "143",
+            "lightning": {
+                "label": "Fast mode (Lightning LoRA)",
+                "type": "boolean",
+                "default": false,
+                "description": "Enabled: 4 steps. Disabled: normal quality, 20 steps.",
+                "node": "146",
                 "input": "value"
             }
         },
@@ -148,6 +146,12 @@
                 "format": "mp4",
                 "format.codec": "h264",
                 "codec": "h264"
+            },
+            "143": {
+                "value": 20
+            },
+            "144": {
+                "value": 4
             }
         }
     }

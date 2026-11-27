@@ -29,14 +29,18 @@ def grunge_crops():
         source.crop(box).save(out / (name + '-reference.png'))
         recipes[name + '-reference'] = {'source': 'Grunge-UI.png', 'operation': 'crop', 'box': box,
                                       'contains_sample_text': True}
-    # Nine clean patches from the panel retain its actual corners/border, while
-    # replacing the demonstration form and text with a clean texture sample.
+    # Reconstruct the raised card at the bottom of the preview. Keep a narrow
+    # strip of its lighter header, with no title or embedded Continue button.
     panel = Image.new('RGBA', (652, 278))
-    patches = [([50,755,62,767],[0,0,12,12]), ([62,755,690,767],[12,0,640,12]),
-               ([690,755,702,767],[640,0,652,12]), ([50,767,62,1021],[0,12,12,266]),
-               ([318,778,326,813],[12,12,640,266]), ([690,767,702,1021],[640,12,652,266]),
-               ([50,1021,62,1033],[0,266,12,278]), ([62,1021,690,1033],[12,266,640,278]),
-               ([690,1021,702,1033],[640,266,652,278])]
+    patches = [([252,1580,260,1598],[0,0,12,18]), ([260,1580,492,1598],[12,0,640,18]),
+               ([492,1580,500,1598],[640,0,652,18]),
+               ([260,1640,492,1646],[12,18,640,21]),
+               ([252,1646,260,1810],[0,18,12,266]),
+               ([260,1647,492,1660],[12,21,640,266]),
+               ([492,1646,500,1810],[640,18,652,266]),
+               ([252,1810,260,1820],[0,266,12,278]),
+               ([470,1810,492,1820],[12,266,640,278]),
+               ([492,1810,500,1820],[640,266,652,278])]
     for src, dst in patches:
         panel.paste(source.crop(src).resize((dst[2]-dst[0], dst[3]-dst[1])), dst[:2])
     panel.save(out / 'dialogue.png')
@@ -90,25 +94,29 @@ def definitions():
     g=button('extracted/button-normal.png')
     g['states']['hover']={'layers':[layer('extracted/button-hover.png')]}
     return {
-        'grunge': (component([layer('extracted/dialogue.png')], '#e5d3b2'), g,
+        'grunge': (dict(component([layer('extracted/dialogue.png')], '#e5d3b2',padding=[28,28,24,28]), action_gap_px=14), g,
                    ['Only pack without exported PNG components. Runtime crops are reconstructed from the opaque preview; raw labelled crops are reference-only.']),
-        'qiyan': (component([layer('Window/window_c.png')]),
+        'qiyan': (dict(component([layer('Window/window_c.png')],padding=[28,64,28,64]),
+                       corner_decoration=dict(layer('Window/window_corner.png',source_crop=[0,0,112,120]),size_px=52),
+                       box_shadow='0 12px 24px rgba(0,0,0,0.55), 0 3px 6px rgba(0,0,0,0.4)',action_gap_px=16),
                   button(q+'button_small.png', [layer(q+'button_small_hover.png',[10/358,10/142,338/358,122/142])],
                          [layer(q+'button_small_press.png',[20/358,20/142,318/358,102/142])]),
                   ['Hover/press files are inset overlays, not complete button replacements. Larger ornate button is available in Button Special.']),
-        'rpg1': (component([layer('Textures/Dialog/Dialog_Background.png'),
-                            layer('Textures/Dialog/Dialog_Border.png',[0,0,1,0.025])]),
+        'rpg1': (dict(component([], '#ded6ce', padding=[32,64,28,64]),
+                      background_color='#21191e', frame_border='2px solid #806747', header_color='#30212e',
+                      box_shadow='0 0 0 3px #30292a, 0 12px 24px rgba(0,0,0,0.5)', action_gap_px=16,
+                      corner_decoration=dict(layer('Textures/Windows/Window/Window_Tribal.png'),size_px=36,height_px=52,tint='#886c46')),
                  button(r+'BR_Large_Background.png',[layer(r+'BR_Large_Hover.png',[0,0,1,1])],text='#241e26'),
                  ['Many textures are neutral grayscale; use a dark button label unless tinting is added.',
-                  'Dialog_Background is a translucent 16x16 fill; Dialog_Border is an 8x4 strip, used along the top, not stretched over the whole panel.',
+                  'Dialog uses the Window tribal corners over a dark plum panel with a straight gold frame and narrow title-free header band.',
                   'BR_Large_Frame is a decorative side bracket, not a complete rectangular frame.']),
-        'rpg2': (component([layer(s+'Note Window/notification_container.png')],padding=[24,28,24,28]),
+        'rpg2': (component([layer(s+'Note Window/notification_container.png')],padding=[18,32,18,32]),
                  button(s+'Smaller Button/sml_button_green.png',
                         [layer(s+'Smaller Button/sml_button_hover.png',[15/282,15/122,252/282,92/122])],
                         [layer(s+'Smaller Button/sml_button_press.png',[15/282,15/122,252/282,92/122])]),
                  ['Notification panel is a complete decorative frame. Smaller Button hover/press are inset overlays.',
                   'Red button variant is supplied; green is the primary action choice.']),
-        'rpg3': (component([layer('Textures/Window/Window_Background.png', source_crop=[15,15,113,113])]),
+        'rpg3': (component([layer('Textures/Window/Window_Background.png', source_crop=[15,15,113,113])],padding=[14,32,14,32]),
                  button(t+'Buttom_RS_Foreground_Yellow.png', [layer(t+'Buttom_RS_Hover_Yellow.png')]),
                  ['The supplied filename spells Buttom, preserved intentionally.',
                   'Small colored foregrounds contain the full face/frame; matching hover artwork replaces that face at the same bounds.',
@@ -146,6 +154,13 @@ def main():
                   'source_documents':[p.relative_to(folder).as_posix() for p in sorted(folder.rglob('*.psd'))],
                   'segmented_asset_candidates':[a['file'] for a in assets if any(w in Path(a['file']).stem.lower() for w in ['_middle','_repeat','_mid','_left','_right','_end'])],
                   'segmented_asset_notes':'Candidates are catalogued, not assumed interchangeable. No complete left/middle/right set was found for the selected dialogue or primary button. RPG1 submenu has an explicit left/middle/right border set; RPG3 XP tooltip has left/middle pieces only.'}
+        thumb, track = {'grunge':('#a98756','#28231f'),'qiyan':('#aa8246','#211b27'),
+                        'rpg1':('#927448','#21191e'),'rpg2':('#9b8b68','#242426'),
+                        'rpg3':('#b58a48','#181513')}[name]
+        manifest['components']['scrollbar'] = {'thumb':thumb,'track':track}
+        if name in ['rpg2','rpg3']:
+            manifest['components']['inventory_dialogue']['content_padding_px'] = (
+                [24,56,24,56] if name=='rpg2' else [18,48,18,48])
         # Validate every referenced image before saving.
         def validate(obj):
             if isinstance(obj,dict):

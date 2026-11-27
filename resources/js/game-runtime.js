@@ -109,6 +109,8 @@ export function gameRuntime() {
         },
         videos: [],
         introVideo: null,
+        loadingSceneImage: null,
+        introVideoLoading: true,
         seenSceneVideos: {},
         introVideoBlocked: false,
         introVideoFailed: false,
@@ -127,6 +129,7 @@ export function gameRuntime() {
             this.sceneIntroText = '';
             this.introVideoBlocked = false;
             this.introVideoFailed = false;
+            this.introVideoLoading = true;
             this.pausedVideoAudio = Object.entries(this.soundPlayer?.channels || {})
                 .filter(
                     ([channel, audio]) =>
@@ -954,6 +957,7 @@ export function gameRuntime() {
             this.transitionPhase = null;
             this.outgoingScene = null;
             this.pendingModal = null;
+            this.loadingSceneImage = null;
         },
         resolveSceneEntry(pageId, sceneId) {
             const sceneAt = (p, id) =>
@@ -1024,6 +1028,7 @@ export function gameRuntime() {
             if (this.sceneTransition || this.introVideo) return;
             this.armedPickup = null;
             this.clearSceneTransition();
+            this.loadingSceneImage = this.asset(this.displayed?.asset_id)?.url || null;
             const request = this.transitionRequest;
             this.sceneTransition = true;
             this.transitionPhase = 'loading';

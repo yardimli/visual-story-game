@@ -22,11 +22,29 @@
       ],
       "text_color": "#f4eee3",
       "content_padding_px": [
-        18,
-        22,
-        18,
-        22
-      ]
+        28,
+        64,
+        28,
+        64
+      ],
+      "corner_decoration": {
+        "file": "Window/window_corner.png",
+        "rect": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "source_crop": [
+          0,
+          0,
+          112,
+          120
+        ],
+        "size_px": 52
+      },
+      "box_shadow": "0 12px 24px rgba(0,0,0,0.55), 0 3px 6px rgba(0,0,0,0.4)",
+      "action_gap_px": 16
     },
     "scene_introduction": {
       "same_as": "dialogue"
@@ -130,6 +148,10 @@
     },
     "audio_controls": {
       "renderer": "existing_css"
+    },
+    "scrollbar": {
+      "thumb": "#aa8246",
+      "track": "#211b27"
     }
   },
   "notes": [
@@ -166,6 +188,14 @@
       "height": 808,
       "has_alpha_channel": true,
       "sha256": "0461a44aec130ed58968674a80645fd392338c918bcf7f8a48cffc166d842566",
+      "usage": "available"
+    },
+    {
+      "file": "Window/window_corner.png",
+      "width": 274,
+      "height": 274,
+      "has_alpha_channel": true,
+      "sha256": "a0490865da8f3b6ec183e982535aa7a1a942a5d2e5cbc2738da23ea4b0c004dc",
       "usage": "available"
     }
   ]

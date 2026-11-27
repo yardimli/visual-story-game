@@ -22,11 +22,12 @@
       ],
       "text_color": "#e5d3b2",
       "content_padding_px": [
-        18,
-        22,
-        18,
-        22
-      ]
+        28,
+        28,
+        24,
+        28
+      ],
+      "action_gap_px": 14
     },
     "scene_introduction": {
       "same_as": "dialogue"
@@ -113,6 +114,10 @@
     },
     "audio_controls": {
       "renderer": "existing_css"
+    },
+    "scrollbar": {
+      "thumb": "#a98756",
+      "track": "#28231f"
     }
   },
   "notes": [
@@ -140,7 +145,7 @@
       "width": 652,
       "height": 278,
       "has_alpha_channel": true,
-      "sha256": "e67b6b895f2f096988eb06668c02f207703f0b406f83f82dc4d1a42c6d6740d9",
+      "sha256": "b19d66ed6e554be77dbdbc9b1ea5de2bb737ce4cf49a214a8b09dc94d41c2b21",
       "usage": "available"
     }
   ]

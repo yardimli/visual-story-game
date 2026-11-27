@@ -77,7 +77,7 @@ def build_workflow(engine, job, first, last, object_info, references=None):
         if last:
             assign(bindings["last_frame"], last)
     for key, parameter in engine["parameters"].items():
-        value = job["parameters"][key]
+        value = job["parameters"].get(key, parameter["default"])
         if parameter["type"] == "select":
             value = parameter["options"][value]
             node_type = graph[parameter["node"]]["class_type"]

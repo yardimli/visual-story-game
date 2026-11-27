@@ -144,7 +144,9 @@ export function storyVideo(url, uploadUrl) {
                 name: job.name,
                 prompt: job.prompt,
                 engine: job.engine,
-                parameters: { ...job.parameters },
+                parameters: Object.fromEntries(Object.entries(this.engines[job.engine]?.parameters || {}).map(
+                    ([key, parameter]) => [key, job.parameters?.[key] ?? parameter.default],
+                )),
                 first_asset_id: job.first_asset_id,
                 last_asset_id: job.last_asset_id || '',
                 reference_asset_ids: [...(job.reference_asset_ids || [])],

@@ -1,6 +1,8 @@
 @props(['story' => null, 'page' => null])
 @php
-    $initial = $story ? $story->messages()->latest('id')->limit(40)->get()->reverse()->values() : [];
+    $chatHistory = app(\App\Services\ChatHistory::class);
+    $snapshot = $chatHistory->snapshot($story ? $story->messages() : \App\Models\CompanionMessage::where('user_id', auth()->id()), auth()->user());
+    $initial = $snapshot['messages'];
     $options = [
         'userId' => auth()->id(),
         'imagesUrl' => $story ? route('videos.index', $story) : null,
@@ -9,12 +11,14 @@
         'changesBase' => $story ? url('/stories/' . $story->id . '/messages') : null,
         'history' => $story ? route('chat.history', $story) : route('companion.history'),
         'messages' => $initial,
+        'pending' => $snapshot['pending'],
+        'historyEtag' => $chatHistory->version($snapshot),
         'model' => $story?->llm_model ?? config('story.default_llm_model'),
         'pageId' => $page?->id,
         'position' => $page?->position,
         'imageStudio' => $story && $page ? route('images.studio', [$story, $page]) : null,
         'revision' => $story?->revision,
-        'remaining' => auth()->user()->availableCredit() / 1000000,
+        'remaining' => $snapshot['remaining'],
     ];
 @endphp
 <aside
@@ -355,6 +359,16 @@
                         </div>
                     </template></div>
             </div>
+        </div>
+    </dialog>
+    <dialog x-ref="contextDialog" class="rounded-xl bg-white p-6 text-stone-900 shadow-xl dark:bg-stone-900 dark:text-stone-100 max-w-lg"
+        aria-labelledby="context-size-title" @cancel.prevent="resolveContextConfirmation(false)" @close="if(contextConfirmation)resolveContextConfirmation(false)">
+        <h2 id="context-size-title" class="text-lg font-semibold">Large chat context</h2>
+        <p class="my-4">This request contains <strong x-text="contextBytes.toLocaleString() + ' bytes'"></strong> of context, above the 250,000-byte warning threshold. Sending more context may cost more and is still subject to the selected model’s limits.</p>
+        <div class="flex flex-wrap gap-3">
+            <button type="button" class="btn-secondary" @click="resolveContextConfirmation(false)">Cancel</button>
+            <button type="button" class="btn-secondary" @click="compactContext()">Compact context</button>
+            <button type="button" class="btn-primary" @click="resolveContextConfirmation(true)">Continue sending</button>
         </div>
     </dialog>
     @include('studio.companion-help')

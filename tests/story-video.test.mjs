@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { storyVideo } from '../resources/js/story-video.js';
 
+test('old reference drafts get normal mode and no editable steps; lightning survives editing', () => {
+    const video=storyVideo('/videos','/assets');
+    video.engines={minimax_h3_reference:{parameters:{lightning:{type:'boolean',default:false}}}};
+    video.$refs={videoFormDialog:{showModal(){}}};
+    const job={id:'job',engine:'minimax_h3_reference',name:'Reference',prompt:'Move',parameters:{steps:25}};
+    video.edit(job);
+    assert.deepEqual(video.form.parameters,{lightning:false});
+    video.edit({...job,parameters:{lightning:true}});
+    assert.deepEqual(video.form.parameters,{lightning:true});
+});
+
 test('job actions use the story API and uploads use the separate upload endpoint', async () => {
     const originalFetch = globalThis.fetch;
     const originalDocument = globalThis.document;

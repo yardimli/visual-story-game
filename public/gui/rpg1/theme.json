@@ -9,33 +9,31 @@
   "components": {
     "dialogue": {
       "render": "stretch_layers",
-      "layers": [
-        {
-          "file": "Textures/Dialog/Dialog_Background.png",
-          "rect": [
-            0,
-            0,
-            1,
-            1
-          ]
-        },
-        {
-          "file": "Textures/Dialog/Dialog_Border.png",
-          "rect": [
-            0,
-            0,
-            1,
-            0.025
-          ]
-        }
-      ],
-      "text_color": "#f4eee3",
+      "layers": [],
+      "text_color": "#ded6ce",
       "content_padding_px": [
-        18,
-        22,
-        18,
-        22
-      ]
+        32,
+        64,
+        28,
+        64
+      ],
+      "background_color": "#21191e",
+      "frame_border": "2px solid #806747",
+      "header_color": "#30212e",
+      "box_shadow": "0 0 0 3px #30292a, 0 12px 24px rgba(0,0,0,0.5)",
+      "action_gap_px": 16,
+      "corner_decoration": {
+        "file": "Textures/Windows/Window/Window_Tribal.png",
+        "rect": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "size_px": 36,
+        "height_px": 52,
+        "tint": "#886c46"
+      }
     },
     "scene_introduction": {
       "same_as": "dialogue"
@@ -132,11 +130,15 @@
     },
     "audio_controls": {
       "renderer": "existing_css"
+    },
+    "scrollbar": {
+      "thumb": "#927448",
+      "track": "#21191e"
     }
   },
   "notes": [
     "Many textures are neutral grayscale; use a dark button label unless tinting is added.",
-    "Dialog_Background is a translucent 16x16 fill; Dialog_Border is an 8x4 strip, used along the top, not stretched over the whole panel.",
+    "Dialog uses the Window tribal corners over a dark plum panel with a straight gold frame and narrow title-free header band.",
     "BR_Large_Frame is a decorative side bracket, not a complete rectangular frame."
   ],
   "assets": [
@@ -157,19 +159,11 @@
       "usage": "available"
     },
     {
-      "file": "Textures/Dialog/Dialog_Background.png",
-      "width": 16,
-      "height": 16,
+      "file": "Textures/Windows/Window/Window_Tribal.png",
+      "width": 98,
+      "height": 142,
       "has_alpha_channel": true,
-      "sha256": "71f488b2192771af6dc6e6c4c546cae0ed027f2f68bdef261d06ad6b66e7f8f5",
-      "usage": "available"
-    },
-    {
-      "file": "Textures/Dialog/Dialog_Border.png",
-      "width": 8,
-      "height": 4,
-      "has_alpha_channel": false,
-      "sha256": "53cfb8a267e5251f0b11154587d5222f26eaa6bd5970d6373d4b9cc9d3154044",
+      "sha256": "e99b3ea753a9c96f43c28fc60d2d266188a3b5aa13e562aaf23354467c6f1f6d",
       "usage": "available"
     }
   ]

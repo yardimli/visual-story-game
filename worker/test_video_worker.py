@@ -38,7 +38,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(graph["vsg_last_guide"]["inputs"]["positive"], ["vsg_first_guide", 0])
         self.assertEqual(graph["126"]["inputs"]["conditioning"], ["vsg_last_guide", 0])
         self.assertEqual(graph["125"]["inputs"]["latent_image"], ["136", 1])
-        self.assertEqual(graph["143"]["inputs"]["value"], 25)
+        self.assertEqual(graph["143"]["inputs"]["value"], 20)
+        self.assertFalse(graph["146"]["inputs"]["value"])
         self.assertNotIn("137", graph)
         self.assertNotIn("139", graph)
         with self.assertRaisesRegex(WorkflowError, "Too many reference"):
@@ -57,6 +58,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(graph["126"]["inputs"]["conditioning"], ["vsg_first_guide", 0])
         self.assertNotIn("vsg_last_guide", graph)
         self.assertNotIn("ref_images.ref_image_1", graph["136"]["inputs"])
+
+    def test_lightning_switch_controls_model_and_fixed_step_branches(self):
+        engine = json.loads((ROOT / "comfyui/engines.json").read_text())["minimax_h3_reference"]
+        source = json.loads((ROOT / "comfyui" / engine["workflow"]).read_text())
+        info = {node["class_type"]: {} for node in source.values()}
+        info["MiniMaxH3AddGuide"] = {}
+        for enabled in (False, True):
+            self.job["parameters"].update(lightning=enabled, steps=99)
+            graph = build_workflow(engine, self.job, "room.png", None, info)
+            self.assertIs(graph["146"]["inputs"]["value"], enabled)
+            self.assertEqual(graph["141"]["inputs"]["switch"], ["146", 0])
+            self.assertEqual(graph["142"]["inputs"]["switch"], ["146", 0])
+            self.assertEqual(graph["143"]["inputs"]["value"], 20)
+            self.assertEqual(graph["144"]["inputs"]["value"], 4)
+            self.assertEqual(graph["141"]["inputs"]["on_true"], ["145", 0])
 
     def test_last_frame_uses_supplied_example(self):
         graph = build_workflow(self.engine, self.job, "first.png", "last.png", self.info)

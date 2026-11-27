@@ -28,6 +28,20 @@ function runtime(pauseMusic, musicPaused = false) {
     player.prepareSceneIntro = () => {};
     return player;
 }
+test('first video has a black backdrop and later video loading retains the previous scene', () => {
+    const player = runtime(false);
+    player.beginScenePresentation();
+    assert.equal(player.loadingSceneImage, null);
+    assert.equal(player.introVideoLoading, true);
+    player.seenSceneVideos = {};
+    player.loadingSceneImage = '/previous-scene.png';
+    player.introVideoLoading = false;
+    player.beginScenePresentation();
+    assert.equal(player.loadingSceneImage, '/previous-scene.png');
+    assert.equal(player.introVideoLoading, true);
+    player.clearSceneTransition();
+    assert.equal(player.loadingSceneImage, null);
+});
 for (const setting of [undefined, false]) {
     test(`intro video leaves music uninterrupted when pause setting is ${setting}`, () => {
         const player = runtime(setting);

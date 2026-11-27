@@ -7,6 +7,47 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class CompanionTest extends TestCase {
     use RefreshDatabase;
+    public function test_context_filtering_preserves_the_last_ten_messages_verbatim_without_extra_ai_calls(): void {
+        $user=$this->userAndProvider('Done.');
+        $story=Story::create(['user_id'=>$user->id,'title'=>'History','premise'=>'Keep wording']);
+        $expected=[];
+        for($i=0;$i<12;$i++){
+            $message=['role'=>$i%2?'assistant':'user','content'=>"Message $i — exact text\n```json\n{\"value\":$i}\n```"];
+            $story->messages()->create($message+['created_at'=>now()->subSeconds(20-$i)]);
+            if($i>=2)$expected[]=$message;
+        }
+        $this->actingAs($user)->postJson(route('chat.store',$story),$this->payload())->assertOk();
+        Http::assertSent(fn($request)=>array_slice($request['messages'],2,10)===$expected);
+        Http::assertSentCount(1);
+    }
+    public function test_chat_rejects_model_attempt_to_edit_another_scene_even_with_forged_scope(): void {
+        $a=(string)Str::uuid();$b=(string)Str::uuid();
+        $user=$this->userAndProvider('Placeholder');
+        $story=Story::create(['user_id'=>$user->id,'title'=>'Scoped','premise'=>'Context']);
+        $page=$story->pages()->create(['position'=>1,'title'=>'Rooms','visual_document'=>['visuals'=>[
+            ['id'=>$a,'kind'=>'scene','name'=>'Porch','hotspots'=>[]],['id'=>$b,'kind'=>'scene','name'=>'Hall','hotspots'=>[]],
+        ]]]);
+        $proposal=['changes'=>[['scope'=>'visual','page_id'=>$page->id,'visual_id'=>$b,'fields'=>['description'=>'Changed']]],'_chat_scope'=>['page_id'=>$page->id,'visual_id'=>$b]];
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake(['*/chat/completions'=>Http::response(['usage'=>['prompt_tokens'=>1000,'completion_tokens'=>500],'choices'=>[['message'=>['content'=>'```json '.json_encode($proposal).' ```']]]])]);
+        $response=$this->actingAs($user)->postJson(route('chat.store',$story),$this->payload()+['page_id'=>$page->id,'active_tab'=>'visuals','visual_id'=>$a])->assertOk();
+        $response->assertJsonPath('message.proposal._chat_scope.visual_id',$a)->assertJsonCount(0,'message.proposal._review.items');
+        $this->assertStringContainsString('Open the scene',$response->json('message.proposal._review.error'));
+    }
+    public function test_large_context_requires_confirmation_before_any_message_or_charge_and_can_continue(): void {
+        $user=$this->userAndProvider('Confirmed response.');
+        $models=Cache::get('openrouter.models');$models[0]['context_length']=1000000;Cache::put('openrouter.models',$models,600);
+        $story=Story::create(['user_id'=>$user->id,'title'=>'Large','premise'=>'Context']);
+        for($i=0;$i<10;$i++)$story->messages()->create(['role'=>$i%2?'assistant':'user','content'=>str_repeat('Long context ',2300)]);
+        $payload=$this->payload();
+        $warning=$this->actingAs($user)->postJson(route('chat.store',$story),$payload)->assertStatus(409)->assertJsonPath('code','context_confirmation_required');
+        $this->assertGreaterThan(250000,$warning->json('context_bytes'));
+        $this->assertSame(10,$story->messages()->count());
+        $this->assertSame(0,LlmRequest::count());Http::assertNothingSent();
+        $this->postJson(route('chat.store',$story),$payload+['allow_large_context'=>true])->assertOk();
+        $this->assertSame(12,$story->messages()->count());
+        $this->assertSame(1,LlmRequest::count());Http::assertSentCount(1);
+    }
     public function test_chat_receives_character_profiles_and_preserves_selected_character_views(): void {
         $user=$this->userAndProvider('Character ready.');
         $story=Story::create(['user_id'=>$user->id,'title'=>'Cast','premise'=>'Meet Mira']);
@@ -42,7 +83,7 @@ class CompanionTest extends TestCase {
             ->assertJsonPath('message.proposal._interaction.hotspot_id',$area)->assertJsonPath('message.proposal._interaction.revision',1)
             ->assertJsonPath('message.proposal.interaction.object.name','Envelope letter');
         $this->assertSame('Old description',$p->fresh()->visual_document['visuals'][0]['hotspots'][0]['description']);
-        Http::assertSent(fn($r)=>str_contains(json_encode($r['messages']),'Selected area') && str_contains(json_encode($r['messages']),'Envelope') && str_contains(json_encode($r['messages']),'Rain on the hallway window') && str_contains(json_encode($r['messages']),'Use the key'));
+        Http::assertSent(fn($r)=>str_contains(json_encode($r['messages']),'selection') && str_contains(json_encode($r['messages']),'Envelope') && !str_contains(json_encode($r['messages']),'Rain on the hallway window') && str_contains(json_encode($r['messages']),'Use the key'));
         $payload['hotspot_id']=(string)Str::uuid();$payload['request_key']=(string)Str::uuid();
         $this->postJson(route('chat.store',$s),$payload)->assertUnprocessable();Http::assertSentCount(1);
     }

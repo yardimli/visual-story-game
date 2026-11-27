@@ -34,7 +34,7 @@
                             <p class="text-sm font-medium">{{ $credit->description }}</p>
                             <p class="text-xs text-stone-500">
                                 {{ $credit->source === 'signup' ? 'Signup credit' : 'Admin credit' }} ·
-                                {{ $credit->created_at->format('M j, Y H:i') }}</p>
+                                {{ $credit->created_at?->format('M j, Y H:i') ?? 'Date unavailable' }}</p>
                         </div><span
                             class="shrink-0 font-semibold">+${{ rtrim(rtrim(number_format($credit->amount / 1000000, 6, '.', ''), '0'), '.') }}</span>
                 </li>@empty<li class="p-4 text-sm">No credits granted yet.</li>
@@ -119,7 +119,7 @@
                                     class="text-stone-500">{{ $call->imageGeneration ? 'Image · ' . $call->imageGeneration->name : ($call->audioGeneration ? 'Audio · ' . $call->audioGeneration->name : ($call->videoGeneration ? 'Video · ' . $call->videoGeneration->name : ($call->story_id ? 'Story companion' : 'Companion'))) }}</span><span>{{ $call->cost === null ? 'Cost pending' : '$' . number_format($call->cost / 1000000, 6) }}</span><span
                                     class="text-stone-500"
                                 >{{ $call->imageGeneration?->status ?? $call->status }} ·
-                                    {{ $call->created_at->format('M j, H:i') }}</span></span></summary>
+                                    {{ $call->created_at?->format('M j, H:i') ?? 'Date unavailable' }}</span></span></summary>
                         <div
                             class="border-t border-stone-200 p-4 dark:border-stone-700"
                             :aria-busy="busy"

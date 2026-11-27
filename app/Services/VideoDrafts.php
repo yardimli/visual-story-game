@@ -45,7 +45,7 @@ class VideoDrafts
             return;
         }
         $story = Story::findOrFail($job->story_id);
-        $this->validate($story, $job->toArray());
+        $job->fill($this->validate($story, $job->toArray()));
         foreach (['first', 'last'] as $frame) {
             if (! $job->{$frame.'_asset_id'}) {
                 continue;

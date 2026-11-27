@@ -1822,7 +1822,7 @@ html.editor-document,
     z-index: 10000;
     display: grid;
     place-items: center;
-    background: rgb(0 0 0 / 0.6);
+    background: #000;
     cursor: wait;
 }
 .scene-loading-spinner {
@@ -1993,7 +1993,7 @@ dialog.dialog-panel {
 .game-action:disabled { opacity: .45; }
 
 /* Separate dialogue text from the visual-novel choice row. */
-.animated-description.description-with-actions {
+.animated-description.description-framed, .animated-description.description-with-actions {
     padding: 0;
     border: 0;
     background: transparent;
@@ -2005,14 +2005,32 @@ dialog.dialog-panel {
     white-space: normal !important;
     position: relative;
     box-sizing: border-box;
-    overflow-y: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     padding: 10px 12px;
     border: 2px solid white;
     border-radius: 12px;
     background: rgb(0 0 0 / .72);
     box-shadow: 0 3px 12px rgb(0 0 0 / .25);
 }
-.description-text-panel > [x-ref="words"] { white-space: pre-wrap; }
+.description-text-panel [x-ref="words"] { white-space: pre-wrap; }
+.dialog-content-scroll {
+    min-height: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ui-scrollbar-thumb, #a8a29e) var(--ui-scrollbar-track, #292524);
+}
+.dialog-content-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.dialog-content-scroll::-webkit-scrollbar-track { background: var(--ui-scrollbar-track, #292524); }
+.dialog-content-scroll::-webkit-scrollbar-thumb {
+    background: var(--ui-scrollbar-thumb, #a8a29e);
+    border: 2px solid var(--ui-scrollbar-track, #292524);
+    border-radius: 8px;
+}
 .description-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; white-space: normal !important; }
 .description-actions:has(.game-choice) { padding-top: 8px; }
 .game-choice {
@@ -2067,36 +2085,82 @@ html.paper .object-preview-dialog.inventory-inspection-dialog {
     border-radius: 12px;
     background: var(--game-dialog-bg, #292524);
     color: var(--game-dialog-text, #fff);
-    overflow: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     max-height: calc(100dvh - 7rem);
 }
 .inventory-inspection-actions { padding-top: 8px; padding-bottom: 4px; }
 .object-preview-dialog .inventory-inspection-panel,
 .object-preview-dialog .inventory-inspection-panel * { cursor: pointer !important; }
-.inventory-inspection-panel .game-item-description { white-space: normal; }
+.inventory-inspection-panel .game-item-description { white-space: normal; max-height: none; overflow: visible; }
 .inventory-inspection-panel .game-item-description span { white-space: pre-wrap; }
 
 /* Optional manifest artwork; the default text theme never matches these rules. */
+.png-ui .description-actions:has(.game-choice) { padding-top: var(--ui-action-gap, 8px); }
+.png-ui .description-text-panel, .png-ui .inventory-inspection-panel {
+    position: relative;
+    --panel-corner-image: var(--ui-dialog-corner-image);
+    --panel-corner-size: var(--ui-dialog-corner-size);
+    --panel-corner-position: var(--ui-dialog-corner-position);
+    --panel-corner-width: var(--ui-dialog-corner-width);
+    --panel-corner-height: var(--ui-dialog-corner-height);
+    --panel-corner-mask: var(--ui-dialog-corner-mask);
+    --panel-corner-tint: var(--ui-dialog-corner-tint);
+}
+.png-ui .description-text-panel::before, .png-ui .description-text-panel::after,
+.png-ui .inventory-inspection-panel::before, .png-ui .inventory-inspection-panel::after {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: var(--panel-corner-width, 0px); height: var(--panel-corner-height, 0px);
+    background-color: var(--panel-corner-tint);
+    mask-image: var(--panel-corner-mask);
+    mask-size: var(--panel-corner-size);
+    mask-position: var(--panel-corner-position);
+    mask-repeat: no-repeat;
+    background-image: var(--panel-corner-image);
+    background-size: var(--panel-corner-size);
+    background-position: var(--panel-corner-position);
+    background-repeat: no-repeat; pointer-events: none;
+}
+.png-ui .description-text-panel::after, .png-ui .inventory-inspection-panel::after {
+    left: auto; right: 0; transform: scaleX(-1);
+}
 .png-ui .description-text-panel {
-    border: 0;
+    border: var(--ui-dialog-border, 0);
     border-radius: 0;
-    box-shadow: none;
-    background-color: transparent;
-    background-image: var(--ui-dialog-image);
-    background-size: var(--ui-dialog-size);
-    background-position: var(--ui-dialog-position);
+    box-shadow: var(--ui-dialog-shadow, none);
+    background-color: var(--ui-dialog-background, transparent);
+    background-image: linear-gradient(to bottom, var(--ui-dialog-header) 0 20px, transparent 20px), var(--ui-dialog-image);
+    background-size: 100% 100%, var(--ui-dialog-size);
+    background-position: 0 0, var(--ui-dialog-position);
     background-repeat: no-repeat;
     padding: var(--ui-dialog-padding);
     color: var(--ui-dialog-text);
 }
 .png-ui .scene-narration .description-text-panel {
-    background-image: var(--ui-intro-image);
-    background-size: var(--ui-intro-size);
-    background-position: var(--ui-intro-position);
+    box-shadow: var(--ui-intro-shadow, none);
+    --panel-corner-image: var(--ui-intro-corner-image);
+    --panel-corner-size: var(--ui-intro-corner-size);
+    --panel-corner-position: var(--ui-intro-corner-position);
+    --panel-corner-width: var(--ui-intro-corner-width);
+    --panel-corner-height: var(--ui-intro-corner-height);
+    --panel-corner-mask: var(--ui-intro-corner-mask);
+    --panel-corner-tint: var(--ui-intro-corner-tint);
+    background-image: linear-gradient(to bottom, var(--ui-intro-header) 0 20px, transparent 20px), var(--ui-intro-image);
+    background-size: 100% 100%, var(--ui-intro-size);
+    background-position: 0 0, var(--ui-intro-position);
     padding: var(--ui-intro-padding);
     color: var(--ui-intro-text);
 }
 .png-ui .inventory-inspection-panel {
+    box-shadow: var(--ui-inventory-shadow, none);
+    --panel-corner-image: var(--ui-inventory-corner-image);
+    --panel-corner-size: var(--ui-inventory-corner-size);
+    --panel-corner-position: var(--ui-inventory-corner-position);
+    --panel-corner-width: var(--ui-inventory-corner-width);
+    --panel-corner-height: var(--ui-inventory-corner-height);
+    --panel-corner-mask: var(--ui-inventory-corner-mask);
+    --panel-corner-tint: var(--ui-inventory-corner-tint);
     border: 0;
     border-radius: 0;
     background-color: transparent;

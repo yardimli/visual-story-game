@@ -8,6 +8,15 @@ use Tests\TestCase;
 class AiCallHistoryTest extends TestCase {
  use RefreshDatabase;
  private function makeCall(User $u,array $extra=[]): LlmRequest {return LlmRequest::create(array_merge(['user_id'=>$u->id,'model'=>'test/model','request_key'=>(string)Str::uuid(),'funding'=>'personal','status'=>'completed','cost'=>1234],$extra));}
+ public function test_settings_render_when_credit_and_call_dates_are_missing(): void {
+  $u=User::factory()->create();
+  DB::table('token_credits')->where('user_id',$u->id)->update(['created_at'=>null]);
+  $call=$this->makeCall($u);
+  DB::table('llm_requests')->where('id',$call->id)->update(['created_at'=>null]);
+  $response=$this->actingAs($u)->get(route('ai.edit'));
+  $response->assertOk()->assertSee('Welcome credit')->assertSee('test/model')->assertSee('Date unavailable');
+  $this->assertSame(2,substr_count($response->getContent(),'Date unavailable'));
+ }
  public function test_summaries_paginate_fifty_without_loading_payloads(): void {
   $u=User::factory()->create();
   for($i=0;$i<51;$i++)$this->makeCall($u,['model'=>'model-'.$i,'request_content'=>['secret'=>'large private contents'],'response_content'=>['answer'=>'large response']]);

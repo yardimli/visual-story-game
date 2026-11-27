@@ -24,6 +24,25 @@ class VideoGenerationTest extends TestCase
 
     private array $fields;
 
+    public function test_lightning_mode_is_boolean_and_legacy_step_counts_are_removed_when_queued(): void
+    {
+        $fields=array_replace($this->fields,['engine'=>'minimax_h3_reference']);
+        $fields['parameters']['steps']=27;
+        $job=app(VideoDrafts::class)->save($this->story,$fields);
+        $this->assertFalse($job->parameters['lightning']);
+        $this->assertArrayNotHasKey('steps',$job->parameters);
+        $job->parameters=array_replace($job->parameters,['lightning'=>true,'steps'=>99]);
+        $job->engine_version=1;
+        $job->save();
+        app(VideoDrafts::class)->queue($job);
+        $this->assertTrue($job->fresh()->parameters['lightning']);
+        $this->assertArrayNotHasKey('steps',$job->fresh()->parameters);
+        $this->assertSame(2,$job->fresh()->engine_version);
+        $fields['parameters']['lightning']='false';
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(VideoDrafts::class)->validate($this->story,$fields);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -49,7 +68,7 @@ class VideoGenerationTest extends TestCase
         $this->assertArrayNotHasKey('reference_paths', $job->presentation());
         $this->token('worker', 'reference-worker');
         $headers = ['Authorization' => 'Bearer reference-worker'];
-        $claim = $this->postJson('/api/video/worker/claim', ['worker_id' => 'gpu', 'engines' => ['minimax_h3_reference' => 1]], $headers)->assertOk()->assertJsonPath('reference_count', 1)->json();
+        $claim = $this->postJson('/api/video/worker/claim', ['worker_id' => 'gpu', 'engines' => ['minimax_h3_reference' => 2]], $headers)->assertOk()->assertJsonPath('reference_count', 1)->json();
         $headers['X-Video-Claim'] = $claim['claim_key'];
         $this->get('/api/video/worker/'.$job->id.'/frames/reference_0', $headers)->assertOk();
         $this->get('/api/video/worker/'.$job->id.'/frames/reference_1', $headers)->assertNotFound();
@@ -66,7 +85,7 @@ class VideoGenerationTest extends TestCase
     {
         $this->token('relay', 'references');
         $headers = ['Authorization' => 'Bearer references', 'Accept' => 'application/json'];
-        $metadata = array_replace($this->fields, ['engine' => 'minimax_h3_reference', 'engine_version' => 1, 'seed' => 123, 'reference_count' => 2]);
+        $metadata = array_replace($this->fields, ['engine' => 'minimax_h3_reference', 'engine_version' => 2, 'seed' => 123, 'reference_count' => 2]);
         $data = ['job_id' => (string) Str::uuid(), 'metadata' => json_encode($metadata), 'first' => UploadedFile::fake()->image('first.png'),
             'references' => [UploadedFile::fake()->image('front.png', 32, 32), UploadedFile::fake()->image('rear.png', 64, 64)]];
         $job = $this->post('/api/video/relay', $data, $headers)->assertCreated()->assertJsonPath('reference_count', 2)->json();

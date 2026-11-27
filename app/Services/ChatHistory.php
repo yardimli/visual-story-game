@@ -6,6 +6,22 @@ use App\Models\User;
 
 class ChatHistory
 {
+    public function version(array $snapshot): string
+    {
+        // Hash the actual values, not second-resolution timestamps: partial text,
+        // review changes and deletions must invalidate even within one second.
+        return '"'.hash('sha256', json_encode($snapshot)).'"';
+    }
+
+    public function response($conversation, User $user, \Illuminate\Http\Request $request)
+    {
+        $snapshot = $this->snapshot($conversation, $user);
+        $response = response()->json($snapshot)->header('ETag', $this->version($snapshot))
+            ->header('Cache-Control', 'private, no-store');
+        $response->isNotModified($request);
+        return $response;
+    }
+
     public function snapshot($conversation, User $user): array
     {
         // A terminated PHP process cannot report its own failure. Do not leave

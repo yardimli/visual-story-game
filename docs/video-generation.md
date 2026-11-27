@@ -8,9 +8,15 @@ accepting a proposal does not start generation. Start it from Video.
 ## Video engines and image roles
 
 **FastVideo MiniMax H3** remains the default for first-frame and optional
-last-frame clips. **MiniMax H3 Reference (slower)** uses the supplied
-`comfyui/video_minimax_h3_r2v_api.json` with the Ref2VA checkpoint, at 20 steps by
-default. The visual `video_minimax_h3_r2v.json` is the editable ComfyUI example;
+last-frame clips. **MiniMax H3 Reference** uses the supplied
+`comfyui/video_minimax_h3_r2v_api.json` with the Ref2VA checkpoint. Normal mode
+uses 20 steps. **Fast mode (Lightning LoRA)** enables the workflow's model/steps
+switch and uses 4 steps; there is no editable step count. It requires
+`minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` in ComfyUI's LoRA models.
+Reference engine version 2 requires updating the app/hub and worker repository
+and restarting the worker. Older saved drafts normalize on save/queue to normal
+mode unless Lightning is selected; already queued jobs are not rewritten.
+The visual `video_minimax_h3_r2v.json` is the editable ComfyUI example;
 the worker submits the API export.
 
 For Reference jobs, choose the first frame and optional last frame as usual,

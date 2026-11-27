@@ -3,7 +3,7 @@
     x-effect="hideAfterMs={{ $hideAfterMs ?? 'null' }};persistent={{ $persistentExpression ?? (!empty($persistent) ? 'true' : 'false') }};play({{ $text }}, {{ $position }}, {{ $identity }}, {{ $animate ?? 'true' }}, {{ $area ?? 'null' }})"
     x-show="visible"
     x-transition.opacity
-    class="animated-description {{ !empty($actionButtons) ? 'description-with-actions' : '' }} {{ $extraClass ?? '' }}"
+    class="animated-description description-framed {{ !empty($actionButtons) ? 'description-with-actions' : '' }} {{ $extraClass ?? '' }}"
     :class="'description-' + placement"
     :style="boxStyle"
     @resize.window="measure()"
@@ -17,16 +17,16 @@
     role="region"
     aria-label="Description. Click to reveal text and stop narration."
 >
-    @if (!empty($actionButtons))
         <div class="description-text-panel" x-ref="textBox" :style="{height: height + 'px'}">
-    @endif
+        <div class="dialog-content-scroll" x-ref="scroll">
     <div x-ref="words"><template x-for="(word,index) in words" :key="signature + ':' + index"><span
         :class="index < count ? 'description-word' : 'description-word-pending'"
         :aria-hidden="index >= count"
         x-text="word"
     ></span></template></div>
-    @if (!empty($actionButtons))
         </div>
+        </div>
+    @if (!empty($actionButtons))
         <div class="description-actions" x-ref="actions" @click.stop>
             <template x-if="!independentScene && narration?.actionAreaId && currentHotspots.some(h=>h.id===narration.actionAreaId)">
                 <button type="button" class="game-action game-choice"

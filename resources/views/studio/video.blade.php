@@ -168,7 +168,11 @@
                                             x-text="label"
                                         ></option>
                                     </template></select></template>
-                            <template x-if="parameter.type!=='select'"><input
+                            <template x-if="parameter.type==='boolean'"><input
+                                    type="checkbox"
+                                    x-model="form.parameters[key]"
+                                ></template>
+                            <template x-if="parameter.type!=='select' && parameter.type!=='boolean'"><input
                                     type="number"
                                     x-model.number="form.parameters[key]"
                                     :min="parameter.min"
@@ -176,6 +180,7 @@
                                     :step="parameter.step"
                                     required
                                 ></template>
+                            <small x-show="parameter.description" x-text="parameter.description" class="text-stone-500"></small>
                         </label>
                     </template>
                 </div>

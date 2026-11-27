@@ -25,12 +25,25 @@ function resolve(entries, key, seen = new Set()) {
 export function guiThemeStyle(theme) {
     if (theme?.renderer !== 'png') return {};
     const vars = {}, components = theme.components || {};
+    vars['--ui-action-gap'] = `${components.dialogue?.action_gap_px ?? 8}px`;
+    vars['--ui-scrollbar-thumb'] = components.scrollbar?.thumb || '#a8a29e';
+    vars['--ui-scrollbar-track'] = components.scrollbar?.track || '#292524';
     const put = (prefix, layers) => {
         for (const [property, value] of Object.entries(layerBackground(layers))) vars[`--ui-${prefix}-${property}`] = value;
     };
     for (const [role, key] of [['dialog', 'dialogue'], ['intro', 'scene_introduction'], ['inventory', 'inventory_dialogue']]) {
         const c = resolve(components, key);
         put(role, c.layers);
+        put(`${role}-corner`, c.corner_decoration ? [c.corner_decoration] : []);
+        vars[`--ui-${role}-corner-width`] = `${c.corner_decoration?.size_px ?? 0}px`;
+        vars[`--ui-${role}-corner-height`] = `${c.corner_decoration?.height_px ?? c.corner_decoration?.size_px ?? 0}px`;
+        vars[`--ui-${role}-corner-tint`] = c.corner_decoration?.tint || 'transparent';
+        vars[`--ui-${role}-corner-mask`] = c.corner_decoration?.tint ? vars[`--ui-${role}-corner-image`] : 'none';
+        if (c.corner_decoration?.tint) vars[`--ui-${role}-corner-image`] = 'none';
+        vars[`--ui-${role}-background`] = c.background_color || 'transparent';
+        vars[`--ui-${role}-border`] = c.frame_border || '0';
+        vars[`--ui-${role}-header`] = c.header_color || 'transparent';
+        vars[`--ui-${role}-shadow`] = c.box_shadow || 'none';
         vars[`--ui-${role}-text`] = c.text_color || '#fff';
         vars[`--ui-${role}-padding`] = (c.content_padding_px || [18,22,18,22]).map(n => `${n}px`).join(' ');
     }

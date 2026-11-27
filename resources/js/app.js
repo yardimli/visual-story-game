@@ -1,7 +1,8 @@
+import { sendChatWithContextConfirmation } from './chat-context';
 import { characterLibrary } from './character-library.js';
 import { guiThemePreview } from './gui-theme.js';
 import { storyCover } from './story-cover';
-import { recoverChatMessages } from './chat-history';
+import { recoverChatMessages, fetchChatHistory, historyPollDelay } from './chat-history';
 import { storyVideo } from './story-video.js';
 import { audioSettings, storySpeech, audioPreview } from './audio-settings';
 import { storyAudio } from './story-audio.js';
@@ -120,14 +121,16 @@ Alpine.data('creativeCompanion', (options) => ({
     modelLabel,
     displayMessage,
     streamingMessage,
-    messages: options.messages,
+    messages: recoverChatMessages([], { messages: options.messages, pending: options.pending || [] }),
     models: [],
     model: options.model,
     prompt: '',
     error: '',
     notice: '',
-    sending: false,
+    sending: (options.pending || []).length > 0,
     requestInFlight: false,
+    historyEtag: options.historyEtag || null,
+    historyPollAt: 0,
     historyReady: false,
     historyLoading: false,
     historyDestroyed: false,
@@ -183,8 +186,11 @@ Alpine.data('creativeCompanion', (options) => ({
         this.historyListener = () => {
             if (!document.hidden) this.refreshHistory();
         };
-        window.addEventListener('focus', this.historyListener);
-        document.addEventListener('visibilitychange', this.historyListener);
+        this.historyWakeListener = () => {
+            if (!document.hidden) this.refreshHistory(true);
+        };
+        window.addEventListener('focus', this.historyWakeListener);
+        document.addEventListener('visibilitychange', this.historyWakeListener);
         this.historyTimer = setInterval(this.historyListener, 3000);
         await this.refreshHistory();
         this.scroll();
@@ -192,18 +198,20 @@ Alpine.data('creativeCompanion', (options) => ({
     destroy() {
         this.historyDestroyed = true;
         clearInterval(this.historyTimer);
-        window.removeEventListener('focus', this.historyListener);
-        document.removeEventListener('visibilitychange', this.historyListener);
+        window.removeEventListener('focus', this.historyWakeListener);
+        document.removeEventListener('visibilitychange', this.historyWakeListener);
         this.destroyDrafts();
         window.removeEventListener('vsg-chat-message', this.chatMessageListener);
     },
-    async refreshHistory() {
+    async refreshHistory(force = false) {
         if (!options.history) {
             this.historyReady = true;
             return;
         }
         if (
             this.historyDestroyed ||
+            document.hidden ||
+            (!force && Date.now() < this.historyPollAt) ||
             this.historyLoading ||
             this.requestInFlight ||
             this.applying ||
@@ -211,14 +219,17 @@ Alpine.data('creativeCompanion', (options) => ({
         )
             return;
         this.historyLoading = true;
+        let failed = false;
         try {
-            const response = await fetch(options.history, {
-                headers: { Accept: 'application/json' },
-                cache: 'no-store',
-            });
-            if (!response.ok) throw new Error();
-            const data = await response.json();
+            const result = await fetchChatHistory(options.history, this.historyEtag);
             if (this.historyDestroyed || this.requestInFlight || this.applying || this.deletingMessage) return;
+            this.historyEtag = result.etag;
+            if (result.unchanged) {
+                this.historyReady = true;
+                if (this.error === 'Conversation history could not load. Reconnecting before sending.') this.error = '';
+                return;
+            }
+            const data = result.data;
             const history = this.$refs.history;
             const follow = !this.historyReady || history.scrollHeight - history.scrollTop - history.clientHeight < 80;
             const messages = recoverChatMessages(this.messages, data);
@@ -231,9 +242,11 @@ Alpine.data('creativeCompanion', (options) => ({
             this.historyReady = true;
             if (this.error === 'Conversation history could not load. Reconnecting before sending.') this.error = '';
         } catch (_) {
+            failed = true;
             if (!this.historyReady) this.error = 'Conversation history could not load. Reconnecting before sending.';
         } finally {
             this.historyLoading = false;
+            this.historyPollAt = Date.now() + historyPollDelay(this.sending, failed);
         }
     },
     remember() {
@@ -268,6 +281,24 @@ Alpine.data('creativeCompanion', (options) => ({
               )
             : {};
     },
+    contextBytes: 0,
+    contextConfirmation: null,
+    confirmLargeContext(bytes) {
+        this.contextBytes = bytes;
+        return new Promise(resolve => {
+            this.contextConfirmation = resolve;
+            this.$refs.contextDialog.showModal();
+        });
+    },
+    resolveContextConfirmation(allow = false) {
+        const resolve = this.contextConfirmation;
+        this.contextConfirmation = null;
+        this.$refs.contextDialog.close();
+        resolve?.(allow);
+    },
+    compactContext() {
+        window.alert('Not implemented yet.');
+    },
     async send() {
         if (!this.historyReady || this.sending || !this.prompt.trim() || !this.model) return;
         this.requestInFlight = true;
@@ -284,7 +315,7 @@ Alpine.data('creativeCompanion', (options) => ({
         try {
             if (window.vsgAutosave && !(await window.vsgAutosave.flush()))
                 throw new Error('Resolve unsaved changes before sending a message.');
-            const response = await fetch(options.endpoint, {
+            const requestOptions = {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
@@ -314,7 +345,14 @@ Alpine.data('creativeCompanion', (options) => ({
                     reference_ids: attachmentIds,
                     form: this.draft(),
                 }),
+            };
+            const response = await sendChatWithContextConfirmation(options.endpoint, requestOptions, async bytes => {
+                this.waitingForResponse = false;
+                const allow = await this.confirmLargeContext(bytes);
+                this.waitingForResponse = allow;
+                return allow;
             });
+            if (!response) return;
             if (!response.ok) {
                 const data = await response.json();
                 throw new Error(
@@ -369,7 +407,7 @@ Alpine.data('creativeCompanion', (options) => ({
             this.requestInFlight = false;
             this.sending = false;
             this.waitingForResponse = false;
-            await this.refreshHistory();
+            await this.refreshHistory(true);
         }
     },
     async applyReviewed(item, chosen) {

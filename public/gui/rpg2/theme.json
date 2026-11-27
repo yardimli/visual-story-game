@@ -22,17 +22,23 @@
       ],
       "text_color": "#f4eee3",
       "content_padding_px": [
-        24,
-        28,
-        24,
-        28
+        18,
+        32,
+        18,
+        32
       ]
     },
     "scene_introduction": {
       "same_as": "dialogue"
     },
     "inventory_dialogue": {
-      "same_as": "dialogue"
+      "same_as": "dialogue",
+      "content_padding_px": [
+        24,
+        56,
+        24,
+        56
+      ]
     },
     "choice_button": {
       "render": "stretch_layers",
@@ -130,6 +136,10 @@
     },
     "audio_controls": {
       "renderer": "existing_css"
+    },
+    "scrollbar": {
+      "thumb": "#9b8b68",
+      "track": "#242426"
     }
   },
   "notes": [

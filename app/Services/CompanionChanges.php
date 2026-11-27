@@ -42,6 +42,7 @@ class CompanionChanges {
    $scope=$request['scope']??'';$page=null;$visual=null;$hotspot=null;$base=['scope'=>$scope];$label='Story';$before=$story->toArray();
    $shared=collect($story->inventory_document['visuals']??[])->firstWhere('id',$request['visual_id']??$request['item_id']??null);
    if($scope==='visual' && $shared){$scope='inventory';$base['scope']='inventory';}
+   if(isset($proposal['_chat_scope']) && $scope!=='inventory')app(ChatContext::class)->assertSceneChange($request,$proposal['_chat_scope'],$pages);
    if(in_array($scope,['inventory','create_inventory'])){
     if($scope==='inventory'&&!$shared)$this->invalid('Unknown shared inventory item.');
     $fields=Validator::make($request['fields']??[],array_intersect_key(self::RULES['inventory'],$request['fields']??[]))->validate();

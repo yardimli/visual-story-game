@@ -18,11 +18,17 @@
                 @click.stop
                 @pointerdown.stop
             >
+                <template x-if="loadingSceneImage">
+                    <img :src="loadingSceneImage" alt="" class="absolute inset-0 h-full w-full object-contain" draggable="false">
+                </template>
                 <video
                     x-ref="introVideoPlayer"
                     :src="introVideo.url"
                     :aria-label="introVideo.name"
                     class="h-full w-full object-contain"
+                    :style="{opacity: introVideoLoading ? 0 : 1, position: 'relative'}"
+                    @waiting="introVideoLoading=true"
+                    @playing="introVideoLoading=false"
                     playsinline
                     preload="auto"
                     x-effect="$el.muted=audioMuted;if(!sceneTransition)$nextTick(()=>playIntroVideo($el))"
@@ -66,9 +72,12 @@
             @click.stop
             @pointerdown.stop
         >
+            <template x-if="transitionPhase==='loading' && loadingSceneImage">
+                <img :src="loadingSceneImage" alt="" class="absolute inset-0 h-full w-full object-contain" draggable="false">
+            </template>
             <div
                 x-show="transitionPhase==='loading'"
-                class="flex w-72 flex-col items-center gap-3 text-white"
+                class="relative flex w-72 flex-col items-center gap-3 rounded-lg bg-black/70 p-4 text-white"
             >
                 <span
                     class="scene-loading-spinner"
@@ -288,12 +297,14 @@
                             tabindex="0" role="region"
                             aria-label="Object image and description. Click to reveal text and stop narration; click again to close."
                         >
+                            <div class="dialog-content-scroll inventory-content-scroll" x-ref="scroll">
                             <img x-show="modal.url" :src="modal.url" :alt="modal.label" class="preview-object-image">
                             <div x-show="modal.text" class="game-item-description" x-ref="words"><template
                                 x-for="(word,index) in words" :key="signature + ':' + index"
                             ><span :class="index < count ? 'description-word' : 'description-word-pending'"
                                 :aria-hidden="index >= count" x-text="word"
                             ></span></template></div>
+                            </div>
                         </div>
                         <footer class="description-actions inventory-inspection-actions" @click.stop>
                             <template x-for="action in inventoryActions" :key="action.id">

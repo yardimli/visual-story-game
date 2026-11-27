@@ -85,20 +85,20 @@ test('hover without text does not block action and examine does not repeat hover
 test('area hover boxes keep minimum width and clamp all edges inside scene image', () => {
     const area = { x: 0.95, y: 0, width: 0.02, height: 0.1 };
     assert.deepEqual(areaDescriptionBounds(area, 600, 400, 80, 'area_top'), {
-        left: 400,
-        width: 200,
+        left: 200,
+        width: 400,
         top: 0,
         height: 80,
     });
     assert.deepEqual(areaDescriptionBounds({ ...area, y: 0.95 }, 600, 400, 80, 'area_bottom'), {
-        left: 400,
-        width: 200,
+        left: 200,
+        width: 400,
         top: 320,
         height: 80,
     });
     assert.deepEqual(areaDescriptionBounds({ x: 0.2, y: 0.5, width: 0.5, height: 0.1 }, 600, 400, 80, 'area_top'), {
         left: 120,
-        width: 300,
+        width: 400,
         top: 112,
         height: 80,
     });
@@ -146,7 +146,8 @@ test('click narration respects disabled animation and area-relative positioning'
     d.play('One two three', 'area_bottom', 'click', false, { x: 0.95, y: 0.9, width: 0.02, height: 0.1 });
     d.height = 80;
     assert.equal(d.count, 3);
-    assert.equal(d.boxStyle.left, '400px');
+    assert.equal(d.boxStyle.left, '200px');
+    assert.equal(d.boxStyle.width, '400px');
     assert.equal(d.boxStyle.top, '320px');
     d.destroy();
 });
@@ -411,6 +412,39 @@ test('source-area clicks use the same reveal and dismiss state as text-box click
     assert.equal(d.visible, false);
     assert.equal(d.instantHide, true);
     d.destroy();
+});
+
+test('narrated text follows playback progress, waits for metadata and buffering, and completes with audio', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const old = globalThis.window;
+    const audio = { duration: NaN, currentTime: 0 };
+    const sound = { speaking: true, channels: { voice: audio }, speak() {} };
+    globalThis.window = { vsgPlayer: { soundPlayer: sound } };
+    const d = animatedDescription({ persistent: true });
+    try {
+        d.play('One two three four five', 'top', 'timed');
+        t.mock.timers.tick(2000);
+        assert.equal(d.count, 1, 'loading audio does not race through the text');
+        audio.duration = 8;
+        audio.currentTime = 4;
+        t.mock.timers.tick(50);
+        assert.equal(d.count, 3);
+        t.mock.timers.tick(2000);
+        assert.equal(d.count, 3, 'paused or buffering playback holds its text position');
+        audio.currentTime = 7.9;
+        t.mock.timers.tick(50);
+        assert.equal(d.count, 4);
+        assert.equal(d.completed, false);
+        audio.currentTime = 8;
+        sound.speaking = false;
+        t.mock.timers.tick(50);
+        assert.equal(d.count, 5);
+        assert.equal(d.completed, true);
+        assert.equal(d.visible, true);
+    } finally {
+        d.destroy();
+        globalThis.window = old;
+    }
 });
 
 test('speech completion preserves persistent text and reveals unfinished animation', (t) => {

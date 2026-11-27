@@ -212,26 +212,35 @@
                                 <li>System instructions describing the linear game, allowed edits, response schema and
                                     creator-review requirement.</li>
                                 <li>The saved story fields and model preferences; all pages with IDs, positions, titles,
-                                    prose, rich-text deltas, complete visual documents and visual revisions. Visual
-                                    documents include scenes, objects, descriptions, prompts, areas, rules and actions.
+                                    prose with its HTML formatting. Duplicate editor deltas are omitted. Only the current page includes complete scene documents,
+                                    areas, rules, actions and extraction/container plans. Other scenes appear in a compact
+                                    navigation directory. Existing scene edits require that scene to be selected.
                                 </li>
-                                <li>Reference metadata (ID, name, role and MIME type), unrendered image drafts (ID,
+                                <li>Page-related and shared reference metadata (ID, name, role and MIME type), page image
+                                    history and unrendered image drafts (ID,
                                     page, name, image/video prompts), and the current image form’s name, prompts, model,
                                     settings and reference IDs.</li>
                                 <li>The full story flag definitions and shared inventory; the active tab and selected
-                                    page; selected visual and clickable area when editing scenes. Pending editor changes
+                                    page, visual and clickable area IDs. Characters and shared settings remain available.
+                                    Sounds and videos are limited to relevant page/shared references. Pending editor changes
                                     are flushed before sending.</li>
                                 <li>The previous <strong>10 messages</strong> from this story’s conversation, oldest
                                     first, followed by the new message. Both user and assistant messages count. Older
                                     messages are not summarized. The UI loads up to 40 messages.</li>
                             </ol>
-                            <p>Completed/failed image-generation history and API keys are not included in the chat
-                                prompt. On Scenes, checking Include scene image attaches only the active scene image as
+                            <p>Image pixels are included only for images selected using the chat attachment controls, as
                                 a base64 image content part to the current message. It requires an image-capable writing
                                 model. Image bytes are redacted in AI call history and are not replayed with later
                                 conversation history. The OpenRouter key authenticates the API request through its
                                 Authorization header. Outside an existing story, the companion receives the new-story
                                 form and the user’s general companion conversation instead.</p>
+                            <p>Above 250,000 bytes of text context, a dialog offers Cancel or Continue sending.
+                                Compact context currently shows a “Not implemented yet” alert. Continuing remains
+                                subject to the selected model’s context limit and available credit.</p>
+                            <p>Automatic code-based filtering removes redundant metadata and selects relevant command
+                                instructions on every send. Recent messages are kept verbatim, without an extra AI
+                                summarization request. Historical render details are retained when discussing versions,
+                                history or retries.</p>
                         </section>
                         <section class="space-y-2">
                             <h4 class="font-semibold">Expected response</h4>
