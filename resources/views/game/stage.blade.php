@@ -2,6 +2,7 @@
     <dialog
         x-ref="previewDialog"
         class="preview-dialog"
+        :class="{'png-ui': uiTheme?.renderer==='png'}"
         :style="gameDialogStyle"
         aria-label="Test scenes"
         @pointermove.window="moveInventoryDrag($event)"
@@ -65,11 +66,25 @@
             @click.stop
             @pointerdown.stop
         >
-            <div x-show="transitionPhase==='loading'" class="flex w-72 flex-col items-center gap-3 text-white">
-                <span class="scene-loading-spinner" aria-hidden="true"></span>
-                <span x-text="'Loading scene… ' + sceneLoadProgress.percent + '%' "></span>
-                <progress class="h-3 w-full" max="100" :value="sceneLoadProgress.percent" aria-label="Scene download progress"></progress>
-                <span class="text-sm" x-text="sceneLoadProgress.completed + ' / ' + sceneLoadProgress.total + ' files ready'"></span>
+            <div
+                x-show="transitionPhase==='loading'"
+                class="flex w-72 flex-col items-center gap-3 text-white"
+            >
+                <span
+                    class="scene-loading-spinner"
+                    aria-hidden="true"
+                ></span>
+                <span x-text="'Loading scene... ' + sceneLoadProgress.percent + '%' "></span>
+                <progress
+                    class="h-3 w-full"
+                    max="100"
+                    :value="sceneLoadProgress.percent"
+                    aria-label="Scene download progress"
+                ></progress>
+                <span
+                    class="text-sm"
+                    x-text="sceneLoadProgress.completed + ' / ' + sceneLoadProgress.total + ' files ready'"
+                ></span>
             </div>
         </div>
         <button
@@ -79,17 +94,10 @@
             :aria-pressed="audioMuted"
             x-text="audioMuted?'Unmute':'Mute all'"
         ></button>
-        <div
-            class="contents"
-            x-data="hoverDescription()"
-            @area-hover-start="if(!pendingInventoryUse)narration=null"
-            @pointerdown="outsideClick($event)"
-            x-effect="if(!preview)resetHover();if(inventoryDrag?.active || pendingInventoryUse)dismiss()"
-        >
+        <div class="contents">
             <template x-if="preview && !introVideo && asset(displayed?.asset_id)">
                 <div
                     class="preview-stage"
-                    :style="examineMode ? 'cursor:help' : null"
                     :class="narrationSpeaking ? 'scene-narrating' : ''"
                     @click="if(modalArea?.action==='inventory' && !$event.target.closest('.inventory-interaction-overlay,.game-inventory,.preview-hotspot'))modal=null"
                 >
@@ -123,24 +131,19 @@
                     </template>
                     <div
                         class="scene-area-layers"
-                        :class="outgoingScene ? 'scene-fade-in' : ''"
+                        :class="{'scene-fade-in': outgoingScene, 'scene-areas-locked': narrationSpeaking && !narration?.sourceAreaId}"
+                        :inert="narrationSpeaking && !narration?.sourceAreaId"
                     >
                         <template
                             x-for="h in currentHotspots"
                             :key="h.id"
                         ><button
                                 type="button"
-                                :style="style(h) + ';z-index:' + areaLayer(h) + ';cursor:' + areaCursor(h)"
+                                :style="style(h) + ';z-index:' + areaLayer(h)"
                                 :aria-label="h.label"
-                                :title="areaTooltip(h)"
                                 class="preview-hotspot absolute cursor-pointer border-0 bg-transparent focus:outline-none"
-                                :disabled="sceneTransition || ((narrationSpeaking || !!pendingInventoryUse) && !hasAreaMessage(h))"
-                                @mouseenter="if(!hasAreaMessage(h) && !narrationSpeaking && !sceneTransition && !inventoryDrag?.active && !pendingInventoryUse)hoverArea(hoverDetails(h),previewPageId,previewId)"
-                                @mousemove="if(!hasAreaMessage(h) && !narrationSpeaking && !sceneTransition && !inventoryDrag?.active && !pendingInventoryUse)hoverArea(hoverDetails(h),previewPageId,previewId)"
-                                @mouseleave="leaveArea()"
-                                @focus="if(!hasAreaMessage(h) && !narrationSpeaking && !sceneTransition && !inventoryDrag?.active && !pendingInventoryUse)hoverArea(hoverDetails(h),previewPageId,previewId)"
-                                @blur="leaveArea()"
-                                @click.stop="if(sceneTransition)return;if(examineMode&&!narrationSpeaking){dismiss();activate(h);return;}if(clickAreaMessage(h))return;if(narrationSpeaking)return;if(h.action==='inventory')inventoryOpen=true;clickArea(h,()=>activate(h,(()=>{const r=$el.closest('.preview-stage').getBoundingClientRect();return $event.detail?{x:($event.clientX-r.left)/r.width,y:($event.clientY-r.top)/r.height}:null;})()))"
+                                :disabled="areaInputLocked(h)"
+                                @click.stop="tapArea(h)"
                             ><template x-if="areaImage(h)"><img
                                         :src="areaImage(h).url"
                                         :class="h.action !== 'state_v2' && h.overlay_always === false ? 'area-image-on-hover' :
@@ -150,36 +153,17 @@
                                         class="h-full w-full object-contain"
                                     ></template></button></template>
                     </div>
-                    <div
-                        x-show="visible"
-                        class="animated-description hover-description"
-                        :class="'description-' + placement"
-                        :style="hoverBoxStyle"
-                        @resize.window="updateHoverBounds()"
-                        x-ref="box"
-                        x-transition.opacity.duration.150ms
-                        @click.stop="skipSpeech()"
-                        role="region"
-                        aria-label="Area description"
-                    >
-                        <div x-ref="words"><template
-                                x-for="(word,index) in words"
-                                :key="signature + ':' + index"
-                            ><span
-                                    :class="index < count ? 'description-word' : 'description-word-pending'"
-                                    :aria-hidden="index >= count"
-                                    x-text="word"
-                                ></span></template></div>
-                    </div>
                     @include('game.description', [
                         'text' => "preview && !sceneTransition ? sceneIntroText : ''",
                         'position' => "displayed?.description_position || 'top'",
                         'identity' => "previewPageId+':'+previewId",
                         'extraClass' => 'scene-narration',
                         'sceneIndependent' => true,
+                        'actionButtons' => true,
+                        'persistent' => true,
                     ])
                     <div
-                        x-show="!modal && (!visible || !!pendingInventoryUse)"
+                        x-show="!modal"
                         @description-complete="descriptionCompleted($event.detail.key)"
                         @description-hidden="if(!pendingInventoryUse && narration && $event.detail.key===previewId+':'+narrationVersion)narration=null"
                     >
@@ -188,6 +172,7 @@
                             'position' => "narration?.position || 'top'",
                             'identity' => "previewId+':'+narrationVersion",
                             'extraClass' => 'item-narration',
+                            'actionButtons' => true,
                             'persistentExpression' => '!!pendingInventoryUse || !!narration?.persistent',
                             'animate' => 'narration?.animate!==false',
                             'area' => 'narration?.area || null',
@@ -215,30 +200,6 @@
                         ></template>
                     <div class="game-inventory">
                         <div class="flex flex-col gap-2 pointer-events-auto">
-                            <button
-                                type="button"
-                                class="inventory-toggle justify-center"
-                                :class="examineMode ? 'ring-2 ring-amber-400' : ''"
-                                aria-label="Examine an area"
-                                title="Examine an area"
-                                :aria-pressed="examineMode"
-                                :disabled="narrationSpeaking || sceneTransition"
-                                @click.stop="examineMode=!examineMode;dismiss()"
-                            ><svg
-                                    class="h-6 w-6"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="1.7"
-                                    aria-hidden="true"
-                                >
-                                    <circle
-                                        cx="10"
-                                        cy="10"
-                                        r="6"
-                                    />
-                                    <path d="m15 15 6 6" />
-                                </svg></button>
                             <button
                                 type="button"
                                 class="inventory-toggle"
@@ -306,60 +267,44 @@
             >Assign an image to this scene to preview it. Click outside to close.</div>
             <dialog
                 x-ref="objectPreviewDialog"
+                x-data="animatedDescription({ persistent: true })"
+                @description-complete="if(modal && !modal.areaId)modal.revealed=true"
                 class="object-preview-dialog"
-                :class="narrationSpeaking ? 'scene-narrating' : ''"
+                :class="{'scene-narrating': narrationSpeaking, 'inventory-inspection-dialog': !modal?.areaId, 'png-ui': uiTheme?.renderer==='png'}"
                 :style="gameDialogStyle"
                 aria-label="Object inspection"
-                x-effect="if(modal && preview && modalArea?.action!=='inventory'){$nextTick(()=>{if(modal && preview && modalArea?.action!=='inventory' && !$el.open)$el.showModal();});}else if($el.open){$el.close();}"
-                @click="if($event.target===$el)modal=null"
-                @cancel="modal=null"
-                @close.stop="if(modalArea?.action!=='inventory')modal=null"
+                x-effect="play(modal && !modal.areaId ? modal.text : '','top',modal?.inventoryId+':'+modal?.text,true);if(modal && preview && modalArea?.action!=='inventory'){$nextTick(()=>{if(modal && preview && modalArea?.action!=='inventory' && !$el.open)$el.showModal();});}else if($el.open){$el.close();}"
+                @click="if($event.target===$el){if(modal?.areaId)modal=null;else advanceInventory()}"
+                @cancel.prevent="closeDialogue();modal=null"
+                @close.stop="dismiss();if(modalArea?.action!=='inventory')modal=null"
             >
                 <template x-if="modal && !modal.areaId">
-                    <div
-                        class="object-preview-stage"
-                        :class="!modal.url ? 'object-text-only' : ''"
-                    >
-                        <img
-                            x-show="modal.url"
-                            :src="modal.url"
-                            :alt="modal.label"
-                            class="preview-object-image"
+                    <div class="inventory-inspection-layout" @click.self="advanceInventory()">
+                        <div class="object-preview-stage inventory-inspection-panel"
+                            :class="!modal.url ? 'object-text-only' : ''"
+                            @click.stop="advanceInventory()"
+                            @keydown.enter.prevent="advanceInventory()"
+                            @keydown.space.prevent="advanceInventory()"
+                            tabindex="0" role="region"
+                            aria-label="Object image and description. Click to reveal text and stop narration; click again to close."
                         >
-                        <button
-                            type="button"
-                            class="game-object-close"
-                            aria-label="Back to scene"
-                            @click="modal=null"
-                        >Ã—</button>
-                        <div
-                            x-data="animatedDescription({ persistent: true })"
-                            x-effect="play(modal?.text,'top',modal?.id+':'+modal?.text,false)"
-                            x-show="visible"
-                            :style="{ visibility: instantHide && !visible ? 'hidden' : 'visible' }"
-                            x-transition.opacity.duration.300ms
-                            class="game-item-description"
-                            @click.stop="skipSpeech()"
-                            @keydown.enter.prevent="skipSpeech()"
-                            @keydown.space.prevent="skipSpeech()"
-                            tabindex="0"
-                            role="region"
-                            aria-label="Description. Click to reveal text and stop speech; click again to hide."
-                            x-text="modal?.text"
-                        ></div>
-                        <footer
-                            x-show="inventoryActions.length"
-                            class="game-object-actions game-dialog-footer"
-                        ><template
-                                x-for="action in inventoryActions"
-                                :key="action.id"
-                            ><button
-                                    type="button"
-                                    class="game-action"
-                                    @click="performObjectAction(action.id)"
-                                    :disabled="narrationSpeaking || !objects.some(v => v.id === action.target_id)"
-                                    x-text="action.label"
-                                ></button></template></footer>
+                            <img x-show="modal.url" :src="modal.url" :alt="modal.label" class="preview-object-image">
+                            <div x-show="modal.text" class="game-item-description" x-ref="words"><template
+                                x-for="(word,index) in words" :key="signature + ':' + index"
+                            ><span :class="index < count ? 'description-word' : 'description-word-pending'"
+                                :aria-hidden="index >= count" x-text="word"
+                            ></span></template></div>
+                        </div>
+                        <footer class="description-actions inventory-inspection-actions" @click.stop>
+                            <template x-for="action in inventoryActions" :key="action.id">
+                                <button type="button" class="game-action game-choice"
+                                    @click.stop="performObjectAction(action.id)"
+                                    :disabled="narrationSpeaking || (!!modal?.text && !completed) || !objects.some(v => v.id === action.target_id)"
+                                ><span class="choice-arrow" aria-hidden="true">&#10095;&#10095;</span><span x-text="action.label"></span></button>
+                            </template>
+                            <button type="button" class="game-action game-choice game-choice-close" @click.stop="closeDialogue();modal=null"
+                            ><span class="choice-arrow" aria-hidden="true">&#10095;&#10095;</span><span>Close</span></button>
+                        </footer>
                     </div>
                 </template>
                 <template x-if="modal?.areaId">

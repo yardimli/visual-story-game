@@ -38,6 +38,12 @@ class SceneDocument {
    'visuals.*.hotspots.*.auto_state.placements.*.object_id'=>'required|uuid',
    'visuals.*.hotspots.*.auto_state.original_target'=>'nullable|uuid',
    'visuals.*.hotspots.*.auto_state.changed_target'=>'nullable|uuid',
+   'visuals.*.hotspots.*.changed_unavailable_text'=>'sometimes|nullable|string|max:3000',
+   'visuals.*.hotspots.*.click_behavior'=>'sometimes|in:text,direct',
+   'visuals.*.hotspots.*.action_preset'=>'sometimes|in:take,open,close,look,enter,search,read,talk,continue,back,press,open_close,pull_push,turn_on_off,insert_remove,custom_single,custom_dual',
+   'visuals.*.hotspots.*.action_label'=>'sometimes|nullable|string|max:160',
+   'visuals.*.hotspots.*.changed_action_label'=>'sometimes|nullable|string|max:160',
+   'visuals.*.hotspots.*.restart_game'=>'sometimes|boolean',
    'visuals.*.hotspots.*.move_after_examine'=>'sometimes|boolean',
    'visuals.*.hotspots.*.animate_hover_text'=>'sometimes|boolean',
    'visuals.*.hotspots.*.overlay_always'=>'sometimes|boolean',
@@ -49,9 +55,13 @@ class SceneDocument {
    'visuals.*.skip_rules.*.object_ids.*'=>'required|uuid',
    'visuals.*.skip_rules.*.target_page_id'=>'nullable|integer',
    'visuals.*.skip_rules.*.target_scene_id'=>'nullable|uuid',
-   'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
+   'visuals.*.actions.*.flag_effects'=>'sometimes|array|max:100',
+   'visuals.*.actions.*.flag_effects.*'=>'array:key,value',
+   'visuals.*.actions.*.flag_effects.*.key'=>['required',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],
+   'visuals.*.actions.*.flag_effects.*.value'=>'required|boolean',
+   'visuals.*.actions'=>'sometimes|array|max:50','visuals.*.actions.*'=>'array:id,label,target_id,flag_effects','visuals.*.actions.*.id'=>'required|uuid','visuals.*.actions.*.label'=>'required|string|max:160','visuals.*.actions.*.target_id'=>'nullable|uuid',
    'visuals.*.hotspots.*.is_container'=>'sometimes|boolean','visuals.*.hotspots.*.container_parent_id'=>'sometimes|uuid','visuals.*.hotspots.*.container_plan_id'=>'sometimes|integer',
-   'visuals.*.hotspots.*'=>'array:auto_state,visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
+   'visuals.*.hotspots.*'=>'array:changed_unavailable_text,click_behavior,action_preset,action_label,changed_action_label,restart_game,auto_state,visible_when,disabled_when,move_after_examine,is_container,container_parent_id,container_plan_id,container_bounds,id,label,action_sound_id,sound_id,sound_volume,description,x,y,width,height,cursor,action_cursor,initial_empty,placement_enabled,collectible_flag,action,target_id,object_id,state_prompt,state_description,state_asset_id,state_flag,overlay,image_size,image_bounds,overlay_bounds,default_bounds,default_overlay_bounds,overlay_asset_id,overlay_alignment,overlay_always,animate_hover_text,show_hover_text,interaction_text,fallback_text,inventory_rules,choices,description_position,target_page_id,target_scene_id,availability_enabled,flag_conditions,required_items,unavailable_text,flag_effects',
    'visuals.*.hotspots.*.initial_empty'=>'sometimes|boolean',
    'visuals.*.hotspots.*.placement_enabled'=>'sometimes|boolean',
    'visuals.*.hotspots.*.collectible_flag'=>['sometimes','nullable',\Illuminate\Validation\Rule::in(array_column($story->game_flags??[],'key'))],
@@ -129,6 +139,7 @@ class SceneDocument {
    $ids=[];
    if($visual['kind']==='object' && count($visual['hotspots'])) $this->invalid('Object images cannot contain scene hotspots.');
    foreach($visual['hotspots'] as $h) {
+    if (!empty($h['restart_game']) && (empty($h['move_after_examine']) || empty($h['target_page_id']) || empty($h['target_scene_id']))) $this->invalid('Restart needs a destination page and scene.');
     foreach($h['auto_state']['placements']??[] as $condition){
      $location=collect($visual['hotspots'])->firstWhere('id',$condition['area_id']);
      if(!$location||($location['action']??'')!=='pickup_v2'||!in_array($condition['object_id'],$objects,true))$this->invalid('Automatic state conditions must reference a collectible location in this scene and an inventory item in this story.');

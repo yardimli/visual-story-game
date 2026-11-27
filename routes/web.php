@@ -19,6 +19,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::view('/scenes/north-of-the-north', 'scenes.north-of-the-north')->name('scenes.north');
+
+Route::get('/game-ui/{theme}/{asset}', [\App\Http\Controllers\GuiThemeController::class, 'asset'])->where('theme', '[a-z0-9_-]+')->where('asset', '[a-f0-9]{40}')->name('game.ui.asset');
+
 Route::get('/dashboard', [StudioController::class,'index'])->middleware('auth')->name('dashboard');
 
 Route::get('/p/{token}', [\App\Http\Controllers\PlayController::class, 'publicShow'])->where('token', '[A-Za-z0-9_-]{22}')->name('public.play');

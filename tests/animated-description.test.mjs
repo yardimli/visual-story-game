@@ -256,15 +256,15 @@ test('description remeasures when a closed dialog opens and disconnects its obse
     }
 });
 
-test('inventory responses also expire after ten seconds without audio', (t) => {
+test('persistent responses remain until dismissed or replaced', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const d = animatedDescription({ persistent: true });
     d.play('Try a key', 'top', 'intro', false);
     t.mock.timers.tick(10000);
-    assert.equal(d.visible, false);
+    assert.equal(d.visible, true);
     d.play('Nothing happens', 'top', 'attempt-1', false);
     t.mock.timers.tick(10000);
-    assert.equal(d.visible, false);
+    assert.equal(d.visible, true);
     assert.equal(d.words.join(''), 'Nothing happens');
     d.destroy();
 });
@@ -342,7 +342,7 @@ test('clicking narration reveals every word and stops speech', (t) => {
     }
 });
 
-test('clicked text hides after three seconds even for persistent descriptions', (t) => {
+test('skipped persistent text remains available for choosing an action', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const d = animatedDescription({ persistent: true });
     d.play('One two three');
@@ -351,7 +351,7 @@ test('clicked text hides after three seconds even for persistent descriptions', 
     t.mock.timers.tick(2999);
     assert.equal(d.visible, true);
     t.mock.timers.tick(1);
-    assert.equal(d.visible, false);
+    assert.equal(d.visible, true);
     assert.equal(d.instantHide, false);
     d.destroy();
 });
@@ -413,7 +413,7 @@ test('source-area clicks use the same reveal and dismiss state as text-box click
     d.destroy();
 });
 
-test('speech completion hides text including persistent scenes and marks unfinished animation read', (t) => {
+test('speech completion preserves persistent text and reveals unfinished animation', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const old = globalThis.window;
     const audio = {};
@@ -431,7 +431,7 @@ test('speech completion hides text including persistent scenes and marks unfinis
             assert.equal(d.visible, true);
             sound.speaking = false;
             t.mock.timers.tick(50);
-            assert.equal(d.visible, false);
+            assert.equal(d.visible, !!options.persistent);
             assert.equal(completed, true);
             d.destroy();
         }
@@ -466,4 +466,123 @@ test('long speech outlasts silent timeout and manual reveal keeps its three seco
     } finally {
         globalThis.window = old;
     }
+});
+
+test('choice row footprint is included when clamping anchored dialogue', () => {
+    const d = animatedDescription({ separateActions: true });
+    d.height = 90;
+    d.actionHeight = 52;
+    d.measured = true;
+    d.anchor = {x: .8, y: .9, width: .2, height: .1};
+    d.boundsWidth = 600;
+    d.boundsHeight = 400;
+    d.placement = 'area_bottom';
+    assert.equal(d.boxStyle.height, '142px');
+    assert.equal(d.boxStyle.top, '258px');
+});
+
+test('outside clicks reveal unfinished text first, then dismiss without selecting an action', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const old = globalThis.window;
+    let stopped = 0;
+    globalThis.window = {vsgPlayer: {stopNarration() { stopped++; }}};
+    try {
+        const d = animatedDescription({persistent: true, separateActions: true});
+        d.$refs = {box: {contains: () => false}};
+        d.play('One two three', 'top', 'outside');
+        d.dismissOutside({target: {closest: () => true}});
+        assert.equal(d.visible, true);
+        d.dismissOutside({target: {closest: () => false}});
+        assert.equal(d.visible, true);
+        assert.equal(d.count, d.words.length);
+        assert.equal(stopped, 1);
+        d.dismissOutside({target: {closest: () => false}});
+        assert.equal(d.visible, false);
+        d.destroy();
+    } finally { globalThis.window = old; }
+});
+
+test('outside click stops audio even when text is complete, and finished dialogue closes in one click', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const old = globalThis.window;
+    const sound = {speaking: true, speak() {}, channel() {this.speaking = false;}};
+    globalThis.window = {vsgPlayer: {soundPlayer: sound}};
+    try {
+        const d = animatedDescription({persistent: true, separateActions: true});
+        d.$refs = {box: {contains: () => false}};
+        d.play('Full text', 'top', 'spoken', false);
+        const outside = {target: {closest: () => false}};
+        d.dismissOutside(outside);
+        assert.equal(d.visible, true);
+        assert.equal(sound.speaking, false);
+        d.dismissOutside(outside);
+        assert.equal(d.visible, false);
+        d.play('Finished text', 'top', 'silent', false);
+        d.dismissOutside(outside);
+        assert.equal(d.visible, false);
+        d.destroy();
+    } finally {globalThis.window = old;}
+});
+
+test('dismissed descriptions stay visually hidden when another dialogue opens and closes', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const intro = animatedDescription({independentScene: true, persistent: true, separateActions: true});
+    intro.play('Scene introduction', 'top', 'intro', false);
+    intro.measured = true;
+    assert.equal(intro.boxStyle.visibility, 'visible');
+    const area = animatedDescription({persistent: true, separateActions: true});
+    area.play('A stone among the roses', 'area_bottom', 'stone', false, {x: .5, y: .5, width: .2, height: .2});
+    assert.equal(intro.visible, false);
+    area.closeDialogue();
+    intro.play('Scene introduction', 'top', 'intro', false);
+    assert.equal(intro.boxStyle.visibility, 'hidden');
+    area.measured = true;
+    assert.equal(area.boxStyle.visibility, 'hidden');
+    intro.destroy();
+    area.destroy();
+});
+
+test('persistent introduction reveals on outside click and stays until the next click', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const intro = animatedDescription({independentScene: true, persistent: true, separateActions: true});
+    intro.$refs = {box: {contains: () => false}};
+    intro.play('One two three', 'top', 'intro');
+    const outside = {target: {closest: () => false}};
+    intro.dismissOutside(outside);
+    assert.equal(intro.count, 3);
+    t.mock.timers.tick(15000);
+    assert.equal(intro.visible, true);
+    intro.dismissOutside(outside);
+    assert.equal(intro.visible, false);
+    intro.destroy();
+});
+
+test('repeated source hotspot clicks reveal persistent text then close it', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const d = animatedDescription({persistent: true});
+    d.play('One two three', 'top', 'door');
+    d.clickFromArea('door');
+    assert.equal(d.count, 3);
+    assert.equal(d.visible, true);
+    d.clickFromArea('door');
+    assert.equal(d.visible, false);
+    d.destroy();
+});
+
+test('inventory panel clicks reveal first and close on the next click, including empty items', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const d = animatedDescription({persistent: true});
+    d.modal = {text: 'One two three'};
+    d.play(d.modal.text, 'top', 'item');
+    d.advanceInventory();
+    assert.equal(d.visible, true);
+    assert.notEqual(d.modal, null);
+    assert.equal(d.count, 3);
+    d.advanceInventory();
+    assert.equal(d.modal, null);
+    d.modal = {text: ''};
+    d.play('', 'top', 'empty');
+    d.advanceInventory();
+    assert.equal(d.modal, null);
+    d.destroy();
 });

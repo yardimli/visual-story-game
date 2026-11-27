@@ -2,11 +2,11 @@
     x-show="hotspot.action==='state_v2'"
     class="space-y-3 rounded-lg border p-3"
 >
-    <label class="field">Change state<select
+    <label class="field">Object appearance changes<select
             :value="hotspot.auto_state?.enabled ? 'automatic' : 'click'"
             @change="hotspot.auto_state??={sticky:false,flag_conditions:[],placements:[],original_target:null,changed_target:null};hotspot.auto_state.enabled=$event.target.value==='automatic';changed()"
         >
-            <option value="click">On click</option>
+            <option value="click">When the player performs the action</option>
             <option value="automatic">When conditions match</option>
         </select></label>
     <template x-if="hotspot.auto_state?.enabled">
@@ -69,13 +69,13 @@
                     @change="changed()"
                 ><span>Stay changed once conditions have matched</span></label>
             <template
-                x-for="state in [{key:'original_target',label:'Original state click action'},{key:'changed_target',label:'Changed state click action'}]"
+                x-for="state in [{key:'original_target',label:'Original state destination (optional)'},{key:'changed_target',label:'Changed state destination (optional)'}]"
                 :key="state.key"
             ><label class="field"><span x-text="state.label"></span><select
                         :value="hotspot.auto_state[state.key] || ''"
                         @change="hotspot.auto_state[state.key]=$event.target.value||null;changed()"
                     >
-                        <option value="">Examine only</option><template
+                        <option value="">No scene change</option><template
                             x-for="destination in pageSceneDestinations"
                             :key="destination.key"
                         >
@@ -86,7 +86,7 @@
                         </template>
                     </select></label></template>
             <p class="text-xs">Uses Description for the original state and Changed-state description for the changed
-                state. A blank description moves immediately.</p>
+                state. Click behavior controls whether text is shown before the action.</p>
         </div>
     </template>
 </section>

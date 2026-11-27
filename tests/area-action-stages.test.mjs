@@ -378,26 +378,25 @@ test('entrance passes clicks through only while its door state is off', () => {
     );
 });
 
-test('blocked action uses story message at the click and preserves area overrides', () => {
+test('blocked action respects blank explanations and presents authored text persistently', () => {
     const [e, h] = setup('pickup_v2');
     h.show_hover_text = true;
     h.unavailable_text = '';
     e.unavailableText = 'Find the key first.';
-    e.activate(h, { x: 0.7, y: 0.4 });
-    assert.equal(e.narration.text, 'Find the key first.');
-    assert.equal(e.narration.position, 'area_bottom');
-    assert.deepEqual(e.narration.area, { x: 0.7, y: 0.4, width: 0, height: 0 });
+    e.activate(h);
+    assert.equal(e.narration, null);
     h.unavailable_text = 'This door is locked.';
-    e.activate(h, { x: 0.2, y: 0.8 });
+    e.activate(h);
     assert.equal(e.narration.text, 'This door is locked.');
-    assert.equal(e.narration.area.x, 0.2);
+    assert.equal(e.narration.persistent, true);
+    assert.equal(e.narration.actionAreaId, null);
 });
 
-test('area messages identify their source and use the story unavailable timeout', () => {
+test('area messages identify their source and remain until dismissed', () => {
     const [e, h] = setup();
     e.unavailableTimeout = 1750;
     e.denyAreaAction(h);
-    assert.equal(e.narration.hideAfterMs, 1750);
+    assert.equal(e.narration.persistent, true);
     assert.equal(e.hasAreaMessage(h), true);
     assert.equal(e.hasAreaMessage({ id: 'other' }), false);
     const d = sceneEditor({});

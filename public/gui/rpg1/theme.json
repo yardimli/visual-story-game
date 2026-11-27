@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "id": "rpg1",
+  "label": "RPG & MMO X",
+  "asset_root": ".",
+  "renderer": "png",
+  "fallback_theme": "text",
+  "resize_policy": "stretch_to_text_bounds",
+  "components": {
+    "dialogue": {
+      "render": "stretch_layers",
+      "layers": [
+        {
+          "file": "Textures/Dialog/Dialog_Background.png",
+          "rect": [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        {
+          "file": "Textures/Dialog/Dialog_Border.png",
+          "rect": [
+            0,
+            0,
+            1,
+            0.025
+          ]
+        }
+      ],
+      "text_color": "#f4eee3",
+      "content_padding_px": [
+        18,
+        22,
+        18,
+        22
+      ]
+    },
+    "scene_introduction": {
+      "same_as": "dialogue"
+    },
+    "inventory_dialogue": {
+      "same_as": "dialogue"
+    },
+    "choice_button": {
+      "render": "stretch_layers",
+      "text_color": "#241e26",
+      "content_padding_px": [
+        10,
+        18,
+        10,
+        18
+      ],
+      "min_height_px": 44,
+      "width": "text_content",
+      "states": {
+        "normal": {
+          "layers": [
+            {
+              "file": "Textures/Buttons/BR_Large_Background.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          ]
+        },
+        "hover": {
+          "layers": [
+            {
+              "file": "Textures/Buttons/BR_Large_Background.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            },
+            {
+              "file": "Textures/Buttons/BR_Large_Hover.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          ],
+          "css": {}
+        },
+        "focus": {
+          "same_as": "hover"
+        },
+        "pressed": {
+          "layers": [
+            {
+              "file": "Textures/Buttons/BR_Large_Background.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          ],
+          "css": {
+            "filter": "brightness(0.8)"
+          }
+        },
+        "disabled": {
+          "same_as": "normal",
+          "css": {
+            "opacity": 0.45
+          }
+        }
+      }
+    },
+    "close_button": {
+      "same_as": "choice_button",
+      "label": "Close"
+    },
+    "selection_indicator": {
+      "renderer": "existing_css",
+      "placement": "outside_left",
+      "reserved_space_px": 24
+    },
+    "inventory_controls": {
+      "renderer": "existing_css"
+    },
+    "audio_controls": {
+      "renderer": "existing_css"
+    }
+  },
+  "notes": [
+    "Many textures are neutral grayscale; use a dark button label unless tinting is added.",
+    "Dialog_Background is a translucent 16x16 fill; Dialog_Border is an 8x4 strip, used along the top, not stretched over the whole panel.",
+    "BR_Large_Frame is a decorative side bracket, not a complete rectangular frame."
+  ],
+  "assets": [
+    {
+      "file": "Textures/Buttons/BR_Large_Background.png",
+      "width": 586,
+      "height": 176,
+      "has_alpha_channel": true,
+      "sha256": "250f2a313bdf25a58a59e53f4c036c2837adc76796c25f59f3f974f3c500ffaa",
+      "usage": "available"
+    },
+    {
+      "file": "Textures/Buttons/BR_Large_Hover.png",
+      "width": 432,
+      "height": 193,
+      "has_alpha_channel": true,
+      "sha256": "d8289325d2f8b3bde4ebebd4d770e9a12488126eac1d1304d3722c4dd7b7dc33",
+      "usage": "available"
+    },
+    {
+      "file": "Textures/Dialog/Dialog_Background.png",
+      "width": 16,
+      "height": 16,
+      "has_alpha_channel": true,
+      "sha256": "71f488b2192771af6dc6e6c4c546cae0ed027f2f68bdef261d06ad6b66e7f8f5",
+      "usage": "available"
+    },
+    {
+      "file": "Textures/Dialog/Dialog_Border.png",
+      "width": 8,
+      "height": 4,
+      "has_alpha_channel": false,
+      "sha256": "53cfb8a267e5251f0b11154587d5222f26eaa6bd5970d6373d4b9cc9d3154044",
+      "usage": "available"
+    }
+  ]
+}

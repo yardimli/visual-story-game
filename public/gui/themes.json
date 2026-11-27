@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "default_theme": "text",
+  "integration_status": "story_bible_and_shared_player",
+  "themes": [
+    {
+      "id": "text",
+      "label": "Current text UI",
+      "renderer": "existing_css",
+      "manifest": null
+    },
+    {
+      "id": "grunge",
+      "label": "Grunge",
+      "renderer": "png",
+      "manifest": "grunge/theme.json"
+    },
+    {
+      "id": "qiyan",
+      "label": "Qiyan",
+      "renderer": "png",
+      "manifest": "qiyan/theme.json"
+    },
+    {
+      "id": "rpg1",
+      "label": "RPG & MMO X",
+      "renderer": "png",
+      "manifest": "rpg1/theme.json"
+    },
+    {
+      "id": "rpg2",
+      "label": "RPG & MMO II",
+      "renderer": "png",
+      "manifest": "rpg2/theme.json"
+    },
+    {
+      "id": "rpg3",
+      "label": "RPG & MMO III",
+      "renderer": "png",
+      "manifest": "rpg3/theme.json"
+    }
+  ]
+}

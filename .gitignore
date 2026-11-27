@@ -25,3 +25,4 @@ yarn-error.log
 
 /worker/__pycache__/
 /worker/.venv/
+/public/scenes/north

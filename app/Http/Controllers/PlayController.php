@@ -69,6 +69,7 @@ class PlayController extends Controller
                 'url' => $token ? route('public.play.media', [$token, 'image', $asset->id]) : route('assets.show', $asset),
             ]),
             'flags' => $story->game_flags ?? [],
+            'uiTheme' => app(\App\Services\GuiThemes::class)->forStory($story),
             'cursorTooltips' => $story->cursor_tooltips ?? [],
             'unavailableText' => $story->unavailable_text ?? 'You cannot do that yet.',
             'unavailableTimeout' => (int) ($story->unavailable_timeout_ms ?? 1000),

@@ -2,6 +2,7 @@ import { notify } from './toasts';
 export function inventoryLibrary(url) {
     return {
         sounds: [],
+        gameFlags: [],
         items: [],
         assets: [],
         uses: {},
@@ -57,7 +58,13 @@ export function inventoryLibrary(url) {
         async load() {
             if (this.dirty || this.saving) return;
             const d = await this.request();
-            Object.assign(this, { items: d.items, assets: d.assets, uses: d.uses, revision: d.revision });
+            Object.assign(this, {
+                items: d.items,
+                gameFlags: d.game_flags || [],
+                assets: d.assets,
+                uses: d.uses,
+                revision: d.revision,
+            });
             this.publish();
         },
         publish() {

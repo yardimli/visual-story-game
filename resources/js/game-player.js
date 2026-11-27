@@ -17,6 +17,7 @@ export function gamePlayer(game) {
                 this.assets = game.assets;
                 this.flagDefinitions = game.flags;
                 this.gameplayMessages = game.messages || {};
+                this.uiTheme = game.uiTheme;
                 this.cursorTooltips = game.cursorTooltips;
                 this.unavailableText = game.unavailableText;
                 this.unavailableTimeout = game.unavailableTimeout;

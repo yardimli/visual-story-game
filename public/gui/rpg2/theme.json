@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "id": "rpg2",
+  "label": "RPG & MMO II",
+  "asset_root": ".",
+  "renderer": "png",
+  "fallback_theme": "text",
+  "resize_policy": "stretch_to_text_bounds",
+  "components": {
+    "dialogue": {
+      "render": "stretch_layers",
+      "layers": [
+        {
+          "file": "Sliced Images/Note Window/notification_container.png",
+          "rect": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      ],
+      "text_color": "#f4eee3",
+      "content_padding_px": [
+        24,
+        28,
+        24,
+        28
+      ]
+    },
+    "scene_introduction": {
+      "same_as": "dialogue"
+    },
+    "inventory_dialogue": {
+      "same_as": "dialogue"
+    },
+    "choice_button": {
+      "render": "stretch_layers",
+      "text_color": "#f4eee3",
+      "content_padding_px": [
+        10,
+        18,
+        10,
+        18
+      ],
+      "min_height_px": 44,
+      "width": "text_content",
+      "states": {
+        "normal": {
+          "layers": [
+            {
+              "file": "Sliced Images/Smaller Button/sml_button_green.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          ]
+        },
+        "hover": {
+          "layers": [
+            {
+              "file": "Sliced Images/Smaller Button/sml_button_green.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            },
+            {
+              "file": "Sliced Images/Smaller Button/sml_button_hover.png",
+              "rect": [
+                0.05319148936170213,
+                0.12295081967213115,
+                0.8936170212765957,
+                0.7540983606557377
+              ]
+            }
+          ],
+          "css": {}
+        },
+        "focus": {
+          "same_as": "hover"
+        },
+        "pressed": {
+          "layers": [
+            {
+              "file": "Sliced Images/Smaller Button/sml_button_green.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            },
+            {
+              "file": "Sliced Images/Smaller Button/sml_button_press.png",
+              "rect": [
+                0.05319148936170213,
+                0.12295081967213115,
+                0.8936170212765957,
+                0.7540983606557377
+              ]
+            }
+          ],
+          "css": {}
+        },
+        "disabled": {
+          "same_as": "normal",
+          "css": {
+            "opacity": 0.45
+          }
+        }
+      }
+    },
+    "close_button": {
+      "same_as": "choice_button",
+      "label": "Close"
+    },
+    "selection_indicator": {
+      "renderer": "existing_css",
+      "placement": "outside_left",
+      "reserved_space_px": 24
+    },
+    "inventory_controls": {
+      "renderer": "existing_css"
+    },
+    "audio_controls": {
+      "renderer": "existing_css"
+    }
+  },
+  "notes": [
+    "Notification panel is a complete decorative frame. Smaller Button hover/press are inset overlays.",
+    "Red button variant is supplied; green is the primary action choice."
+  ],
+  "assets": [
+    {
+      "file": "Sliced Images/Note Window/notification_container.png",
+      "width": 838,
+      "height": 406,
+      "has_alpha_channel": true,
+      "sha256": "fc988ba1aa8dc8ba4f794037bb65eeddbf218871866be8cb179f715a76b0575e",
+      "usage": "available"
+    },
+    {
+      "file": "Sliced Images/Smaller Button/sml_button_green.png",
+      "width": 282,
+      "height": 122,
+      "has_alpha_channel": true,
+      "sha256": "1bc6708517e8984b2739271bfe61a83a3405c1c0e4040bce02410cef0426c96a",
+      "usage": "available"
+    },
+    {
+      "file": "Sliced Images/Smaller Button/sml_button_hover.png",
+      "width": 252,
+      "height": 92,
+      "has_alpha_channel": true,
+      "sha256": "71bd6ac4e6b7c32b0565189f773696b6b1bf2077e1291a0ff49d4830763fbc92",
+      "usage": "available"
+    },
+    {
+      "file": "Sliced Images/Smaller Button/sml_button_press.png",
+      "width": 252,
+      "height": 92,
+      "has_alpha_channel": true,
+      "sha256": "47ca81dc8a710e1a1d8abc1f5ef62cd033d16054a58107ce657fc2fbccf16fd4",
+      "usage": "available"
+    }
+  ]
+}

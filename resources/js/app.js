@@ -1,4 +1,5 @@
 import { characterLibrary } from './character-library.js';
+import { guiThemePreview } from './gui-theme.js';
 import { storyCover } from './story-cover';
 import { recoverChatMessages } from './chat-history';
 import { storyVideo } from './story-video.js';
@@ -33,6 +34,7 @@ Alpine.magic('thumbnail', () => (url) => {
     return image.href;
 });
 Alpine.data('characterLibrary', characterLibrary);
+Alpine.data('guiThemePreview', guiThemePreview);
 Alpine.data('storyCover', storyCover);
 Alpine.data('storyFlags', storyFlags);
 Alpine.data('inventoryLibrary', inventoryLibrary);

@@ -1,14 +1,112 @@
+import { guiThemeStyle } from './gui-theme.js';
 import { SceneMediaCache, sceneMedia } from './scene-media-cache.js';
 import { containerVisible } from './game-geometry.js';
 import { contrastText } from './scene-colors.js';
 import { notify } from './toasts.js';
+import { actionLabel, defaultActionPreset } from './interaction-actions.js';
 
 // Shared playback rules. No editor, generation or authoring dependencies.
 export function gameRuntime() {
     const mediaCache = new SceneMediaCache();
     return {
+        actionPreset(h) {
+            return h.action_preset || defaultActionPreset(h);
+        },
+        dualAction(h) {
+            return ['open_close', 'pull_push', 'turn_on_off', 'insert_remove', 'custom_dual'].includes(
+                this.actionPreset(h),
+            );
+        },
+        actionState(h) {
+            return h.action === 'state_v2'
+                ? !!this.flags[h.state_flag]
+                : h.action === 'pickup_v2' && h.initial_empty
+                  ? !this.collectibleEmpty(h)
+                  : false;
+        },
+        buttonLabel(h) {
+            return actionLabel(h, this.actionState(h));
+        },
+        canPresentAction(h) {
+            if (h.action === 'inventory') return false;
+            if (h.action === 'pickup_v2' && this.collectibleEmpty(h)) return false;
+            return this.hasAreaAction(h);
+        },
+        presentArea(h, text = this.areaDescription(h), action = true) {
+            if (!text?.trim()) return;
+            this.showObjectModal({
+                ...this.areaTextOptions(h),
+                text,
+                label: h.label,
+                url: null,
+                sourceAreaId: h.id,
+                persistent: true,
+                animate: true,
+                descriptionKey: this.pickupKey(h),
+                readEffects: action && h.action === 'examine' && !h.move_after_examine,
+                actionAreaId: action && this.canPresentAction(h) ? h.id : null,
+            });
+        },
+        tapArea(h) {
+            if (this.sceneTransition || this.pendingInventoryUse || this.inventoryDrag?.active) return;
+            if (this.hasAreaMessage(h)) {
+                globalThis.window?.dispatchEvent(
+                    new CustomEvent('description-area-click', {
+                        detail: { key: this.previewId + ':' + this.narrationVersion },
+                    }),
+                );
+                return;
+            }
+            if (
+                this.areaDisabled(h) ||
+                !containerVisible(h, this.displayed?.hotspots || [], this.flags)
+            )
+                return;
+            if (this.narration?.sourceAreaId) {
+                this.stopNarration();
+                this.narration = null;
+            } else if (this.narrationSpeaking) return;
+            const text = this.areaDescription(h);
+            if (h.click_behavior !== 'direct' && text.trim()) {
+                this.soundPlayer?.click(h, this.audioSounds);
+                this.presentArea(h, text);
+            } else if (this.canPresentAction(h)) this.executeAreaAction(h);
+            else if (text.trim()) this.presentArea(h, text, false);
+        },
+        areaInputLocked(h) {
+            if (this.sceneTransition) return true;
+            if (this.pendingInventoryUse) return !this.hasAreaMessage(h);
+            return this.narrationSpeaking && !this.narration?.sourceAreaId;
+        },
+        runPresentedAction() {
+            if (!this.narration?.revealed || this.narrationSpeaking || this.sceneTransition || this.pendingInventoryUse)
+                return;
+            const h = this.currentHotspots.find((h) => h.id === this.narration.actionAreaId);
+            if (h) this.executeAreaAction(h);
+        },
+        executeAreaAction(h) {
+            if (this.narrationSpeaking || this.sceneTransition || this.pendingInventoryUse || this.areaDisabled(h))
+                return;
+            if (!this.actionAllowed(h)) {
+                const text =
+                    (this.dualAction(h) && this.actionState(h) ? h.changed_unavailable_text : h.unavailable_text) || '';
+                this.narration = null;
+                if (text.trim()) this.presentArea(h, text, false);
+                return;
+            }
+            this.narration = null;
+            this.narrationVersion++;
+            if (h.restart_game) {
+                this.startPreview([], h.target_page_id + ':' + h.target_scene_id, null);
+                return;
+            }
+            this.activate({ ...h, _executeAction: true, show_hover_text: true });
+            if (h.action === 'state_v2' && !h.auto_state?.enabled && !this.sceneTransition) this.presentArea(h);
+        },
         sceneLoadProgress: { percent: 0, completed: 0, total: 0 },
-        disposeMediaCache() { mediaCache.dispose(); },
+        disposeMediaCache() {
+            mediaCache.dispose();
+        },
         videos: [],
         introVideo: null,
         seenSceneVideos: {},
@@ -164,6 +262,7 @@ export function gameRuntime() {
         transitionPhase: null,
         pendingInventoryUse: null,
         cursorTooltips: {},
+        uiTheme: {id: 'text', renderer: 'existing_css'},
         soundPlayer: null,
         inventoryDrag: null,
         narration: null,
@@ -279,6 +378,7 @@ export function gameRuntime() {
         get gameDialogStyle() {
             const p = this.dialogPalette(this.displayed);
             return {
+                ...guiThemeStyle(this.uiTheme),
                 '--game-dialog-bg': p.background,
                 '--game-dialog-border': p.border,
                 '--game-dialog-footer': p.footer,
@@ -326,6 +426,8 @@ export function gameRuntime() {
             );
         },
         areaDescription(h) {
+            if (h.action === 'pickup_v2' && h.initial_empty && !this.collectibleEmpty(h))
+                return h.state_description || '';
             if (this.preview && this.collectibleEmpty(h) && !h.initial_empty) return '';
             return h.action === 'state_v2' && this.preview && this.flags[h.state_flag]
                 ? h.state_description || ''
@@ -375,6 +477,7 @@ export function gameRuntime() {
             return h.action !== 'examine' || !!h.move_after_examine;
         },
         descriptionStep(h) {
+            if (h._executeAction) return false;
             return (
                 this.hasAreaAction(h) &&
                 h.show_hover_text === false &&
@@ -388,6 +491,12 @@ export function gameRuntime() {
             return !this.hasAreaAction(h) || this.conditionsMet(h);
         },
         denyAreaAction(h, point = null) {
+            if (this.preview) {
+                const text =
+                    (this.dualAction(h) && this.actionState(h) ? h.changed_unavailable_text : h.unavailable_text) || '';
+                if (text.trim()) this.presentArea(h, text, false);
+                return;
+            }
             this.showObjectModal({
                 sourceAreaId: h.id,
                 hideAfterMs: this.unavailableTimeout,
@@ -740,6 +849,8 @@ export function gameRuntime() {
                     ...this.areaTextOptions(area),
                     ...(override ? { text: override } : fallback),
                     inventoryAreaId: area.id,
+                    persistent: true,
+                    animate: true,
                 };
                 this.narrationVersion++;
                 if (!allowed) {
@@ -757,7 +868,7 @@ export function gameRuntime() {
                     pageId: this.previewPageId,
                     key: this.previewId + ':' + this.narrationVersion,
                 };
-                this.completeInventoryUse();
+                if (!this.narration.text) this.completeInventoryUse();
                 return;
             }
             const rule = (area.inventory_rules || []).find((r) => r.object_id === item.id);
@@ -768,6 +879,8 @@ export function gameRuntime() {
                 ...this.areaTextOptions(area),
                 ...(response ? { text: response } : this.gameplayMessage('nothing')),
                 inventoryAreaId: area.id,
+                persistent: true,
+                animate: true,
             };
             this.narrationVersion++;
             this.pendingInventoryUse = {
@@ -995,6 +1108,7 @@ export function gameRuntime() {
             this.soundPlayer?.action({ action: 'inventory' }, item, this.audioSounds);
             const next = { ...target, inventoryId: item.inventoryId || item.id };
             this.inventory.splice(index, 1, next);
+            this.applyFlagEffects(action);
             this.openInventory(next, false);
         },
         get previewInventoryItems() {
@@ -1226,6 +1340,10 @@ export function gameRuntime() {
             this.narration.revealed = true;
             if (this.narration.descriptionKey) this.readDescriptions[this.narration.descriptionKey] = true;
             const h = this.displayed?.hotspots?.find((h) => h.id === this.narration.sourceAreaId);
+            if (h && this.narration.readEffects) {
+                this.narration.readEffects = false;
+                this.applyFlagEffects(h);
+            }
             if (h && ['pickup', 'pickup_v2'].includes(h.action) && this.narration.pickupKey)
                 this.readyPickups[this.pickupKey(h)] = true;
             this.finishInventoryText(key);
@@ -1320,7 +1438,7 @@ export function gameRuntime() {
                 this.syncAutomaticStates();
                 this.soundPlayer?.action(h, null, this.audioSounds);
                 this.soundPlayer?.channel?.('voice', null);
-                if (!this.descriptionRead(h)) this.showAreaDescription(h);
+                if (!h._executeAction && !this.descriptionRead(h)) this.showAreaDescription(h);
                 return;
             }
             if (h.action === 'page') {

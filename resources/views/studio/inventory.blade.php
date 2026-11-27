@@ -128,28 +128,50 @@
                         x-for="action in item.actions||[]"
                         :key="action.id"
                     >
-                        <div class="flex items-end gap-2"><label class="field min-w-0 flex-1">Action<input
-                                    x-model="action.label"
-                                    maxlength="160"
-                                    @input="changed()"
-                                ></label><label class="field min-w-0 flex-1">Replace with<select
-                                    x-model="action.target_id"
-                                    @change="changed()"
-                                >
-                                    <option :value="null">Choose item</option><template
-                                        x-for="target in items"
-                                        :key="target.id"
+                        <div class="space-y-2">
+                            <div class="flex items-end gap-2"><label class="field min-w-0 flex-1">Action<input
+                                        x-model="action.label"
+                                        maxlength="160"
+                                        @input="changed()"
+                                    ></label><label class="field min-w-0 flex-1">Replace with<select
+                                        x-model="action.target_id"
+                                        @change="changed()"
                                     >
-                                        <option
-                                            :value="target.id"
-                                            x-text="target.name"
-                                        ></option>
-                                    </template>
-                                </select></label><button
-                                type="button"
-                                class="text-xs underline"
-                                @click="item.actions=item.actions.filter(a=>a.id!==action.id);changed()"
-                            >Remove</button></div>
+                                        <option :value="null">Choose item</option><template
+                                            x-for="target in items"
+                                            :key="target.id"
+                                        >
+                                            <option
+                                                :value="target.id"
+                                                x-text="target.name"
+                                            ></option>
+                                        </template>
+                                    </select></label><button
+                                    type="button"
+                                    class="text-xs underline"
+                                    @click="item.actions=item.actions.filter(a=>a.id!==action.id);changed()"
+                                >Remove</button></div>
+                            <details>
+                                <summary class="text-xs">Set flags after this action</summary>
+                                <template
+                                    x-for="flag in gameFlags"
+                                    :key="flag.key"
+                                >
+                                    <label class="field"><span x-text="flag.label || flag.key"></span>
+                                        <select
+                                            :value="(action.flag_effects || []).find(f => f.key === flag.key)?.value === true ?
+                                                'on' : (action.flag_effects || []).find(f => f.key === flag.key)
+                                                ?.value === false ? 'off' : ''"
+                                            @change="action.flag_effects=(action.flag_effects||[]).filter(f=>f.key!==flag.key);if($event.target.value)action.flag_effects.push({key:flag.key,value:$event.target.value==='on'});changed()"
+                                        >
+                                            <option value="">Unchanged</option>
+                                            <option value="on">On</option>
+                                            <option value="off">Off</option>
+                                        </select>
+                                    </label>
+                                </template>
+                            </details>
+                        </div>
                     </template>
                 </div>
                 <div class="border-t pt-3 dark:border-stone-700">

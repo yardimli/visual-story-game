@@ -809,16 +809,7 @@
                                                 class="text-xs font-semibold"
                                             >Description</label>
                                             <div class="area-description-options">
-                                                <label class="area-checkbox"><input
-                                                        type="checkbox"
-                                                        :checked="hotspot.show_hover_text !== false"
-                                                        @change="hotspot.show_hover_text=$event.target.checked;changed()"
-                                                    ><span>Show hover text</span></label>
-                                                <label class="area-checkbox"><input
-                                                        type="checkbox"
-                                                        :checked="hotspot.animate_hover_text === true"
-                                                        @change="hotspot.animate_hover_text=$event.target.checked;changed()"
-                                                    ><span>Animate text</span></label>
+
                                                 <label class="field">Position<select
                                                         :value="hotspot.description_position || 'top'"
                                                         @change="hotspot.description_position=$event.target.value;changed()"
@@ -842,8 +833,8 @@
                                         </div>
                                         <label
                                             class="field"
-                                            x-show="hotspot.action==='state_v2'"
-                                        >Changed-state description
+                                            x-show="hotspot.action==='state_v2' || dualAction(hotspot) || (hotspot.action==='pickup_v2' && hotspot.initial_empty)"
+                                        >Changed / occupied state description (optional)
                                             <textarea
                                                 x-model="hotspot.state_description"
                                                 @input="changed()"
@@ -902,27 +893,14 @@
                                                         x-text="playing?'\u25A0':'\u25B6'"
                                                         aria-hidden="true"
                                                     ></span></button>
-                                            </div></label><label class="field min-w-0"><select
-                                                aria-label="Description mouse cursor"
-                                                :value="hotspot.cursor || 'auto'"
-                                                @change="hotspot.cursor=$event.target.value;changed()"
-                                            >
-                                                <option value="auto">Automatic description cursor</option>
-                                                <option value="pointer">Pointing hand</option>
-                                                <option value="grab">Grab hand</option>
-                                                <option value="help">Help / examine</option>
-                                                <option value="alias">Use item / shortcut</option>
-                                                <option value="crosshair">Crosshair</option>
-                                                <option value="zoom-in">Magnifying glass</option>
-                                                <option value="not-allowed">Not allowed</option>
-                                                <option value="default">Arrow</option>
-                                            </select></label>
+                                            </div></label>
                                     </div>
                                 </section>
                                 <section
                                     class="min-w-0 space-y-4 border-t pt-4 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0"
                                 >
                                     <h3 class="font-serif text-lg">Action</h3>
+                                    @include('studio.interaction-flow')
                                     <div class="space-y-2">
                                         @include('studio.flag-rules', [
                                             'target' => 'hotspot',
@@ -942,7 +920,7 @@
                                         <p
                                             x-show="hotspot.disabled_when?.length"
                                             class="text-xs"
-                                        >Disables descriptions, hover text and actions. Clicks pass through to areas
+                                        >Disables descriptions and actions. Clicks pass through to areas
                                             underneath.</p>
                                     </div>
                                     <label class="field"><select
@@ -952,7 +930,7 @@
                                         >
                                             <option value="examine">Examine</option>
                                             <option value="pickup_v2">Pick up/place object</option>
-                                            <option value="state_v2">Change state — local switch</option>
+                                            <option value="state_v2">Change object state</option>
                                             <option value="inventory">Use inventory on area</option>
                                         </select></label>
                                     @include('studio.automatic-state')
@@ -1054,8 +1032,8 @@
                                     ><input
                                             type="checkbox"
                                             x-model="hotspot.move_after_examine"
-                                            @change="if(!hotspot.move_after_examine){hotspot.target_page_id=null;hotspot.target_scene_id=null;}changed()"
-                                        ><span>Move to scene</span></label>
+                                            @change="if(!hotspot.move_after_examine){hotspot.restart_game=false;hotspot.target_page_id=null;hotspot.target_scene_id=null;}changed()"
+                                        ><span>Action moves to scene</span></label>
                                     <div
                                         x-show="hotspot.action==='pickup_v2'"
                                         class="flex flex-wrap items-center gap-x-6 gap-y-3"
@@ -1079,8 +1057,8 @@
                                             maxlength="3000"
                                             placeholder="Show the button pressed into its housing; keep all surrounding details unchanged."
                                         ></textarea><span class="text-xs font-normal">Create switches
-                                            generates the alternate patch. Clicking toggles between the original and
-                                            changed patch without changing the scene or inventory.</span>
+                                            generates the alternate patch. The action switches between the original and
+                                            changed appearances without changing the scene or inventory.</span>
                                     </label><label
                                         class="field"
                                         x-show="hotspot.action==='page'||(hotspot.action==='examine'&&hotspot.move_after_examine)"
@@ -1158,21 +1136,7 @@
                                                             x-text="playing?'\u25A0':'\u25B6'"
                                                             aria-hidden="true"
                                                         ></span></button>
-                                                </div></label><label class="field"><select
-                                                    aria-label="Action mouse cursor"
-                                                    :value="hotspot.action_cursor || 'auto'"
-                                                    @change="hotspot.action_cursor=$event.target.value;changed()"
-                                                >
-                                                    <option value="auto">Automatic action cursor</option>
-                                                    <option value="pointer">Pointing hand</option>
-                                                    <option value="grab">Grab hand</option>
-                                                    <option value="help">Help / examine</option>
-                                                    <option value="alias">Use item / shortcut</option>
-                                                    <option value="crosshair">Crosshair</option>
-                                                    <option value="zoom-in">Magnifying glass</option>
-                                                    <option value="not-allowed">Not allowed</option>
-                                                    <option value="default">Arrow</option>
-                                                </select></label></div>
+                                                </div></label></div>
                                         <label class="area-checkbox"><input
                                                 type="checkbox"
                                                 :checked="availabilityEnabled(hotspot)"
@@ -1204,7 +1168,18 @@
                                                     x-model="hotspot.unavailable_text"
                                                     @input="changed()"
                                                     maxlength="3000"
-                                                    :placeholder="unavailableText"
+                                                    placeholder="Optional: what happens when the action cannot succeed"
+                                                ></textarea>
+                                            </label>
+                                            <label
+                                                class="field"
+                                                x-show="dualAction(hotspot)"
+                                            >Changed-state explanation (optional)
+                                                <textarea
+                                                    x-model="hotspot.changed_unavailable_text"
+                                                    @input="changed()"
+                                                    maxlength="3000"
+                                                    placeholder="What happens when the changed-state action cannot succeed?"
                                                 ></textarea>
                                             </label>
                                         </section>

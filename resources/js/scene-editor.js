@@ -255,6 +255,8 @@ export function sceneEditor(options) {
                     }, 1000);
                 watchNotices(this, { status: 'success', error: 'error', uploadStatus: 'success' });
                 window.vsgSceneEditor = this;
+                this.uiThemeListener = (e) => { this.uiTheme = e.detail; };
+                window.addEventListener('vsg-ui-theme', this.uiThemeListener);
                 this.unavailableTextListener = (e) => {
                     this.unavailableText = e.detail.text || 'You cannot do that yet.';
                     this.unavailableTimeout = e.detail.timeout ?? 1000;
@@ -312,6 +314,7 @@ export function sceneEditor(options) {
                     this.assets = data.assets;
                     this.jobs = data.jobs;
                     this.flagDefinitions = data.game_flags || [];
+                    this.uiTheme = data.ui_theme || {id: 'text', renderer: 'existing_css'};
                     this.cursorTooltips = data.cursor_tooltips || {};
                     this.unavailableText = data.unavailable_text || 'You cannot do that yet.';
                     this.unavailableTimeout = data.unavailable_timeout_ms ?? 1000;
@@ -362,6 +365,7 @@ export function sceneEditor(options) {
             },
             destroy() {
                 window.removeEventListener('vsg-unavailable-text', this.unavailableTextListener);
+                window.removeEventListener('vsg-ui-theme', this.uiThemeListener);
                 window.removeEventListener('vsg-cursor-tooltips', this.cursorTooltipsListener);
                 window.removeEventListener('vsg-audio-settings', this.audioSettingsListener);
                 window.removeEventListener('vsg-editor-tab', this.audioTabListener);
@@ -602,6 +606,7 @@ export function sceneEditor(options) {
                 if (!this.hotspot) return;
                 this.hotspot.action = action;
                 if (action !== 'examine') {
+                    this.hotspot.restart_game = false;
                     this.hotspot.move_after_examine = false;
                     this.hotspot.target_page_id = null;
                     this.hotspot.target_scene_id = null;

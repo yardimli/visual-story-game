@@ -407,6 +407,7 @@ test('unlisted placement items always get no-effect and return, including the or
         assert.deepEqual(returned, ['coin-item', 'other']);
         h.inventory_rules = [{ object_id: 'coin-item', allowed: true, response: '' }];
         p.useInventoryOnArea('coin-item', h);
+        p.completeInventoryUse();
         assert.equal(p.pendingInventoryUse, null);
         assert.equal(p.inventory.length, 1);
     } finally {
@@ -450,7 +451,7 @@ test('rejected drop restores its visible inventory slot without waiting for mess
     }
 });
 
-test('accepted placement shows its layer before the response finishes', () => {
+test('accepted placement waits for the response before committing its layer', () => {
     const old = globalThis.window;
     globalThis.window = {};
     const p = gamePlayer(data());
@@ -469,6 +470,9 @@ test('accepted placement shows its layer before the response finishes', () => {
         p.flags.empty = true;
         p.inventory = [{ id: 'coin-item', asset_id: 2 }];
         p.useInventoryOnArea('coin-item', h);
+        assert.equal(p.inventory.length, 1);
+        assert.equal(p.flags.empty, true);
+        p.stopNarration();
         assert.equal(p.inventory.length, 0);
         assert.equal(p.flags.empty, false);
         assert.equal(p.areaImage(h).id, 2);
@@ -689,6 +693,7 @@ test('empty slots on later pages initialize even when playtest flags omit their 
         assert.equal(p.inventory.length, 1);
         assert.equal(p.collectibleEmpty(slot), true);
         p.useInventoryOnArea(p.inventory[0].inventoryId, slot);
+        p.completeInventoryUse();
         assert.equal(p.inventory.length, 0);
         assert.equal(p.flags.socket_empty, false);
         assert.equal(p.flags.unlocked, true);

@@ -9,6 +9,24 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 class SceneAuthoringTest extends TestCase {
  use RefreshDatabase;
+ public function test_explicit_interaction_flow_and_custom_dual_labels_round_trip():void {
+  [$u,$s,$p,$doc]=$this->setupScene();
+  $h=&$doc['visuals'][0]['hotspots'][0];
+  $h['click_behavior']='text';$h['action_preset']='custom_dual';$h['action_label']='Pull';$h['changed_action_label']='Push';$h['changed_unavailable_text']='It will not budge.';$h['state_description']='It is pulled out.';
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $saved=$p->fresh()->visual_document['visuals'][0]['hotspots'][0];
+  foreach(['click_behavior','action_preset','action_label','changed_action_label','changed_unavailable_text','state_description'] as $key)$this->assertSame($h[$key],$saved[$key]);
+  $h['click_behavior']='unknown';
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+ }
+ public function test_inventory_action_flags_persist_and_reject_unknown_keys():void {
+  [$u,$s,$p,$doc]=$this->setupScene();$s->update(['game_flags'=>[['key'=>'letter_read','label'=>'Letter read','initial'=>false]]]);
+  $doc['visuals'][1]['actions']=[['id'=>(string)Str::uuid(),'label'=>'Read','target_id'=>$doc['visuals'][1]['id'],'flag_effects'=>[['key'=>'letter_read','value'=>true]]]];
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->visual_revision,'document'=>$doc])->assertOk();
+  $this->assertSame('letter_read',$s->fresh()->inventory_document['visuals'][0]['actions'][0]['flag_effects'][0]['key']);
+  $doc['visuals'][1]['actions'][0]['flag_effects'][0]['key']='unknown';
+  $this->putJson(route('visuals.update',[$s,$p]),['revision'=>$p->fresh()->visual_revision,'document'=>$doc])->assertUnprocessable();
+ }
  public function test_automatic_switch_conditions_and_cross_page_destination_are_saved():void {
   [$u,$s,$p,$doc]=$this->setupScene();
   $s->update(['game_flags'=>[['key'=>'open','name'=>'Open','initial'=>false]]]);

@@ -4,6 +4,8 @@ export function animatedDescription(options = {}) {
     return {
         independentScene: !!options.independentScene,
         persistent: !!options.persistent,
+        separateActions: !!options.separateActions,
+        actionHeight: 0,
         autoSpeak: options.autoSpeak !== false,
         textClicked: false,
         instantHide: false,
@@ -18,6 +20,7 @@ export function animatedDescription(options = {}) {
                     if (this.visible) this.measure();
                 });
                 this.sizeObserver.observe(this.$refs.words);
+                if (this.$refs.actions) this.sizeObserver.observe(this.$refs.actions);
             });
         },
         syncSceneSpace() {
@@ -27,7 +30,7 @@ export function animatedDescription(options = {}) {
             for (const side of ['top', 'bottom'])
                 stage.style.setProperty(
                     '--scene-' + side + '-space',
-                    this.visible && this.placement === side ? this.height + 12 + 'px' : '0px',
+                    this.visible && this.placement === side ? this.height + this.actionHeight + 12 + 'px' : '0px',
                 );
         },
         completed: false,
@@ -52,20 +55,21 @@ export function animatedDescription(options = {}) {
             }
         },
         get boxStyle() {
+            const totalHeight = this.height + this.actionHeight;
             if (!this.anchor || !['area_top', 'area_bottom'].includes(this.placement))
                 return {
-                    height: this.height + 'px',
-                    visibility: this.measured && !(this.instantHide && !this.visible) ? 'visible' : 'hidden',
+                    height: totalHeight + 'px',
+                    visibility: this.measured && this.visible ? 'visible' : 'hidden',
                 };
             const b = areaDescriptionBounds(
                 this.anchor,
                 this.boundsWidth,
                 this.boundsHeight,
-                this.height,
+                totalHeight,
                 this.placement,
             );
             return {
-                visibility: this.measured && !(this.instantHide && !this.visible) ? 'visible' : 'hidden',
+                visibility: this.measured && this.visible ? 'visible' : 'hidden',
                 left: b.left + 'px',
                 right: 'auto',
                 top: b.top + 'px',
@@ -126,10 +130,15 @@ export function animatedDescription(options = {}) {
                 this.updateBounds();
                 const content = this.$refs?.words;
                 if (content) {
-                    this.height = Math.min(250, content.scrollHeight + 24);
+                    const panel = this.$refs.textBox || this.$refs.box;
+                    const style = panel && globalThis.getComputedStyle?.(panel);
+                    const inset = style ? ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth']
+                        .reduce((sum, key) => sum + (parseFloat(style[key]) || 0), 0) : 24;
+                    this.actionHeight = this.separateActions ? (this.$refs.actions?.offsetHeight || 0) : 0;
+                    this.height = Math.min(250, this.boundsHeight ? Math.max(inset, this.boundsHeight - this.actionHeight) : 250, content.scrollHeight + inset);
                     this.measured = true;
                     this.syncSceneSpace();
-                    const box = this.$refs.box,
+                    const box = this.$refs.textBox || this.$refs.box,
                         word = content.querySelectorAll?.('span')[this.count - 1];
                     if (box && word) {
                         const bottom = word.offsetTop + word.offsetHeight;
@@ -149,7 +158,7 @@ export function animatedDescription(options = {}) {
                 if (!sound?.speaking || sound.channels?.voice !== this.speechAudio) {
                     this.speechAudio = null;
                     this.reveal();
-                    this.dismiss();
+                    if (!this.persistent) this.dismiss();
                     return;
                 }
                 this.speechTimer = setTimeout(check, 50);
@@ -162,12 +171,27 @@ export function animatedDescription(options = {}) {
                 this.$dispatch?.('description-complete', { key: this.identity });
             }
             clearTimeout(this.hideTimer);
-            if (!this.speechAudio) this.hideTimer = setTimeout(() => this.dismiss(), 10000);
+            if (!this.speechAudio && !this.persistent) this.hideTimer = setTimeout(() => this.dismiss(), 10000);
         },
         clickFromArea(key) {
-            if (this.visible && this.identity === key) this.skipSpeech();
+            if (this.visible && this.identity === key) {
+                if (this.persistent) this.advanceOutside();
+                else this.skipSpeech();
+            }
+        },
+        advanceInventory() {
+            this.advanceOutside();
+            if (!this.visible) this.modal = null;
         },
         skipSpeech() {
+            if (this.persistent) {
+                clearTimeout(this.speechTimer);
+                this.speechAudio = null;
+                globalThis.window?.vsgPlayer?.soundPlayer?.channel('voice', null);
+                this.reveal();
+                globalThis.window?.vsgPlayer?.stopNarration?.();
+                return;
+            }
             if (
                 this.textClicked ||
                 (this.count >= this.words.length && !globalThis.window?.vsgPlayer?.narrationSpeaking)
@@ -186,6 +210,33 @@ export function animatedDescription(options = {}) {
             this.hideTimer = setTimeout(() => this.dismissClickedText(), this.hideAfterMs ?? 3000);
         },
         dismissClickedText() {
+            this.dismiss();
+        },
+        dismissOutside(event) {
+            if (!this.visible || this.$refs.box.contains(event.target)) return;
+            // Hotspots retain their own reveal/interaction flow, including while audio is playing.
+            if (event.target.closest('.preview-hotspot')) return;
+            if (this.separateActions) {
+                this.advanceOutside();
+            } else if (!this.persistent) {
+                this.advanceOutside();
+            }
+        },
+        advanceOutside() {
+            const player = globalThis.window?.vsgPlayer;
+            if (this.count < this.words.length || player?.narrationSpeaking || player?.soundPlayer?.speaking) {
+                clearTimeout(this.speechTimer);
+                this.speechAudio = null;
+                player?.soundPlayer?.channel('voice', null);
+                this.reveal();
+                player?.stopNarration?.();
+                clearTimeout(this.hideTimer);
+                return;
+            }
+            this.dismiss();
+        },
+        closeDialogue() {
+            if (this.persistent) this.skipSpeech();
             this.dismiss();
         },
         reveal() {

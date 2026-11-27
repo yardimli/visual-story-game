@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "id": "qiyan",
+  "label": "Qiyan",
+  "asset_root": ".",
+  "renderer": "png",
+  "fallback_theme": "text",
+  "resize_policy": "stretch_to_text_bounds",
+  "components": {
+    "dialogue": {
+      "render": "stretch_layers",
+      "layers": [
+        {
+          "file": "Window/window_c.png",
+          "rect": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      ],
+      "text_color": "#f4eee3",
+      "content_padding_px": [
+        18,
+        22,
+        18,
+        22
+      ]
+    },
+    "scene_introduction": {
+      "same_as": "dialogue"
+    },
+    "inventory_dialogue": {
+      "same_as": "dialogue"
+    },
+    "choice_button": {
+      "render": "stretch_layers",
+      "text_color": "#f4eee3",
+      "content_padding_px": [
+        10,
+        18,
+        10,
+        18
+      ],
+      "min_height_px": 44,
+      "width": "text_content",
+      "states": {
+        "normal": {
+          "layers": [
+            {
+              "file": "Button Small/button_small.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          ]
+        },
+        "hover": {
+          "layers": [
+            {
+              "file": "Button Small/button_small.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            },
+            {
+              "file": "Button Small/button_small_hover.png",
+              "rect": [
+                0.027932960893854747,
+                0.07042253521126761,
+                0.9441340782122905,
+                0.8591549295774648
+              ]
+            }
+          ],
+          "css": {}
+        },
+        "focus": {
+          "same_as": "hover"
+        },
+        "pressed": {
+          "layers": [
+            {
+              "file": "Button Small/button_small.png",
+              "rect": [
+                0,
+                0,
+                1,
+                1
+              ]
+            },
+            {
+              "file": "Button Small/button_small_press.png",
+              "rect": [
+                0.055865921787709494,
+                0.14084507042253522,
+                0.888268156424581,
+                0.7183098591549296
+              ]
+            }
+          ],
+          "css": {}
+        },
+        "disabled": {
+          "same_as": "normal",
+          "css": {
+            "opacity": 0.45
+          }
+        }
+      }
+    },
+    "close_button": {
+      "same_as": "choice_button",
+      "label": "Close"
+    },
+    "selection_indicator": {
+      "renderer": "existing_css",
+      "placement": "outside_left",
+      "reserved_space_px": 24
+    },
+    "inventory_controls": {
+      "renderer": "existing_css"
+    },
+    "audio_controls": {
+      "renderer": "existing_css"
+    }
+  },
+  "notes": [
+    "Hover/press files are inset overlays, not complete button replacements. Larger ornate button is available in Button Special."
+  ],
+  "assets": [
+    {
+      "file": "Button Small/button_small.png",
+      "width": 358,
+      "height": 142,
+      "has_alpha_channel": true,
+      "sha256": "ff8707b96ba57ff56a6d95415694d7b9531ae45ed6e6b5abd99b379bb9870759",
+      "usage": "available"
+    },
+    {
+      "file": "Button Small/button_small_hover.png",
+      "width": 338,
+      "height": 122,
+      "has_alpha_channel": true,
+      "sha256": "406f896aa1c76a3b327c871dfe7b22d45adb52c8e53a2b1fe1a3847d9b85735a",
+      "usage": "available"
+    },
+    {
+      "file": "Button Small/button_small_press.png",
+      "width": 318,
+      "height": 102,
+      "has_alpha_channel": true,
+      "sha256": "d5d5f21676e93bd77da8c9b626f5eb4e8fcc889156b66bf6e15fd7bbd44facb2",
+      "usage": "available"
+    },
+    {
+      "file": "Window/window_c.png",
+      "width": 1624,
+      "height": 808,
+      "has_alpha_channel": true,
+      "sha256": "0461a44aec130ed58968674a80645fd392338c918bcf7f8a48cffc166d842566",
+      "usage": "available"
+    }
+  ]
+}

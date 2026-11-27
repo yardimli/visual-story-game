@@ -1,33 +1,41 @@
 <div
-    x-data="animatedDescription({ independentScene: {{ !empty($sceneIndependent) ? 'true' : 'false' }}, persistent: {{ !empty($persistent) ? 'true' : 'false' }} })"
+    x-data="animatedDescription({ separateActions: {{ !empty($actionButtons) ? 'true' : 'false' }}, independentScene: {{ !empty($sceneIndependent) ? 'true' : 'false' }}, persistent: {{ !empty($persistent) ? 'true' : 'false' }} })"
     x-effect="hideAfterMs={{ $hideAfterMs ?? 'null' }};persistent={{ $persistentExpression ?? (!empty($persistent) ? 'true' : 'false') }};play({{ $text }}, {{ $position }}, {{ $identity }}, {{ $animate ?? 'true' }}, {{ $area ?? 'null' }})"
     x-show="visible"
-    x-transition:enter="transition-opacity duration-150"
-    x-transition:enter-start="opacity-0"
-    x-transition:enter-end="opacity-100"
-    x-transition:leave="transition-opacity duration-300"
-    x-transition:leave-start="opacity-100"
-    x-transition:leave-end="opacity-0"
-    class="animated-description {{ $extraClass ?? '' }}"
+    x-transition.opacity
+    class="animated-description {{ !empty($actionButtons) ? 'description-with-actions' : '' }} {{ $extraClass ?? '' }}"
     :class="'description-' + placement"
     :style="boxStyle"
-    @resize.window="updateBounds()"
+    @resize.window="measure()"
     x-ref="box"
     @description-area-click.window="clickFromArea($event.detail.key)"
     @click.stop="skipSpeech()"
-    @keydown.enter.prevent="skipSpeech()"
-    @keydown.space.prevent="skipSpeech()"
-    @pointerdown.window="if(!narrationSpeaking && !persistent && !independentScene && visible && !$el.contains($event.target) && !($el.classList.contains('item-narration') && $event.target.closest('.preview-hotspot')))dismiss()"
+    @keydown.enter="if($event.target===$el){$event.preventDefault();skipSpeech()}"
+    @keydown.space="if($event.target===$el){$event.preventDefault();skipSpeech()}"
+    @pointerdown.window="dismissOutside($event)"
     tabindex="0"
     role="region"
-    aria-label="Description. Click to reveal text and stop speech; click again to hide."
+    aria-label="Description. Click to reveal text and stop narration."
 >
-    <div x-ref="words"><template
-            x-for="(word,index) in words"
-            :key="signature + ':' + index"
-        ><span
-                :class="index < count ? 'description-word' : 'description-word-pending'"
-                :aria-hidden="index >= count"
-                x-text="word"
-            ></span></template></div>
+    @if (!empty($actionButtons))
+        <div class="description-text-panel" x-ref="textBox" :style="{height: height + 'px'}">
+    @endif
+    <div x-ref="words"><template x-for="(word,index) in words" :key="signature + ':' + index"><span
+        :class="index < count ? 'description-word' : 'description-word-pending'"
+        :aria-hidden="index >= count"
+        x-text="word"
+    ></span></template></div>
+    @if (!empty($actionButtons))
+        </div>
+        <div class="description-actions" x-ref="actions" @click.stop>
+            <template x-if="!independentScene && narration?.actionAreaId && currentHotspots.some(h=>h.id===narration.actionAreaId)">
+                <button type="button" class="game-action game-choice"
+                    :disabled="!completed || narrationSpeaking || sceneTransition || !!pendingInventoryUse"
+                    @click.stop="runPresentedAction()"
+                ><span class="choice-arrow" aria-hidden="true">&#10095;&#10095;</span><span x-text="buttonLabel(currentHotspots.find(h=>h.id===narration.actionAreaId))"></span></button>
+            </template>
+            <button type="button" class="game-action game-choice game-choice-close" @click.stop="closeDialogue()"
+            ><span class="choice-arrow" aria-hidden="true">&#10095;&#10095;</span><span>Close</span></button>
+        </div>
+    @endif
 </div>

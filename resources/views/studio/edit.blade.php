@@ -83,6 +83,7 @@
                                 x-show="bibleTab==='gameplay'"
                                 class="space-y-5"
                             >
+                                @include('studio.gui-theme-preview')
                                 <div class="gameplay-message-row flex items-end gap-3">
                                     <label class="field min-w-0 flex-1">Unavailable action message<input
                                             type="text"
@@ -121,23 +122,7 @@
                                             ></label>
                                     </div>
                                 @endforeach
-                                <section class="space-y-3 rounded-xl border border-stone-200 p-4 dark:border-stone-700">
-                                    <h3 class="font-serif text-lg">Mouse cursor tooltips</h3>
-                                    <p class="text-xs">Default tooltip for each cursor during play. Leave blank for no
-                                        tooltip. Blocked actions never show a tooltip. Automatic cursors use the tooltip
-                                        of the cursor they display.</p>
-                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        @foreach (['pointer' => 'Pointing hand', 'grab' => 'Grab hand', 'help' => 'Help / examine', 'alias' => 'Use item / shortcut', 'crosshair' => 'Crosshair', 'zoom-in' => 'Magnifying glass', 'not-allowed' => 'Not allowed', 'default' => 'Arrow'] as $cursor => $label)
-                                            <label class="field min-w-0">{{ $label }}<input
-                                                    name="cursor_tooltips[{{ $cursor }}]"
-                                                    value="{{ $story->cursor_tooltips[$cursor] ?? '' }}"
-                                                    maxlength="200"
-                                                    placeholder="No tooltip"
-                                                    style="cursor: {{ $cursor }}"
-                                                ></label>
-                                        @endforeach
-                                    </div>
-                                </section>
+
                             </div>
                             <div
                                 x-show="bibleTab==='models'"
