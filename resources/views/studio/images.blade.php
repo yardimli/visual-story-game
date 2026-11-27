@@ -145,7 +145,7 @@
                         <button
                             type="button"
                             class="btn-primary"
-                            @click="openImageForm()"
+                            @click="$busy($el, async () => (openImageForm()))"
                         >Create image</button>
 
                         <select
@@ -308,7 +308,7 @@
                                     type="button"
                                     x-show="job.status==='failed' && job.retry_url"
                                     class="btn-secondary"
-                                    @click="retryImage(job)"
+                                    @click="$busy($el, async () => (retryImage(job)))"
                                     :disabled="generating"
                                     x-text="retryingJob===job.id?'Retrying…':'Try again'"
                                 ></button>
@@ -416,7 +416,7 @@
                                 <button
                                     type="button"
                                     :class="job.status === 'draft' ? 'btn-primary' : 'text-xs underline'"
-                                    @click="openImageForm(job)"
+                                    @click="$busy($el, async () => (openImageForm(job)))"
                                     x-text="job.composition?'View combined image':job.status==='draft'?'Generate':'Open image form'"
                                 ></button>
                                 <div>
@@ -439,7 +439,7 @@
                                                 type="button"
                                                 class="text-xs underline"
                                                 x-show="!job.composition"
-                                                @click="copyPrompt(job)"
+                                                @click="$busy($el, async () => (copyPrompt(job)))"
                                                 x-text="copiedPrompt===job.id?'Copied!':'Copy prompt'"
                                             ></button>
                                             <template
@@ -448,7 +448,7 @@
                                             > <button
                                                     type="button"
                                                     class="text-xs underline"
-                                                    @click="updateAsset(id,{archived:!asset(id)?.archived})"
+                                                    @click="$busy($el, async () => (updateAsset(id,{archived:!asset(id)?.archived})))"
                                                     x-show="asset(id)?.archived || !(asset(id)?.uses?.length)"
                                                     :disabled="assetSaving[id]"
                                                     x-text="asset(id)?.archived?'Restore image':'Archive image'"
@@ -468,7 +468,7 @@
                             type="button"
                             class="btn-secondary"
                             :disabled="flaggingUnusedImages"
-                            @click="flagUnusedImages()"
+                            @click="$busy($el, async () => (flagUnusedImages()))"
                             x-text="flaggingUnusedImages?'Checking images…':'Flag images unused in scenes'"
                         ></button>
                         <button
@@ -598,7 +598,7 @@
                         type="button"
                         class="btn-primary"
                         :disabled="deletingImage"
-                        @click="deleteImageDraft()"
+                        @click="$busy($el, async () => (deleteImageDraft()))"
                         x-text="deletingImage?'Deleting…':'Delete draft'"
                     ></button></div>
             </dialog>
@@ -644,7 +644,7 @@
                                     :disabled="categoryBusy || (editingCategory === key && !categoryNameDraft.trim())"
                                     :aria-label="editingCategory === key ? 'Save category name' : 'Rename ' + name"
                                     :title="editingCategory === key ? 'Save' : 'Rename'"
-                                    @click="editingCategory===key ? finishCategoryEdit(key) : editCategory(key)"
+                                    @click="$busy($el, async () => (editingCategory===key ? finishCategoryEdit(key) : editCategory(key)))"
                                 ><span
                                         aria-hidden="true"
                                         x-text="editingCategory===key ? '\u2713' : '\u270E'"
@@ -655,7 +655,7 @@
                                     :disabled="categoryBusy || categoryUsed(key)"
                                     :aria-label="'Delete ' + name"
                                     :title="categoryUsed(key) ? 'Category is in use' : 'Delete empty category'"
-                                    @click="deleteCategory(key)"
+                                    @click="$busy($el, async () => (deleteCategory(key)))"
                                 ><svg
                                         aria-hidden="true"
                                         width="16"
@@ -679,7 +679,7 @@
                             type="button"
                             class="btn-secondary"
                             :disabled="categoryBusy || !newImageCategory.trim()"
-                            @click="addImageCategory()"
+                            @click="$busy($el, async () => (addImageCategory()))"
                         >Add</button></div>
                 </dialog>
             </template>

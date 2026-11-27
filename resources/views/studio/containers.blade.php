@@ -219,7 +219,7 @@
                             class="btn-primary"
                             :disabled="containerRun || containerBusy || containerPromptBusy || !containerArea || !containerItems
                                 .length || (!containerReuseState && !containerPrompt.trim())"
-                            @click="createContainerPlan()"
+                            @click="$busy($el, async () => (createContainerPlan()))"
                             x-text="containerBusy?'Preparing crop…':'Create plan'"
                         ></button>
                     </div>
@@ -321,7 +321,7 @@
                                     class="btn-primary"
                                     :disabled="containerRun || containerBusy || containerPromptBusy || containerOutputs.some(o =>
                                         containerPending(o)) || !containerItems.every(c => c.bounds)"
-                                    @click="prepareContainerContents()"
+                                    @click="$busy($el, async () => (prepareContainerContents()))"
                                     x-text="containerBusy?'Preparing contents…':'Approve preview & prepare contents'"
                                 ></button>
                             </div>
@@ -372,12 +372,12 @@
                                 class="btn-primary"
                                 :disabled="containerRun || containerBusy || containerPromptBusy || !containerModel || !
                                     containerOutputs.some(o => !o.accepted_asset_id && !containerPending(o))"
-                                @click="generateContainerMissing()"
+                                @click="$busy($el, async () => (generateContainerMissing()))"
                             >Generate missing outputs</button><button
                                 type="button"
                                 class="btn-primary"
                                 :disabled="containerRun || containerBusy || containerPromptBusy || !containerReady"
-                                @click="activateContainer()"
+                                @click="$busy($el, async () => (activateContainer()))"
                             >Activate accepted plan</button></div>
                         <template
                             x-for="o in containerOutputs"
@@ -414,7 +414,7 @@
                                                 class="btn-secondary"
                                                 :disabled="containerRun || containerBusy || containerPromptBusy ||
                                                     containerPending(o) || !containerModel"
-                                                @click="containerOutputAction(o,'generate')"
+                                                @click="$busy($el, async () => (containerOutputAction(o,'generate')))"
                                                 x-text="containerPending(o)?'Generating…':(o.versions?.length?'Generate again':'Generate image')"
                                             >Generate image</button><button
                                                 type="button"
@@ -422,7 +422,7 @@
                                                 x-show="o.accepted_asset_id"
                                                 :disabled="containerRun || containerBusy || containerPromptBusy ||
                                                     containerPending(o)"
-                                                @click="containerOutputAction(o,'unaccept')"
+                                                @click="$busy($el, async () => (containerOutputAction(o,'unaccept')))"
                                             >Unaccept</button></div>
                                     </div>
                                 </template><template
@@ -442,7 +442,7 @@
                                                 :disabled="containerRun || containerBusy ||
                                                     containerPromptBusy||(o.type==='container_preview' && containerPlan
                                                     .stage !== 'preview')"
-                                                @click="containerOutputAction(o,'accept',id)"
+                                                @click="$busy($el, async () => (containerOutputAction(o,'accept',id)))"
                                             ><img
                                                     loading="lazy"
                                                     decoding="async"

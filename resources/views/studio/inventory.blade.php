@@ -50,7 +50,7 @@
                         >Change image</button></div><button
                         type="button"
                         class="text-xs underline"
-                        @click="requestDelete(item)"
+                        @click="$busy($el, async () => (requestDelete(item)))"
                     >Delete</button>
                 </div>
                 <div class="grid grid-cols-2 gap-3"><template
@@ -97,7 +97,7 @@
                                     class="btn-secondary audio-preview-button"
                                     :disabled="!sound?.url"
                                     :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
-                                    @click="toggle()"
+                                    @click="$busy($el, async () => (toggle()))"
                                 ><span x-text="playing?'\u25A0':'\u25B6'"></span></button>
                             </div>
                         </label></template></div><label class="field">Description
@@ -243,7 +243,7 @@
             >Cancel</button><button
                 type="button"
                 class="btn-primary"
-                @click="remove()"
+                @click="$busy($el, async () => (remove()))"
             >Delete item</button></div>
     </dialog>
 </section>

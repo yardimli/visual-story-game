@@ -13,7 +13,7 @@
         <div class="flex gap-2"><button
                 type="button"
                 class="btn-secondary"
-                @click="load()"
+                @click="$busy($el, async () => (load()))"
                 :disabled="loading"
             >Refresh</button><button
                 type="button"
@@ -73,7 +73,7 @@
                     >Edit character & views</button><button
                         type="button"
                         class="text-xs text-red-600 underline"
-                        @click="remove(character)"
+                        @click="$busy($el, async () => (remove(character)))"
                         :disabled="busy"
                     >Delete</button></div>
             </article>
@@ -183,7 +183,7 @@
                             ></label><button
                             type="button"
                             class="btn-secondary"
-                            @click="prepareView()"
+                            @click="$busy($el, async () => (prepareView()))"
                             :disabled="busy || !draft.name.trim() || !viewLabel.trim() || draft.views.length >= 16"
                         >Save & prepare image prompt</button>
                         <p class="text-xs">Opens the image form for review. Generation starts only when you click
@@ -195,7 +195,7 @@
         <footer class="dialog-actions flex justify-end"><button
                 type="button"
                 class="btn-primary"
-                @click="save()"
+                @click="$busy($el, async () => (save()))"
                 :disabled="busy || !draft?.name?.trim()"
                 x-text="busy?'Saving…':'Save character'"
             ></button></footer>

@@ -19,7 +19,7 @@
             @else
                 <button
                     type="button"
-                    @click="switchTab('{{ $key }}')"
+                    @click="$busy($el, async () => (switchTab('{{ $key }}')))"
                     :aria-current="tab === '{{ $key }}' ? 'page' : null"
                     :class="tab === '{{ $key }}' ?
                         'border-stone-900 text-stone-900 dark:text-stone-100 dark:border-stone-100' :
@@ -32,6 +32,6 @@
         type="button"
         class="btn-secondary shrink-0"
         aria-haspopup="dialog"
-        @click="{{ $generation ?? false ? 'window.vsgSceneEditor?.preparePreview()' : 'testActivePage()' }}"
+        @click="$busy($el, async () => ({{ $generation ?? false ? 'window.vsgSceneEditor?.preparePreview()' : 'testActivePage()' }}))"
     >Test scenes</button>
 </div>

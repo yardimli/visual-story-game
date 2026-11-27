@@ -7,7 +7,7 @@
             type="button"
             class="btn-primary"
             :disabled="batchBusy || jobBusy || !pendingJobs.length"
-            @click="startPending()"
+            @click="$busy($el, async () => (startPending()))"
             x-text="batchBusy?batchProgress:'Generate all pending ('+pendingJobs.length+')'"
         ></button>
     </div>
@@ -33,18 +33,18 @@
                 type="button"
                 class="btn-secondary"
                 :disabled="batchBusy || jobBusy"
-                @click="editJob(j)"
+                @click="$busy($el, async () => (editJob(j)))"
             >Edit</button><button
                 type="button"
                 class="btn-secondary"
                 :disabled="batchBusy || jobBusy"
-                @click="deleteJob(j)"
+                @click="$busy($el, async () => (deleteJob(j)))"
             >Delete</button><button
                 type="button"
                 class="btn-primary"
                 x-show="j.status==='draft'"
                 :disabled="batchBusy || jobBusy"
-                @click="editJob(j)"
+                @click="$busy($el, async () => (editJob(j)))"
             >Generate</button>
         </div>
     </template>
@@ -161,12 +161,12 @@
                     type="button"
                     class="btn-primary"
                     :disabled="jobBusy"
-                    @click="saveJob()"
+                    @click="$busy($el, async () => (saveJob()))"
                 >Save pending audio</button><button
                     type="button"
                     class="btn-primary"
                     :disabled="jobBusy || !editingJob"
-                    @click="saveJob(true)"
+                    @click="$busy($el, async () => (saveJob(true)))"
                     x-text="jobBusy?'Saving…':'Generate audio'"
                 ></button></footer>
         </div>

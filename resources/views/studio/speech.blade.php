@@ -103,7 +103,7 @@
                         type="button"
                         class="btn-primary"
                         :disabled="busy || !voice || !text.trim()"
-                        @click="generate()"
+                        @click="$busy($el, async () => (generate()))"
                         x-text="busy?'Queuing…':'Generate speech'"
                     ></button></footer>
             </div>

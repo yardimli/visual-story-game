@@ -10,7 +10,7 @@
         type="button"
         class="btn-secondary"
         :disabled="containerRun || containerBusy || containerPromptBusy || !containerUserPrompt.trim() || !containerItems.length"
-        @click="draftContainerPrompt()"
+        @click="$busy($el, async () => (draftContainerPrompt()))"
         x-text="containerPromptBusy?'Writing prompt…':'Draft image prompt with AI'"
     ></button>
     <p

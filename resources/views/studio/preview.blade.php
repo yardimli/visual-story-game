@@ -83,11 +83,11 @@
                 ></span><button
                     type="button"
                     class="btn-primary"
-                    @click="confirmPreviewInventory()"
+                    @click="$busy($el, async () => (confirmPreviewInventory()))"
                 >Start test</button><button
                     type="button"
                     class="btn-secondary"
-                    @click="confirmPreviewInventory(true)"
+                    @click="$busy($el, async () => (confirmPreviewInventory(true)))"
                 >Start test (skip first video)</button>
             </footer>
         </div>

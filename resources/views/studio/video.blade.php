@@ -15,7 +15,7 @@
             type="button"
             class="btn-secondary"
             :disabled="busy || !jobs.some(j=>j.status==='draft')"
-            @click="queueAll()"
+            @click="$busy($el, async () => (queueAll()))"
         >Generate all pending</button>
     </header>
     <p
@@ -37,7 +37,7 @@
     >
         <form
             x-ref="form"
-            @submit.prevent="save(true)"
+            @submit.prevent="$busy($event.submitter, async () => (save(true)))"
             class="dialog-panel-form min-w-0"
         >
             <header class="flex items-center justify-between gap-3">
@@ -185,7 +185,7 @@
                     type="button"
                     class="btn-secondary"
                     :disabled="busy"
-                    @click="save(false)"
+                    @click="$busy($el, async () => (save(false)))"
                 >Save pending draft</button><button
                     type="button"
                     x-show="editing"
@@ -323,7 +323,7 @@
                             x-show="['draft','completed','failed'].includes(job.status)"
                             class="btn-secondary"
                             :disabled="busy"
-                            @click="remove(job)"
+                            @click="$busy($el, async () => (remove(job)))"
                         >Delete</button>
                     </div>
                 </article>

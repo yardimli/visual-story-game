@@ -170,7 +170,7 @@
                                                 type="button"
                                                 class="btn-primary w-full"
                                                 :disabled="sending || applying || !chosen.length"
-                                                @click="applyReviewed(item,chosen)"
+                                                @click="$busy($el, async () => (applyReviewed(item,chosen)))"
                                                 x-text="applying?'Applying…':'Confirm '+chosen.length+' selected change'+(chosen.length===1?'':'s')"
                                             ></button></footer>
                                     </div>
@@ -203,7 +203,7 @@
             ><span>.</span><span>.</span><span>.</span></span></p>
     </div>
     <form
-        @submit.prevent="send()"
+        @submit.prevent="$busy($event.submitter, async () => (send()))"
         class="space-y-2 border-t border-stone-200 dark:border-stone-700 p-3"
     >
         <div class="field">
@@ -223,7 +223,7 @@
         <div class="flex items-center gap-2"><button
                 type="button"
                 class="btn-secondary shrink-0"
-                @click="openChatImages()"
+                @click="$busy($el, async () => (openChatImages()))"
                 :disabled="sending"
                 x-text="'Images'+(chatImageIds.length?' ('+chatImageIds.length+')':'')"
             ></button>
@@ -282,7 +282,7 @@
                 type="button"
                 class="btn-primary"
                 :disabled="deletingMessage"
-                @click="deleteMessage()"
+                @click="$busy($el, async () => (deleteMessage()))"
                 x-text="deletingMessage?'Deleting…':'Delete message'"
             ></button></div>
     </dialog>

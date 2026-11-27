@@ -160,7 +160,7 @@
                                         <p x-show="pricingLoading">Loading image pricing…</p><button
                                             type="button"
                                             x-show="pricingError"
-                                            @click="loadPricing()"
+                                            @click="$busy($el, async () => (loadPricing()))"
                                             class="underline"
                                         >Retry pricing</button><template
                                             x-for="(endpoint,index) in endpoints"

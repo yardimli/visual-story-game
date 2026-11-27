@@ -105,7 +105,7 @@
             <h2 class="font-serif text-xl">Model catalogs</h2><button
                 type="button"
                 class="btn-secondary"
-                @click="reload()"
+                @click="$busy($el, async () => (reload()))"
                 :disabled="busy"
                 x-text="busy?'Reloading…':'Reload models'"
             ></button>
@@ -143,7 +143,7 @@
                                 type="button"
                                 x-show="failed"
                                 class="btn-secondary"
-                                @click="load()"
+                                @click="$busy($el, async () => (load()))"
                             >Retry loading</button>
                             <template x-if="loaded">
                                 <div class="space-y-4">

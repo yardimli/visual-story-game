@@ -1,4 +1,9 @@
 import { sendChatWithContextConfirmation } from './chat-context';
+import { installEditorImageLoading } from './editor-image-loading';
+import { runButtonAction } from './button-loading';
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => installEditorImageLoading(), { once: true });
+else installEditorImageLoading();
 import { characterLibrary } from './character-library.js';
 import { guiThemePreview } from './gui-theme.js';
 import { storyCover } from './story-cover';
@@ -28,6 +33,9 @@ import { proposalTargets, displayMessage } from './companion-proposals';
 import { selectableModels, rememberedModel, rememberModel, modelLabel, imagePriceLabel } from './model-preferences';
 
 window.Alpine = Alpine;
+Alpine.magic('busy', () => (button, action) => runButtonAction(button, action).catch((error) => {
+    notify(error?.message || 'The action could not be completed. Please try again.', 'error');
+}));
 Alpine.magic('thumbnail', () => (url) => {
     if (!url || url.startsWith('data:') || url.startsWith('blob:')) return url;
     const image = new URL(url, window.location.origin);

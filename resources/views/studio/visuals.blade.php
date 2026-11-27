@@ -102,7 +102,7 @@
                                                     class="min-w-0 flex-1 truncate py-2 text-left text-sm"
                                                     :aria-pressed="v.id === selected"
                                                     :title="v.name"
-                                                    @click="selectNavigationScene(group.id,v.id)"
+                                                    @click="$busy($el, async () => (selectNavigationScene(group.id,v.id)))"
                                                     x-text="(index+1)+'. '+v.name"
                                                 ></button>
                                                 <button
@@ -128,7 +128,7 @@
                                         ><button
                                                 type="button"
                                                 class="underline"
-                                                @click="navigateInteractionPage(group.id)"
+                                                @click="$busy($el, async () => (navigateInteractionPage(group.id)))"
                                             >Open page — no scenes yet</button></li>
                                     </ul>
                                 </section>
@@ -413,24 +413,24 @@
                                 ></label><button
                                 type="button"
                                 class="btn-secondary"
-                                @click="autoDialogColors()"
+                                @click="$busy($el, async () => (autoDialogColors()))"
                                 :disabled="paletteBusy || !asset(visual.asset_id)"
                                 x-text="paletteBusy?'Calculating…':'Auto'"
                             ></button>
                             <div class="flex flex-wrap gap-2"><button
                                     type="button"
                                     class="btn-secondary"
-                                    @click="openContainers()"
+                                    @click="$busy($el, async () => (openContainers()))"
                                     :disabled="!visual.asset_id || !containerAreas.length"
                                 >Create container</button><button
                                     type="button"
                                     class="btn-secondary"
-                                    @click="openExtraction()"
+                                    @click="$busy($el, async () => (openExtraction()))"
                                     :disabled="!visual.asset_id"
                                 >Extract collectible items</button><button
                                     type="button"
                                     class="btn-secondary"
-                                    @click="openExtraction('switches')"
+                                    @click="$busy($el, async () => (openExtraction('switches')))"
                                     :disabled="!visual.asset_id"
                                 >Create switches</button><button
                                     type="button"
@@ -441,7 +441,7 @@
                                 ></button><button
                                     type="button"
                                     class="btn-secondary"
-                                    @click="captureSceneImage()"
+                                    @click="$busy($el, async () => (captureSceneImage()))"
                                     :disabled="sceneCaptureBusy || saving || !visual.asset_id"
                                     x-text="sceneCaptureBusy?'Preparing image…':'Save scene as image'"
                                 ></button></div>
@@ -530,7 +530,7 @@
                                             :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
                                             :title="playing ? 'Stop' : 'Listen'"
                                             :aria-pressed="playing"
-                                            @click="toggle()"
+                                            @click="$busy($el, async () => (toggle()))"
                                         ><span
                                                 x-text="playing?'\u25A0':'\u25B6'"
                                                 aria-hidden="true"
@@ -591,7 +591,7 @@
                                                 :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
                                                 :title="playing ? 'Stop' : 'Listen'"
                                                 :aria-pressed="playing"
-                                                @click="toggle()"
+                                                @click="$busy($el, async () => (toggle()))"
                                             ><span
                                                     x-text="playing?'\u25A0':'\u25B6'"
                                                     aria-hidden="true"
@@ -737,7 +737,7 @@
                                         x-show="['pickup_v2','state_v2'].includes(hotspot.action)"
                                         class="btn-secondary"
                                         :disabled="resettingArea || saving"
-                                        @click="resetAreaPosition(hotspot)"
+                                        @click="$busy($el, async () => (resetAreaPosition(hotspot)))"
                                         x-text="resettingArea?'Resetting…':'Reset to default position'"
                                     ></button></div>
                             </div>
@@ -888,7 +888,7 @@
                                                     :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
                                                     :title="playing ? 'Stop' : 'Listen'"
                                                     :aria-pressed="playing"
-                                                    @click="toggle()"
+                                                    @click="$busy($el, async () => (toggle()))"
                                                 ><span
                                                         x-text="playing?'\u25A0':'\u25B6'"
                                                         aria-hidden="true"
@@ -982,7 +982,7 @@
                                                         type="button"
                                                         class="btn-primary"
                                                         :disabled="renamingStateFlag"
-                                                        @click="renameStateFlag()"
+                                                        @click="$busy($el, async () => (renameStateFlag()))"
                                                         x-text="renamingStateFlag?'Saving…':'Save name and key'"
                                                     ></button><button
                                                         type="button"
@@ -1001,7 +1001,7 @@
                                         type="button"
                                         class="btn-secondary"
                                         x-show="hotspot.action==='state_v2' && hotspot.state_asset_id"
-                                        @click="openContainers(true)"
+                                        @click="$busy($el, async () => (openContainers(true)))"
                                     >Extract collectibles from changed state</button>
                                     <div class="field min-w-0">
                                         <span>Action video (optional)</span>
@@ -1140,7 +1140,7 @@
                                                         :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
                                                         :title="playing ? 'Stop' : 'Listen'"
                                                         :aria-pressed="playing"
-                                                        @click="toggle()"
+                                                        @click="$busy($el, async () => (toggle()))"
                                                     ><span
                                                             x-text="playing?'\u25A0':'\u25B6'"
                                                             aria-hidden="true"
@@ -1285,7 +1285,7 @@
         <footer class="dialog-actions"> <button
                 type="button"
                 class="btn-primary"
-                @click="saveSceneCapture()"
+                @click="$busy($el, async () => (saveSceneCapture()))"
                 :disabled="sceneCaptureBusy || !sceneCaptureName.trim()"
                 x-text="sceneCaptureBusy?'Saving…':'Save image'"
             ></button>
@@ -1619,7 +1619,7 @@
                     type="button"
                     class="btn-primary"
                     :disabled="containerBusy"
-                    @click="deleteAssignedContainer()"
+                    @click="$busy($el, async () => (deleteAssignedContainer()))"
                     x-text="containerBusy?'Deleting…':'Delete container'"
                 ></button></div>
         </div>

@@ -50,7 +50,7 @@
                     :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
                     :title="playing ? 'Stop' : 'Listen'"
                     :aria-pressed="playing"
-                    @click="toggle()"
+                    @click="$busy($el, async () => (toggle()))"
                 ><span
                         x-text="playing?'\u25A0':'\u25B6'"
                         aria-hidden="true"
@@ -120,7 +120,7 @@
                                 :aria-label="playing ? 'Stop audio preview' : 'Play selected audio'"
                                 :title="playing ? 'Stop' : 'Listen'"
                                 :aria-pressed="playing"
-                                @click="toggle()"
+                                @click="$busy($el, async () => (toggle()))"
                             ><span
                                     x-text="playing?'\u25A0':'\u25B6'"
                                     aria-hidden="true"

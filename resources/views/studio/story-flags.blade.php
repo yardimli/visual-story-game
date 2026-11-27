@@ -6,7 +6,7 @@
         <h3 class="font-serif text-xl">Story flags</h3><button
             type="button"
             class="btn-secondary"
-            @click="add()"
+            @click="$busy($el, async () => (add()))"
             :disabled="loading || flags.length >= 100"
         >+ Flag</button>
     </div>
@@ -62,7 +62,7 @@
                         <td><button
                                 type="button"
                                 class="btn-secondary"
-                                @click="requestDelete(flag)"
+                                @click="$busy($el, async () => (requestDelete(flag)))"
                                 :disabled="deleteBusy || loading"
                             >Remove</button></td>
                     </tr>
@@ -121,7 +121,7 @@
                         type="button"
                         class="btn-primary"
                         :disabled="deleteBusy"
-                        @click="confirmDelete()"
+                        @click="$busy($el, async () => (confirmDelete()))"
                         x-text="deleteBusy?'Deleting…':'Delete flag and remove uses'"
                     ></button></footer>
             </div>

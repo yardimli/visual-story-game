@@ -29,7 +29,7 @@
         <button
             type="button"
             class="btn-secondary"
-            @click="open()"
+            @click="$busy($el, async () => (open()))"
         >Choose image</button>
         <button
             type="button"

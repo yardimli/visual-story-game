@@ -62,7 +62,7 @@
             <div class="min-w-0 space-y-3">
                 <h3 class="text-xs font-semibold">Freesound</h3>
                 <form
-                    @submit.prevent="search(1)"
+                    @submit.prevent="$busy($event.submitter, async () => (search(1)))"
                     class="flex flex-wrap items-end gap-2"
                 ><label class="field min-w-0 flex-1 basis-40">Search<input
                             x-model="query"
@@ -89,7 +89,7 @@
                     ><button
                             type="button"
                             class="text-xs underline"
-                            @click="query=q;search(1)"
+                            @click="$busy($el, async () => { query=q; return await search(1); })"
                             x-text="q"
                         ></button></template></div>
                 <p class="text-xs text-stone-500">High-quality MP3 previews. Creator and license credits are saved with
@@ -131,7 +131,7 @@
                                     type="button"
                                     class="btn-secondary shrink-0 !px-3 !py-2 !text-xs"
                                     :disabled="busy || added(s.id)"
-                                    @click="add(s.id)"
+                                    @click="$busy($el, async () => (add(s.id)))"
                                     :aria-label="'Add ' + s.name + ' to project'"
                                     x-text="added(s.id)?'Added':'Add'"
                                 ></button></div>
@@ -144,12 +144,12 @@
                         type="button"
                         class="underline"
                         :disabled="searching || page === 1"
-                        @click="search(page-1)"
+                        @click="$busy($el, async () => (search(page-1)))"
                     >Previous</button><span x-text="'Page '+page+' · '+count+' results'"></span><button
                         type="button"
                         class="underline"
                         :disabled="searching || !hasMore"
-                        @click="search(page+1)"
+                        @click="$busy($el, async () => (search(page+1)))"
                     >Next</button></div>
             </div>
         </div>
@@ -183,7 +183,7 @@
                     </select></label>
                 <form
                     id="audio-generation-form"
-                    @submit.prevent="generate()"
+                    @submit.prevent="$busy($event.submitter, async () => (generate()))"
                     class="space-y-3"
                 ><label class="field">Name<input
                             x-model="name"
@@ -293,7 +293,7 @@
                                 :disabled="categoryBusy || (editingCategory === key && !categoryNameDraft.trim())"
                                 :aria-label="editingCategory === key ? 'Save category name' : 'Rename ' + name"
                                 :title="editingCategory === key ? 'Save' : 'Rename'"
-                                @click="editingCategory===key ? finishCategoryEdit(key) : editCategory(key)"
+                                @click="$busy($el, async () => (editingCategory===key ? finishCategoryEdit(key) : editCategory(key)))"
                             ><span
                                     aria-hidden="true"
                                     x-text="editingCategory===key ? '\u2713' : '\u270E'"
@@ -304,7 +304,7 @@
                                 :disabled="categoryBusy || categoryUsed(key)"
                                 :aria-label="'Delete ' + name"
                                 :title="categoryUsed(key) ? 'Category is in use' : 'Delete empty category'"
-                                @click="deleteCategory(key)"
+                                @click="$busy($el, async () => (deleteCategory(key)))"
                             ><svg
                                     aria-hidden="true"
                                     width="16"
@@ -326,7 +326,7 @@
                         ><button
                             type="button"
                             class="btn-secondary"
-                            @click="addCategory()"
+                            @click="$busy($el, async () => (addCategory()))"
                         >Add</button></div>
                 </div>
             </dialog>
@@ -415,7 +415,7 @@
                             </template></select><button
                             type="button"
                             class="text-xs text-red-700 underline dark:text-red-400"
-                            @click="deleteSound(s)"
+                            @click="$busy($el, async () => (deleteSound(s)))"
                         >Delete audio</button></div><audio
                         controls
                         preload="none"

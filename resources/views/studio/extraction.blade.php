@@ -55,7 +55,7 @@
             type="button"
             class="btn-secondary text-red-700"
             :disabled="!extractionPlanChoice || extractionBusy"
-            @click="deleteExtractionPlan(extractionPlanChoice)"
+            @click="$busy($el, async () => (deleteExtractionPlan(extractionPlanChoice)))"
         >Delete plan</button><button
             type="button"
             class="btn-primary"
@@ -222,7 +222,7 @@
                                 class="btn-primary"
                                 :disabled="extractionBusy || extractionRun || !batch.outputs.some(o=>o.type==='switch_on' &&
                                     currentSwitches.some(a => a.id === o.area_id))"
-                                @click="adjustExtractionPadding(batch)"
+                                @click="$busy($el, async () => (adjustExtractionPadding(batch)))"
                             >Create updated plan</button>
                         </div>
                     </article>
@@ -377,7 +377,7 @@
                     class="btn-primary"
                     :disabled="extractionBusy || extractionPreparing || !extractionAreas.some(a => a.selected)"
                     :aria-busy="extractionPreparing"
-                    @click="prepareExtraction()"
+                    @click="$busy($el, async () => (prepareExtraction()))"
                     x-text="extractionPreparing?'Preparing…':'Prepare extraction plan'"
                 ></button>
             </div>
@@ -386,12 +386,12 @@
                         type="button"
                         class="btn-secondary text-red-700"
                         :disabled="extractionBusy || extractionRun"
-                        @click="deleteExtractionPlan(extractionId)"
+                        @click="$busy($el, async () => (deleteExtractionPlan(extractionId)))"
                     >Delete plan</button><button
                         type="button"
                         class="btn-secondary"
                         :disabled="extractionBusy || extractionRun || extractionBatch.outputs.some(o => extractionPending(o))"
-                        @click="adjustExtractionPadding()"
+                        @click="$busy($el, async () => (adjustExtractionPadding()))"
                     >Adjust crop padding (new plan)</button>
                     <label class="field">Image-edit model<select x-model="extractionModel">
                             <option value="">Choose a model</option><template
@@ -408,7 +408,7 @@
                         type="button"
                         class="btn-primary"
                         :disabled="extractionBusy || extractionRun || !extractionModel || !extractionMissing.length"
-                        @click="generateMissingExtraction()"
+                        @click="$busy($el, async () => (generateMissingExtraction()))"
                         x-text="extractionRun?'Submitting…':'Generate all unaccepted outputs'"
                     ></button>
                     <p class="text-sm">Completed renders are accepted automatically. Unaccept any result to try again,
@@ -505,14 +505,14 @@
                                     type="button"
                                     class="btn-secondary"
                                     :disabled="extractionBusy || extractionRun || extractionPending(o)"
-                                    @click="extractionAction(o,'references')"
+                                    @click="$busy($el, async () => (extractionAction(o,'references')))"
                                 >Refresh numbered reference</button></div>
                             <button
                                 type="button"
                                 x-show="o.accepted_asset_id && o.type!=='switch_off'"
                                 class="text-sm underline"
                                 :disabled="extractionBusy || extractionRun"
-                                @click="extractionAction(o,'unaccept')"
+                                @click="$busy($el, async () => (extractionAction(o,'unaccept')))"
                             >Unaccept and try again</button>
                             <template x-if="extractionBatch.mode==='switches' && o.type==='switch_on'">
                                 <details class="rounded-lg border p-3">
@@ -551,7 +551,7 @@
                                 class="text-sm underline"
                                 :disabled="extractionBusy || extractionRun || extractionBatch.outputs.some(output =>
                                     extractionPending(output))"
-                                @click="adjustExtractionPadding()"
+                                @click="$busy($el, async () => (adjustExtractionPadding()))"
                             >Adjust crop padding (new plan)</button>
                             <div class="flex gap-3"><template
                                     x-for="(ref,refIndex) in o.references"
@@ -583,7 +583,7 @@
                             ><button
                                     type="button"
                                     class="btn-primary"
-                                    @click="extractionAction(o,'generate')"
+                                    @click="$busy($el, async () => (extractionAction(o,'generate')))"
                                     :disabled="extractionBusy || extractionRun || !extractionModel || extractionPending(o)"
                                 >Generate new version</button><span
                                     x-show="extractionPending(o)"
@@ -621,7 +621,7 @@
                                                     type="button"
                                                     class="btn-secondary w-full"
                                                     :disabled="extractionBusy || o.accepted_asset_id === id"
-                                                    @click="extractionAction(o,'accept',id)"
+                                                    @click="$busy($el, async () => (extractionAction(o,'accept',id)))"
                                                     x-text="o.accepted_asset_id===id?'Accepted':'Accept version'"
                                                 ></button></div>
                                         </template>
@@ -643,7 +643,7 @@
                 class="btn-primary"
                 :disabled="extractionBusy || extractionRun || Object.keys(extractionBounds).length > 0 || !extractionBatch?.outputs
                     .every(o => o.accepted_asset_id)"
-                @click="activateExtraction()"
+                @click="$busy($el, async () => (activateExtraction()))"
             >Activate accepted results in scene</button>
         </footer>
     </div>

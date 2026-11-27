@@ -32,12 +32,12 @@
 >
     <h3 class="font-semibold">Public test link</h3>
     <p class="text-sm">Anyone with this link can play from the beginning without signing in. Starting inventory and flag selections above do not apply.</p>
-    <button type="button" class="btn-secondary" x-show="!url" :disabled="busy" @click="share('POST')">Create public link</button>
+    <button type="button" class="btn-secondary" x-show="!url" :disabled="busy" @click="$busy($el, async () => share('POST'))">Create public link</button>
     <div x-show="url" class="flex flex-wrap items-center gap-2">
         <input type="text" readonly aria-label="Public test URL" :value="url" @click="$el.select()" class="min-w-0 flex-1">
-        <button type="button" class="btn-secondary" @click="copy()">Copy link</button>
+        <button type="button" class="btn-secondary" @click="$busy($el, async () => copy())">Copy link</button>
         <a :href="url" target="_blank" rel="noopener noreferrer" class="btn-secondary">Open</a>
-        <button type="button" class="btn-secondary" :disabled="busy" @click="share('DELETE')">Disable link</button>
+        <button type="button" class="btn-secondary" :disabled="busy" @click="$busy($el, async () => share('DELETE'))">Disable link</button>
     </div>
     <p role="status" class="text-sm" x-text="message" x-show="message"></p>
 </section>
