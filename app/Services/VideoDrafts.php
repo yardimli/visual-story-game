@@ -17,8 +17,11 @@ class VideoDrafts
         $frames = Validator::make($data, [
             'first_asset_id' => ['required', 'integer', $image],
             'last_asset_id' => ['nullable', 'integer', $image],
+            'reference_asset_ids' => ['nullable', 'array', 'max:'.(app(VideoEngines::class)->all()[$fields['engine']]['max_references'] ?? 0)],
+            'reference_asset_ids.*' => ['required', 'integer', 'distinct', $image],
         ])->validate();
-        foreach (array_filter($frames) as $id) {
+        $frames['reference_asset_ids'] = array_values($frames['reference_asset_ids'] ?? []);
+        foreach (array_filter([$frames['first_asset_id'], $frames['last_asset_id'] ?? null, ...$frames['reference_asset_ids']]) as $id) {
             $asset = $story->assets()->findOrFail($id);
             abort_unless(in_array($asset->mime, ['image/png', 'image/jpeg', 'image/webp']), 422, 'Choose PNG, JPEG or WebP frames.');
         }
@@ -52,6 +55,14 @@ class VideoDrafts
             abort_unless(Storage::disk('local')->copy($asset->path, $path), 422, 'Could not snapshot the frame image.');
             $job->{$frame.'_path'} = $path;
         }
+        $references = [];
+        foreach ($job->reference_asset_ids ?? [] as $index => $id) {
+            $asset = $story->assets()->findOrFail($id);
+            $path = 'videos/'.$job->id.'/reference_'.$index.'.'.['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'][$asset->mime];
+            abort_unless(Storage::disk('local')->copy($asset->path, $path), 422, 'Could not snapshot the reference image.');
+            $references[] = $path;
+        }
+        $job->reference_paths = $references;
         $job->status = config('video.mode') === 'relay' ? 'forwarding' : 'queued';
         $job->queued_at = now();
         $job->save();

@@ -8,14 +8,16 @@ use Illuminate\Validation\ValidationException;
 class CompanionChanges {
  public const RULES=[
   'inventory'=>['sound_id'=>'nullable','action_sound_id'=>'nullable','name'=>'required|string|max:160','description'=>'nullable|string|max:3000','description_position'=>'in:top,bottom','asset_id'=>'nullable|integer','prompt'=>'nullable|string|max:10000','actions'=>'array|max:50'],
-  'story'=>['game_flags'=>'array|max:100','title'=>'required|string|max:160','premise'=>'required|string|max:5000','genre'=>'required|string|max:80','language'=>'required|string|max:80','style'=>'nullable|string|max:5000','bible'=>'nullable|string|max:40000','llm_model'=>'nullable|string|max:200','image_model'=>'nullable|string|max:200'],
+  'story'=>['ui_theme'=>'required|string|max:80','cover_asset_id'=>'nullable|integer','unavailable_timeout_ms'=>'integer|min:0|max:60000','unavailable_text'=>'nullable|string|max:3000','gameplay_messages'=>'array','game_flags'=>'array|max:100','title'=>'required|string|max:160','premise'=>'nullable|string|max:5000','genre'=>'nullable|string|max:80','language'=>'required|string|max:80','style'=>'nullable|string|max:5000','bible'=>'nullable|string|max:40000','llm_model'=>'nullable|string|max:200','image_model'=>'nullable|string|max:200'],
   'page'=>['title'=>'required|string|max:160','narrative'=>'nullable|string|max:10000','interaction_plan'=>'nullable|string|max:10000'],
-  'visual'=>['sound_id'=>'nullable','action_sound_id'=>'nullable','music_mode'=>'in:keep,replace,stop','music_id'=>'nullable|integer','music_loop'=>'boolean','sound_volume'=>'numeric|min:0|max:1','sound_loop'=>'boolean','skip_rules'=>'array|max:50','video_prompt'=>'nullable|string|max:5000','description_position'=>'sometimes|in:top,bottom','name'=>'required|string|max:160','description'=>'nullable|string|max:3000','prompt'=>'nullable|string|max:10000','asset_id'=>'nullable|integer'],
-  'hotspot'=>['changed_unavailable_text'=>'nullable|string|max:3000','click_behavior'=>'in:text,direct','action_preset'=>'string|max:40','action_label'=>'nullable|string|max:160','changed_action_label'=>'nullable|string|max:160','restart_game'=>'boolean','auto_state'=>'array','visible_when'=>'array|max:100','disabled_when'=>'array|max:100','move_after_examine'=>'boolean','action_sound_id'=>'nullable','sound_id'=>'nullable','sound_volume'=>'numeric|min:0|max:1','initial_empty'=>'boolean','placement_enabled'=>'boolean','state_description'=>'nullable|string|max:3000','state_prompt'=>'nullable|string|max:3000','action_cursor'=>'in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default','cursor'=>'in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default','availability_enabled'=>'boolean','flag_conditions'=>'array|max:100','flag_effects'=>'array|max:100','required_items'=>'array|max:100','unavailable_text'=>'nullable|string|max:3000','animate_hover_text'=>'boolean','overlay_always'=>'boolean','show_hover_text'=>'boolean','overlay_asset_id'=>'nullable|integer','image_size'=>'numeric|min:1|max:500','overlay_alignment'=>'in:top,middle,bottom','target_scene_id'=>'nullable|uuid','target_page_id'=>'nullable|integer','description_position'=>'sometimes|in:top,bottom,area_top,area_bottom','interaction_text'=>'nullable|string|max:3000','fallback_text'=>'nullable|string|max:3000','inventory_rules'=>'array|max:100','choices'=>'array|max:20','label'=>'required|string|max:160','description'=>'nullable|string|max:3000','action'=>'required|in:examine,inspect,pickup,pickup_v2,state_v2,transition,inventory,choices,next_page,page,complete','object_id'=>'nullable|uuid','target_id'=>'nullable|uuid','overlay'=>'required|boolean','x'=>'required|numeric|min:0|max:1','y'=>'required|numeric|min:0|max:1','width'=>'required|numeric|min:0.005|max:1','height'=>'required|numeric|min:0.005|max:1'],
+  'visual'=>['intro_video_id'=>'nullable|uuid','intro_video_repeat'=>'boolean','intro_video_pause_music'=>'boolean','dialog_background'=>'regex:/^#[0-9a-fA-F]{6}$/','dialog_border'=>'regex:/^#[0-9a-fA-F]{6}$/','dialog_footer'=>'regex:/^#[0-9a-fA-F]{6}$/','sound_id'=>'nullable','action_sound_id'=>'nullable','music_mode'=>'in:keep,replace,stop','music_id'=>'nullable|integer','music_loop'=>'boolean','sound_volume'=>'numeric|min:0|max:1','sound_loop'=>'boolean','skip_rules'=>'array|max:50','video_prompt'=>'nullable|string|max:5000','description_position'=>'sometimes|in:top,bottom','name'=>'required|string|max:160','description'=>'nullable|string|max:3000','prompt'=>'nullable|string|max:10000','asset_id'=>'nullable|integer'],
+  'hotspot'=>['state_asset_id'=>'nullable|integer','state_flag'=>'nullable|string','collectible_flag'=>'nullable|string','image_bounds'=>'array','overlay_bounds'=>'array','default_bounds'=>'array','default_overlay_bounds'=>'array','changed_unavailable_text'=>'nullable|string|max:3000','click_behavior'=>'in:text,direct','action_preset'=>'string|max:40','action_label'=>'nullable|string|max:160','changed_action_label'=>'nullable|string|max:160','restart_game'=>'boolean','auto_state'=>'array','visible_when'=>'array|max:100','disabled_when'=>'array|max:100','move_after_examine'=>'boolean','action_sound_id'=>'nullable','sound_id'=>'nullable','sound_volume'=>'numeric|min:0|max:1','initial_empty'=>'boolean','placement_enabled'=>'boolean','state_description'=>'nullable|string|max:3000','state_prompt'=>'nullable|string|max:3000','action_cursor'=>'in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default','cursor'=>'in:auto,pointer,grab,help,alias,crosshair,zoom-in,not-allowed,default','availability_enabled'=>'boolean','flag_conditions'=>'array|max:100','flag_effects'=>'array|max:100','required_items'=>'array|max:100','unavailable_text'=>'nullable|string|max:3000','animate_hover_text'=>'boolean','overlay_always'=>'boolean','show_hover_text'=>'boolean','overlay_asset_id'=>'nullable|integer','image_size'=>'numeric|min:1|max:500','overlay_alignment'=>'in:top,middle,bottom','target_scene_id'=>'nullable|uuid','target_page_id'=>'nullable|integer','description_position'=>'sometimes|in:top,bottom,area_top,area_bottom','interaction_text'=>'nullable|string|max:3000','fallback_text'=>'nullable|string|max:3000','inventory_rules'=>'array|max:100','choices'=>'array|max:20','label'=>'required|string|max:160','description'=>'nullable|string|max:3000','action'=>'required|in:examine,inspect,pickup,pickup_v2,state_v2,transition,inventory,choices,next_page,page,complete','object_id'=>'nullable|uuid','target_id'=>'nullable|uuid','overlay'=>'required|boolean','x'=>'required|numeric|min:0|max:1','y'=>'required|numeric|min:0|max:1','width'=>'required|numeric|min:0.005|max:1','height'=>'required|numeric|min:0.005|max:1'],
  ];
  public function prepare(Story $story,array $proposal, $pages=null): array {
   $pages=($pages??$story->pages()->get())->keyBy('id');$requests=$proposal['changes']??[];$items=[];
   if(!is_array($requests)||count($requests)>300)$this->invalid('Too many proposed changes.');
+  $validationStory=clone $story;
+  foreach($requests as $candidate)if(($candidate['scope']??null)==='story' && isset($candidate['fields']['game_flags']))$validationStory->game_flags=app(StoryFlags::class)->validate($candidate['fields']['game_flags']);
   // Backward-compatible prose proposals become the same field-level review items.
   if(!$requests){
    $fields=array_intersect_key(is_array($proposal['story']??null)?$proposal['story']:[],self::RULES['story']);
@@ -49,6 +51,19 @@ class CompanionChanges {
     }else foreach($fields as $field=>$value)if(($shared[$field]??null)!==$value)$items[]=['id'=>count($items),'scope'=>'inventory','item_id'=>$shared['id'],'field'=>$field,'title'=>'Inventory / '.$shared['name'].' / '.ucfirst($field),'before'=>$shared[$field]??null,'after'=>$value];
     continue;
    }
+   if($scope==='editor_action'){
+    if(count($requests)!==1)$this->invalid('Submit an editor action by itself so its full operation is reviewed together.');
+    $fields=app(CompanionEditorActions::class)->prepare($story,$request['fields']??[]);
+    $items[]=['id'=>0,'scope'=>$scope,'title'=>app(CompanionEditorActions::class)->reviewTitle($fields),'before'=>null,'after'=>$fields];continue;
+   }
+   if(in_array($scope,['create_character','character'])){
+    $character=$scope==='character'?\App\Models\StoryCharacter::where('story_id',$story->id)->whereKey($request['character_id']??null)->first():null;
+    if($scope==='character'&&!$character)$this->invalid('Unknown character in this story.');
+    $input=$request['fields']??[];
+    Validator::make(['fields'=>$input],['fields'=>'required|array:name,description,views'])->validate();
+    $fields=app(CharacterProfiles::class)->validate($story,array_merge($character?$character->only(['name','description','views']):['views'=>[]],$input,['revision'=>$character?->revision??0]));
+    $items[]=['id'=>count($items),'scope'=>$scope,'character_id'=>$character?->id,'title'=>($character?'Edit character / ':'Create character / ').$fields['name'],'before'=>$character?->only(['name','description','views','revision']),'after'=>$fields];continue;
+   }
    if($scope==='video'){
     $fields=app(VideoDrafts::class)->validate($story,$request['fields']??[]);
     $items[]=['id'=>count($items),'scope'=>'video','title'=>'Prepare video / '.$fields['name'],'before'=>null,'after'=>$fields];continue;
@@ -63,12 +78,27 @@ class CompanionChanges {
     $visuals=$fields['visuals']??[];
     foreach($visuals as &$v){$v['id']=(string)Str::uuid();$v['hotspots']??=[];foreach($v['hotspots'] as &$h){$h['id']=(string)Str::uuid();$h+=['overlay'=>false,'target_id'=>null,'object_id'=>null,'description'=>''];}unset($h);}unset($v);
     foreach(['narrative','interaction_plan'] as $textField)if(array_key_exists($textField,$fields))$fields=array_merge($fields,PageRichText::companion($textField,$fields[$textField]));
-    $fields['visual_document']=app(SceneDocument::class)->validate($story,['visuals'=>$visuals]);unset($fields['visuals']);
+    $fields['visual_document']=app(SceneDocument::class)->validate($validationStory,['visuals'=>$visuals]);unset($fields['visuals']);
     $items[]=['id'=>count($items),'scope'=>'create_page','after_page_id'=>$after->id,'title'=>'Create page after '.$after->title.' / '.$fields['title'],'before'=>null,'after'=>$fields];continue;
    }
    if($scope!=='story'){
     $page=$pages->get($request['page_id']??null);if(!$page)$this->invalid('A proposed page is outside this story.');
     $base['page_id']=$page->id;$base['visual_revision']=$page->visual_revision;$label='Page '.$page->position.' · '.$page->title;$before=$page->toArray();
+   }
+   if($scope==='create_visual'){
+    $fields=$request['fields']??[];
+    $fields['id']=(string)Str::uuid();$fields['kind']??='scene';$fields['hotspots']??=[];
+    foreach($fields['hotspots'] as &$h){$h['id']=(string)Str::uuid();$h+=['overlay'=>false,'target_id'=>null,'object_id'=>null,'description'=>''];}unset($h);
+    $doc=$page->visual_document??['visuals'=>[]];$doc['visuals'][]=$fields;
+    $validated=app(SceneDocument::class)->validate($validationStory,$doc,$page->id);
+    $fields=collect($validated['visuals'])->firstWhere('id',$fields['id']);
+    $items[]=array_merge($base,['id'=>count($items),'title'=>$label.' / Create scene: '.$fields['name'],'before'=>null,'after'=>$fields]);continue;
+   }
+   if($scope==='scene_document'){
+    $removed=array_diff(array_column($page->visual_document['visuals']??[],'id'),array_column($request['fields']['visuals']??[],'id'));
+    if($removed)$this->invalid('Use editor_action scene.save to remove scenes and clean their destination links.');
+    $validated=app(SceneDocument::class)->validate($validationStory,$request['fields']??[],$page->id);
+    $items[]=array_merge($base,['id'=>count($items),'title'=>$label.' / Update scene layout and interactions','before'=>$page->visual_document,'after'=>$validated]);continue;
    }
    if($scope==='copy_areas'){
     $visuals=collect($page->visual_document['visuals']??[])->keyBy('id');
@@ -104,7 +134,7 @@ class CompanionChanges {
     $field=null;
     $area=array_merge(['id'=>(string)Str::uuid(),'description'=>'','overlay'=>false,'target_id'=>null,'object_id'=>null],$fields);
     $candidate=$visual;$candidate['hotspots']=[$area];
-    $validated=app(SceneDocument::class)->validate($story,['visuals'=>array_map(fn($v)=>$v['id']===$visual['id']?$candidate:array_merge($v,['hotspots'=>[]]),$page->visual_document['visuals'])],$page->id);
+    $validated=app(SceneDocument::class)->validate($validationStory,['visuals'=>array_map(fn($v)=>$v['id']===$visual['id']?$candidate:array_merge($v,['hotspots'=>[]]),$page->visual_document['visuals'])],$page->id);
     $area=collect($validated['visuals'])->firstWhere('id',$visual['id'])['hotspots'][0];
     $items[]=array_merge($base,['id'=>count($items),'scope'=>'create_hotspot','title'=>$label.' / Add area: '.$area['label'],'before'=>null,'after'=>$area]);continue;
    }
@@ -122,6 +152,7 @@ class CompanionChanges {
     foreach($fields as $field=>$value){
      if(!isset(self::RULES[$scope][$field]))$this->invalid('Unsupported proposal field: '.$field.'.');
      Validator::make([$field=>$value],[$field=>self::RULES[$scope][$field]])->validate();
+     if($scope==='story')app(CompanionAuthoring::class)->validateStory($story,[$field=>$value]);
      if(($before[$field]??null)===$value)continue;
      $rich=$scope==='page' && in_array($field,['narrative','interaction_plan'],true)?PageRichText::companion($field,$value):null;
      $items[]=array_merge($base,$rich?['rich_delta'=>$rich[$field.'_delta']]:[],['id'=>count($items),'field'=>$field,'title'=>$label.' / '.ucfirst(str_replace('_',' ',$field)),'before'=>$before[$field]??null,'after'=>$rich?$rich[$field]:$value]);
@@ -149,9 +180,19 @@ class CompanionChanges {
    $all=collect($review['items'])->keyBy('id');$items=[];sort($selected);
    foreach($selected as $id){if(!$all->has($id))$this->invalid('Unknown selected change.');$items[]=$all[$id];}
    foreach($items as $item)if(isset($item['depends_on'])&&!in_array($item['depends_on'],$selected,true))$this->invalid('Select the object preparation before opening its image workspace.');
+   if(count($items)===1&&$items[0]['scope']==='editor_action'){
+    $result=app(CompanionEditorActions::class)->apply($s,$items[0]['after']);
+    $s->revision++;$s->save();
+    return ['revision'=>$s->revision,'navigate'=>route('stories.edit',['story'=>$s]),'message'=>'Editor action applied.','result'=>$result];
+   }
    $pages=$s->pages()->lockForUpdate()->get()->keyBy('id');$documents=[];$pageFields=[];$storyFields=[];$objects=[];$navigate=null;$newPages=[];$newImages=[];$inventory=collect($s->inventory_document['visuals']??[])->keyBy('id');$inventoryDirty=false;$originalInventory=$s->inventory_document;$originalFlags=$s->game_flags;
    foreach($items as $item){
     $scope=$item['scope'];if($scope==='story'){$storyFields[$item['field']]=$item['after'];continue;}
+    if(in_array($scope,['create_character','character'])){
+     $character=$scope==='character'?\App\Models\StoryCharacter::where('story_id',$s->id)->whereKey($item['character_id'])->lockForUpdate()->first():null;
+     if($scope==='character'&&(!$character||$character->revision!==$item['after']['revision']))$this->invalid('This character changed. Ask for a fresh proposal.');
+     app(CharacterProfiles::class)->save($s,$item['after'],$character);$navigate=route('stories.edit',['story'=>$s,'tab'=>'story']);continue;
+    }
     if($scope==='create_inventory'){$inventory[$item['after']['id']]=$item['after'];$inventoryDirty=true;continue;}
     if($scope==='inventory'){if(!$inventory->has($item['item_id']))$this->invalid('Inventory item no longer exists.');$v=$inventory[$item['item_id']];$v[$item['field']]=$item['after'];$inventory[$v['id']]=$v;$inventoryDirty=true;continue;}
     if($scope==='video'){app(VideoDrafts::class)->save($s,$item['after']);$navigate=route('stories.edit',['story'=>$s,'tab'=>'video']);continue;}
@@ -163,6 +204,8 @@ class CompanionChanges {
     if($scope==='page'){if(!isset(self::RULES['page'][$item['field']]))$this->invalid('This proposal uses a retired page field. Ask for a fresh proposal in image studio.');$pageFields[$page->id][$item['field']]=$item['after'];if(array_key_exists('rich_delta',$item))$pageFields[$page->id][$item['field'].'_delta']=$item['rich_delta'];continue;}
     if($page->visual_revision!==$item['visual_revision'])$this->invalid('Scene artwork changed. Ask for a fresh proposal.');
     $documents[$page->id]??=$page->visual_document??['visuals'=>[]];$doc=&$documents[$page->id];
+    if($scope==='create_visual'){$doc['visuals'][]=$item['after'];continue;}
+    if($scope==='scene_document'){$doc=$item['after'];continue;}
     $vi=array_search($item['visual_id'],array_column($doc['visuals'],'id'),true);if($vi===false)$this->invalid('The visual no longer exists.');
     if($scope==='open_image'){$visualId=isset($item['depends_on'])?($objects[$item['depends_on']]??null):$item['visual_id'];if($visualId)$navigate=route('images.studio',[$s,$page]).'?visual='.urlencode($visualId);continue;}
     if(in_array($scope,['copy_area','create_hotspot'])){if($doc['visuals'][$vi]['kind']!=='scene')$this->invalid('Copy destination must be a scene.');$doc['visuals'][$vi]['hotspots'][]=$item['after'];continue;}
@@ -197,7 +240,7 @@ class CompanionChanges {
     $draft=app(ImageDrafts::class)->save($s,$pages[$item['page_id']],$item['after']);
     $navigate=route('images.studio',[$s,$pages[$item['page_id']]]).'?image='.$draft->id;
    }
-   if($storyFields)$s->fill($storyFields);
+   if($storyFields){app(CompanionAuthoring::class)->validateStory($s,$storyFields);$s->fill($storyFields);}
    $s->revision++;$s->save();
    foreach($pageFields as $id=>$fields)$pages[$id]->update($fields);
    foreach($documents as $id=>$doc)$pages[$id]->update(['visual_document'=>$doc,'visual_revision'=>$pages[$id]->visual_revision+1]);

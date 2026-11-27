@@ -108,17 +108,9 @@
                         <li>Show an image inside a clickable area, independently of its action: overlay enables it,
                             overlay_asset_id selects a story image, and overlay_alignment sets top, middle or bottom.
                         </li>
-                        <li>Area text always uses its own description. Copy Inventory text into it only when requested.
-                            Local switches use state_description for the changed state; with hover disabled, the first
-                            click describes the current state and the next click toggles it.</li>
-                        <li>Enable or disable hover text per clickable area with show_hover_text (enabled by default),
-                            preserving its click action.</li>
-                        <li>Set overlay_always to false for area images that appear only on hover or keyboard focus; the
-                            default is always visible.</li>
-                        <li>Position hover text above or below its clickable area with description_position area_top or
-                            area_bottom; text remains inside the scene image.</li>
-                        <li>Use animate_hover_text to opt into word-by-word hover text. By default, the full description
-                            fades in over 150ms.</li>
+                        <li>Area text uses its own description; changed-state text uses state_description.
+                            Set click_behavior to text or direct, and choose a standard or custom action label.</li>
+                        <li>Configure separate conditions for showing an area, disabling it, and executing its action.</li>
                         <li>Inventory-use rules can reference items from any page in the game, including keys collected
                             on earlier pages.</li>
                         <li>Edit all areas in a named scene without selecting one. Copy drawn areas between scenes on
@@ -184,23 +176,24 @@
                     </ul>
                 </section>
                 <section class="space-y-2">
-                    <h3 class="font-semibold">What you still do in the editor</h3>
-                    <p class="mb-3"><strong>Click actions:</strong> Examine (optionally move to a page/scene), pick up
-                        a local layer, change a local switch, or use inventory. The companion can configure the action’s
-                        availability using story flags and inventory items, plus separate description/action sounds and
-                        cursors. Pure Examine has no second action unless Move to scene is enabled. Descriptions remain
-                        readable when the action is blocked. Hover text or an empty description skips the description
-                        click; inventory drops still check the action requirements.</p>
+                    <h3 class="font-semibold">Editor commands and approval</h3>
+                    <p class="mb-3"><strong>Click actions:</strong> Ask for text followed by action buttons,
+                        or an immediate action. The companion can set single or dual button labels, original and
+                        changed explanations, item requirements, flags, choices, navigation, and separate show/disable
+                        conditions. Blocked actions use your explanation text. State changes, inventory drops, music,
+                        sound and completed intro videos use the same rules as the manual editor.</p>
                     <p class="mb-3"><strong>Container plans:</strong> Ask for contents inside a container you have
                         drawn on a scene. The companion can prepare a plan using existing Inventory items. Review it,
                         then open Create container to set crop padding, draft an editable image prompt, and generate and
                         approve the open-container preview, draw its item areas, generate separate layers, and activate
-                        the accepted plan. Multiple plans are supported; generation starts only from your controls.</p>
-                    <p>The companion can discuss any design idea, but its apply actions are limited to the capabilities
-                        above. Upload references, start paid image/video generation, publish or play the game, delete or
-                        reorder existing pages/visuals, change visual type, create new areas on existing scenes, using
-                        the editor controls. Shared object replacement actions can also be proposed through inventory
-                        changes. It cannot change accounts, keys or credits.</p>
+                        the accepted plan. Multiple plans are supported; generation requires an explicit request and approval, or the Generate controls.</p>
+                    <p>The companion can propose the same saved authoring changes as the editor: characters and
+                        reference views, scene layouts and click areas, conditions and effects, inventory actions,
+                        theme and dialog settings, media drafts, page ordering, and extraction/container operations.
+                        Review each proposal before applying it. Explicit requests to render, delete, activate, or
+                        publish use a separate editor-action review. File uploads still use the upload controls;
+                        chat can select images and audio already stored in your story. Account keys and credits
+                        cannot be changed through chat.</p>
                     <p>Writing a prompt or applying an image draft does not render it. Click <strong>Generate
                             image</strong> when ready. Chat requests themselves use your selected writing model and AI
                         credits or personal key. If the story changed since a proposal was made, request a fresh
@@ -280,7 +273,7 @@
                                     describes the changed appearance. Original pickup and transition actions still
                                     replace full scenes. Extract collectible items prepares clean backgrounds,
                                     transparent item layers and inventory renders. It has its own reviewed generation
-                                    workflow and records activity in chat; chat does not start paid extraction jobs.
+                                    workflow and records activity in chat; paid extraction generation requires an explicit request and an editor-action approval.
                                     Preserve layer placement and collected flags when editing these scenes.</li>
                                 <li><code>create_hotspot</code>: adds a separately reviewable clickable area to an
                                     existing scene using page_id, visual_id and fields (label, action, normalized
@@ -339,7 +332,7 @@
                     <p class="text-sm">Audio: prepare one recording or all missing description recordings as reviewable
                         pending drafts, using the scene, click-area and inventory voice presets. Edit or delete pending
                         requests in Audio, then start them individually or with Generate all pending. The companion
-                        never starts paid audio generation. Technical scopes: audio (fields: name, prompt, source_text,
+                        starts paid audio generation only after an explicit request and approval of its editor action. Technical scopes: audio (fields: name, prompt, source_text,
                         category, optional model/settings/seconds) and missing_audio (server discovers missing
                         description recordings).</p>
                 </details>

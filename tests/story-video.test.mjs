@@ -65,3 +65,21 @@ test('engine selection uses its own parameters and clears unsupported last frame
     assert.deepEqual(video.form.parameters, { steps: 8 });
     assert.equal(video.form.last_asset_id, '');
 });
+
+test('reference selection preserves order, enforces limit and survives draft editing', () => {
+    const video = storyVideo('/videos', '/assets');
+    video.engines = {fast: {parameters: {}, max_references: 0}, ref: {parameters: {}, max_references: 9}};
+    video.form.engine = 'ref';
+    for (let id = 1; id <= 10; id++) { video.framePicker = 'reference'; video.chooseFrame({id}); }
+    assert.deepEqual(video.form.reference_asset_ids, [1,2,3,4,5,6,7,8,9]);
+    video.addReference(1);
+    assert.equal(video.form.reference_asset_ids.length, 9);
+    video.$refs = {videoFormDialog: {showModal() {}}};
+    const job = {...video.form, id: 'draft'};
+    video.edit(job);
+    video.form.reference_asset_ids.pop();
+    assert.equal(job.reference_asset_ids.length, 9);
+    video.reset();
+    assert.equal(video.form.engine, 'fast');
+    assert.deepEqual(video.form.reference_asset_ids, []);
+});

@@ -69,6 +69,86 @@
                 "format.codec": "h264",
                 "codec": "h264"
             }
+        },
+        "description": "Fast first/last-frame animation. Choose H3 Reference when you need separate character or object images.",
+        "max_references": 0
+    },
+    "minimax_h3_reference": {
+        "label": "MiniMax H3 Reference (slower)",
+        "description": "First and last frames anchor the scene. Up to 9 separate references guide character appearance, objects, or style; they do not become frames automatically.",
+        "version": 1,
+        "workflow": "video_minimax_h3_r2v_api.json",
+        "supports_last_frame": true,
+        "max_references": 9,
+        "reference_node": "136",
+        "guide_vae_node": "119",
+        "guider_node": "126",
+        "parameters": {
+            "aspect_ratio": {
+                "label": "Aspect ratio",
+                "type": "select",
+                "default": "1:1",
+                "options": {
+                    "1:1": "1:1 (Square)",
+                    "16:9": "16:9 (Widescreen)",
+                    "9:16": "9:16 (Portrait Widescreen)",
+                    "4:3": "4:3 (Standard)",
+                    "3:4": "3:4 (Portrait Standard)"
+                },
+                "node": "115",
+                "input": "aspect_ratio"
+            },
+            "seconds": {
+                "label": "Duration (seconds)",
+                "type": "integer",
+                "default": 5,
+                "min": 5,
+                "max": 15,
+                "step": 1,
+                "node": "132",
+                "input": "value"
+            },
+            "megapixels": {
+                "label": "Megapixels",
+                "type": "number",
+                "default": 0.4,
+                "min": 0.1,
+                "max": 2,
+                "step": 0.1,
+                "node": "115",
+                "input": "megapixels"
+            },
+            "steps": {
+                "label": "Sampling steps",
+                "type": "integer",
+                "default": 20,
+                "min": 20,
+                "max": 30,
+                "step": 1,
+                "node": "143",
+                "input": "value"
+            }
+        },
+        "bindings": {
+            "prompt": {
+                "node": "138",
+                "input": "value"
+            },
+            "seed": {
+                "node": "129",
+                "input": "noise_seed"
+            },
+            "output": {
+                "node": "92",
+                "input": "filename_prefix"
+            }
+        },
+        "overrides": {
+            "92": {
+                "format": "mp4",
+                "format.codec": "h264",
+                "codec": "h264"
+            }
         }
     }
 }

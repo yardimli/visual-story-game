@@ -22,6 +22,42 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(graph["105:15"]["inputs"]["noise_seed"], 123)
         self.assertEqual(graph["92"]["inputs"]["format"], "mp4")
 
+    def test_reference_engine_expands_nine_images_and_anchors_both_frames(self):
+        engine = json.loads((ROOT / "comfyui/engines.json").read_text())["minimax_h3_reference"]
+        source = json.loads((ROOT / "comfyui" / engine["workflow"]).read_text())
+        info = {node["class_type"]: {} for node in source.values()}
+        info["MiniMaxH3AddGuide"] = {}
+        self.job["parameters"]["steps"] = 25
+        references = [f"character_{i}.png" for i in range(9)]
+        graph = build_workflow(engine, self.job, "room.png", "chest.png", info, references)
+        for i, filename in enumerate(references):
+            link = graph["136"]["inputs"][f"ref_images.ref_image_{i}"]
+            self.assertEqual(graph[link[0]]["inputs"]["image"], filename)
+        self.assertEqual(graph["vsg_first_guide"]["inputs"]["frame_idx"], 0)
+        self.assertEqual(graph["vsg_last_guide"]["inputs"]["frame_idx"], -1)
+        self.assertEqual(graph["vsg_last_guide"]["inputs"]["positive"], ["vsg_first_guide", 0])
+        self.assertEqual(graph["126"]["inputs"]["conditioning"], ["vsg_last_guide", 0])
+        self.assertEqual(graph["125"]["inputs"]["latent_image"], ["136", 1])
+        self.assertEqual(graph["143"]["inputs"]["value"], 25)
+        self.assertNotIn("137", graph)
+        self.assertNotIn("139", graph)
+        with self.assertRaisesRegex(WorkflowError, "Too many reference"):
+            build_workflow(engine, self.job, "room.png", None, info, references + ["extra.png"])
+        del info["MiniMaxH3AddGuide"]
+        with self.assertRaisesRegex(WorkflowError, "MiniMaxH3AddGuide"):
+            build_workflow(engine, self.job, "room.png", None, info, references)
+
+    def test_reference_engine_first_only_has_no_sample_or_last_image(self):
+        engine = json.loads((ROOT / "comfyui/engines.json").read_text())["minimax_h3_reference"]
+        source = json.loads((ROOT / "comfyui" / engine["workflow"]).read_text())
+        info = {node["class_type"]: {} for node in source.values()}
+        info["MiniMaxH3AddGuide"] = {}
+        self.job["parameters"]["steps"] = 20
+        graph = build_workflow(engine, self.job, "room.png", None, info, ["visitor.png"])
+        self.assertEqual(graph["126"]["inputs"]["conditioning"], ["vsg_first_guide", 0])
+        self.assertNotIn("vsg_last_guide", graph)
+        self.assertNotIn("ref_images.ref_image_1", graph["136"]["inputs"])
+
     def test_last_frame_uses_supplied_example(self):
         graph = build_workflow(self.engine, self.job, "first.png", "last.png", self.info)
         self.assertEqual(graph["105:104"]["inputs"]["last_frame"], ["150", 0])

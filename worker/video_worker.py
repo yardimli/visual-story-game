@@ -32,8 +32,11 @@ class JobGone(Exception):
     """The server no longer has this job (for example its story was deleted)."""
 
 
-def build_workflow(engine, job, first, last, object_info):
-    filename = engine["last_frame_workflow"] if last else engine["workflow"]
+def build_workflow(engine, job, first, last, object_info, references=None):
+    references = references or []
+    if len(references) > engine.get("max_references", 0):
+        raise WorkflowError("Too many reference images for this engine.")
+    filename = engine.get("last_frame_workflow", engine["workflow"]) if last else engine["workflow"]
     graph = json.loads((ROOT / "comfyui" / filename).read_text(encoding="utf-8"))
     graph = copy.deepcopy(graph)
     bindings = engine["bindings"]
@@ -42,10 +45,37 @@ def build_workflow(engine, job, first, last, object_info):
         graph[binding["node"]]["inputs"][binding["input"]] = value
 
     for name, value in {"prompt": job["prompt"], "seed": job["seed"],
-                        "first_frame": first, "output": "video/vsg_" + job["id"]}.items():
+                        "output": "video/vsg_" + job["id"]}.items():
         assign(bindings[name], value)
-    if last:
-        assign(bindings["last_frame"], last)
+    if engine.get("reference_node"):
+        ref_node = engine["reference_node"]
+        inputs = graph[ref_node]["inputs"]
+        # Replace all example media, including the two wired sample images.
+        for key in list(inputs):
+            if key.startswith(("ref_images.", "ref_videos.", "ref_audios.")):
+                del inputs[key]
+        for node_id in list(graph):
+            if graph[node_id]["class_type"] == "LoadImage":
+                del graph[node_id]
+        for index, filename in enumerate(references):
+            node_id = f"vsg_reference_{index}"
+            graph[node_id] = {"class_type": "LoadImage", "inputs": {"image": filename}}
+            inputs[f"ref_images.ref_image_{index}"] = [node_id, 0]
+        positive = [ref_node, 0]
+        for label, filename, frame_index in [("first", first, 0), ("last", last, -1)]:
+            if not filename:
+                continue
+            image_id, guide_id = f"vsg_{label}_image", f"vsg_{label}_guide"
+            graph[image_id] = {"class_type": "LoadImage", "inputs": {"image": filename}}
+            graph[guide_id] = {"class_type": "MiniMaxH3AddGuide", "inputs": {
+                "positive": positive, "latent": [ref_node, 1], "image": [image_id, 0],
+                "vae": [engine["guide_vae_node"], 0], "frame_idx": frame_index}}
+            positive = [guide_id, 0]
+        graph[engine["guider_node"]]["inputs"]["conditioning"] = positive
+    else:
+        assign(bindings["first_frame"], first)
+        if last:
+            assign(bindings["last_frame"], last)
     for key, parameter in engine["parameters"].items():
         value = job["parameters"][key]
         if parameter["type"] == "select":
@@ -175,7 +205,8 @@ class Worker:
             raise WorkflowError("Engine version mismatch. Update this repository clone.")
         first = self.upload_frame("first")
         last = self.upload_frame("last") if job["has_last_frame"] else None
-        graph = build_workflow(engine, job, first, last, self.comfy_get("/object_info"))
+        references = [self.upload_frame(f"reference_{index}") for index in range(job.get("reference_count", 0))]
+        graph = build_workflow(engine, job, first, last, self.comfy_get("/object_info"), references)
         self.heartbeat("submitting")
         self.state["submission_attempted"] = True
         self.save()

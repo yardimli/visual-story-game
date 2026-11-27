@@ -12,11 +12,16 @@ export function storyVideo(url, uploadUrl) {
         },
         chooseFrame(image) {
             if (!this.framePicker) return;
-            this.form[this.framePicker + '_asset_id'] = image.id;
+            if (this.framePicker === 'reference') this.addReference(image.id);
+            else this.form[this.framePicker + '_asset_id'] = image.id;
             this.framePicker = null;
         },
+        addReference(id) {
+            const ids = this.form.reference_asset_ids;
+            if (ids.length < (this.engines[this.form.engine]?.max_references || 0) && !ids.includes(id)) ids.push(id);
+        },
         jobs: [],
-        form: { name: '', prompt: '', engine: '', parameters: {}, first_asset_id: '', last_asset_id: '' },
+        form: { name: '', prompt: '', engine: '', parameters: {}, first_asset_id: '', last_asset_id: '', reference_asset_ids: [] },
         editing: null,
         busy: false,
         loading: false,
@@ -83,6 +88,7 @@ export function storyVideo(url, uploadUrl) {
                 ]),
             );
             if (!this.engines[this.form.engine]?.supports_last_frame) this.form.last_asset_id = '';
+            if (!this.engines[this.form.engine]?.max_references) this.form.reference_asset_ids = [];
         },
         asset(id) {
             return this.assets.find((asset) => asset.id == id);
@@ -128,6 +134,9 @@ export function storyVideo(url, uploadUrl) {
             this.form.prompt = '';
             this.form.first_asset_id = '';
             this.form.last_asset_id = '';
+            this.form.reference_asset_ids = [];
+            this.form.engine = Object.keys(this.engines)[0] || '';
+            this.selectEngine();
         },
         edit(job, copy = false) {
             this.editing = copy ? null : job.id;
@@ -138,6 +147,7 @@ export function storyVideo(url, uploadUrl) {
                 parameters: { ...job.parameters },
                 first_asset_id: job.first_asset_id,
                 last_asset_id: job.last_asset_id || '',
+                reference_asset_ids: [...(job.reference_asset_ids || [])],
             };
             this.error = '';
             this.$refs.videoFormDialog.showModal();
@@ -168,11 +178,12 @@ export function storyVideo(url, uploadUrl) {
             if (!file) return;
             return this.perform(async () => {
                 const body = new FormData();
-                body.append('role', frame === 'first' ? 'start' : 'end');
+                body.append('role', frame === 'reference' ? 'scene' : (frame === 'first' ? 'start' : 'end'));
                 body.append('images[]', file);
                 const data = await this.request(uploadUrl, 'POST', body);
                 this.assets.unshift(data.assets[0]);
-                this.form[`${frame}_asset_id`] = data.assets[0].id;
+                if (frame === 'reference') this.addReference(data.assets[0].id);
+                else this.form[`${frame}_asset_id`] = data.assets[0].id;
                 event.target.value = '';
             });
         },

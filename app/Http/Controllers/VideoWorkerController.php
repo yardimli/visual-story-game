@@ -47,9 +47,12 @@ class VideoWorkerController extends Controller
     public function frame(Request $request, VideoGeneration $video, string $frame)
     {
         $this->authorizeJob($request, $video);
-        abort_unless(in_array($frame, ['first', 'last']) && $video->{$frame.'_path'}, 404);
-
-        return response()->file(Storage::disk('local')->path($video->{$frame.'_path'}));
+        $path = in_array($frame, ['first', 'last']) ? $video->{$frame.'_path'} : null;
+        if (preg_match('/^reference_([0-8])$/', $frame, $matches)) {
+            $path = ($video->reference_paths ?? [])[(int) $matches[1]] ?? null;
+        }
+        abort_unless($path, 404);
+        return response()->file(Storage::disk('local')->path($path));
     }
 
     public function heartbeat(Request $request, VideoGeneration $video)

@@ -16,17 +16,22 @@ class VideoRelayController extends Controller
             'job_id' => 'required|uuid', 'metadata' => 'required|json',
             'first' => 'required|image|mimes:png,jpg,jpeg,webp|max:20480',
             'last' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:20480',
+            'references' => 'sometimes|array|max:9',
+            'references.*' => 'required|image|mimes:png,jpg,jpeg,webp|max:20480',
         ]);
         $metadata = json_decode($data['metadata'], true);
         abort_unless(is_array($metadata), 422, 'Invalid job metadata.');
         $fields = $engines->validate($metadata);
         $engine = $engines->all()[$fields['engine']];
+        $references = array_values($request->file('references', []));
+        abort_if(count($references) > ($engine['max_references'] ?? 0), 422, 'This engine does not support this many reference images.');
+        abort_unless(($metadata['reference_count'] ?? 0) === count($references), 422, 'Reference image upload is incomplete.');
         abort_unless(($metadata['engine_version'] ?? null) === $engine['version'], 422, 'Update the engine catalog on both installations.');
         abort_if($request->hasFile('last') && ! $engine['supports_last_frame'], 422, 'This engine does not support a last frame.');
         $requestSeed = validator($metadata, ['seed' => 'required|integer|min:0|max:9007199254740991'])->validate();
         $token = $request->attributes->get('video_token');
 
-        return DB::transaction(function () use ($request, $data, $fields, $requestSeed, $token) {
+        return DB::transaction(function () use ($request, $data, $fields, $requestSeed, $token, $references) {
             DB::table('video_access_tokens')->where('id', $token->id)->lockForUpdate()->first();
             $existing = VideoGeneration::where('origin_token_id', $token->id)->where('origin_job_id', $data['job_id'])->first();
             if ($existing) {
@@ -42,6 +47,13 @@ class VideoRelayController extends Controller
                     abort_unless($job->{$frame.'_path'}, 500, 'Could not store frame.');
                 }
             }
+            $paths = [];
+            foreach ($references as $index => $file) {
+                $path = $file->storeAs('videos/'.$job->id, 'reference_'.$index.'.'.$file->extension(), 'local');
+                abort_unless($path, 500, 'Could not store reference image.');
+                $paths[] = $path;
+            }
+            $job->reference_paths = $paths;
             $job->save();
 
             return response()->json($job->presentation(), 201);

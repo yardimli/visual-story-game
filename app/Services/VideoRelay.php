@@ -34,7 +34,12 @@ class VideoRelay
                             throw_unless(is_resource($stream), new \RuntimeException('Queued frame file is missing.'));
                             $client->attach($frame, $stream, basename($job->{$frame.'_path'}));
                         }
-                        $response = $client->post($url, ['job_id' => $job->id, 'metadata' => json_encode($job->only(['name', 'prompt', 'engine', 'engine_version', 'parameters', 'seed']))])->throw()->json();
+                        foreach ($job->reference_paths ?? [] as $index => $path) {
+                            $streams[] = $stream = Storage::disk('local')->readStream($path);
+                            throw_unless(is_resource($stream), new \RuntimeException('Queued reference image is missing.'));
+                            $client->attach('references['.$index.']', $stream, basename($path));
+                        }
+                        $response = $client->post($url, ['job_id' => $job->id, 'metadata' => json_encode($job->only(['name', 'prompt', 'engine', 'engine_version', 'parameters', 'seed']) + ['reference_count' => count($job->reference_paths ?? [])])])->throw()->json();
                         validator($response, ['id' => 'required|uuid'])->validate();
                         $job->update(['remote_id' => $response['id']]);
                     } finally {

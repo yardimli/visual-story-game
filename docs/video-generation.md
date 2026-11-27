@@ -5,6 +5,48 @@ frame and optional last frame, write the prompt, and save a draft or queue it.
 Completed MP4s can be played and downloaded there. Chat can propose video drafts;
 accepting a proposal does not start generation. Start it from Video.
 
+## Video engines and image roles
+
+**FastVideo MiniMax H3** remains the default for first-frame and optional
+last-frame clips. **MiniMax H3 Reference (slower)** uses the supplied
+`comfyui/video_minimax_h3_r2v_api.json` with the Ref2VA checkpoint, at 20 steps by
+default. The visual `video_minimax_h3_r2v.json` is the editable ComfyUI example;
+the worker submits the API export.
+
+For Reference jobs, choose the first frame and optional last frame as usual,
+then add up to nine reference images. These guide identity, objects, or style;
+they are not additional timeline frames. The worker replaces the example
+images and dynamically wires `ref_images.ref_image_0` through `_8`. Their order
+matches `<Picture 1>` through `<Picture 9>` in the editor and prompt. Say explicitly
+when two pictures depict different views of the same person. Removing a reference
+renumbers the following images, so check the prompt afterward.
+
+The worker adds native `MiniMaxH3AddGuide` nodes at frame 0 and, when supplied,
+frame -1, chaining their conditioning into the guider. These frame images do not
+consume the nine reference slots or Picture numbers. They condition the timeline;
+they are not pasted onto the output. Audio/video reference inputs are not exposed.
+
+Example with an empty room as the first frame, a chest close-up as the last,
+and a portrait as Picture 1:
+
+> The person in <Picture 1> enters the empty room from the left, walks to the
+> chest, and bends down beside it. The camera moves forward past his right
+> shoulder and finishes on the chest. Preserve his face, coat, and proportions.
+
+Use a current ComfyUI installation containing `MiniMaxH3ReferenceToVideo` and
+`MiniMaxH3AddGuide`. Missing nodes cause a clear error before submission. The
+Ref2VA checkpoint and shared encoder/VAEs must match the API workflow filenames.
+The supplied workflow also contains its optional turbo LoRA loader; install that
+LoRA as documented by ComfyUI, although turbo is disabled for this engine.
+
+Deploy the migration, PHP changes, and rebuilt frontend to both local/relay and
+hub installations. Copy the updated `worker/video_worker.py`, engine catalog,
+and R2V API workflow to the GPU machine, then restart the worker. Queued reference
+images are snapshotted and transferred in order, like first/last frames.
+
+Sources: [native H3 workflows](https://docs.comfy.org/tutorials/video/minimax/minimax-h3-native)
+and [native node implementation](https://github.com/Comfy-Org/ComfyUI/blob/master/comfy_extras/nodes_minimax_h3.py).
+
 ## 1. Online server
 
 Deploy this code, including `comfyui/engines.json` and the API workflow files.

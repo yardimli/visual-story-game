@@ -77,6 +77,7 @@
                                 x-text="engine.label"
                             ></option>
                         </template></select></label>
+                <p class="text-sm" x-text="engines[form.engine]?.description"></p>
                 <div class="grid grid-cols-2 gap-4">
                     <template
                         x-for="frame in ['first','last']"
@@ -122,6 +123,26 @@
                                 ></label>
                         </div>
                     </template>
+                </div>
+                <div x-show="engines[form.engine]?.max_references" class="space-y-3 rounded-lg border border-stone-300 p-3">
+                    <h4 class="font-semibold">Reference images</h4>
+                    <p class="text-sm">Use these for character appearance, objects, or style. First and last frames above control where the video starts and ends. Describe each reference in the prompt using its Picture tag. For several views of one character, say they show the same person.</p>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        <template x-for="(id,index) in form.reference_asset_ids" :key="id">
+                            <div class="space-y-2 rounded border border-stone-300 p-2">
+                                <strong class="text-sm" x-text="'<Picture '+(index+1)+'>'"></strong>
+                                <button type="button" class="block w-full" @click="zoom=asset(id)?.url" :aria-label="'Enlarge reference '+(index+1)">
+                                    <img :src="$thumbnail(asset(id)?.url)" :alt="asset(id)?.name || 'Reference image'" class="h-28 w-full object-contain">
+                                </button>
+                                <p class="text-xs" x-text="asset(id)?.name || 'Image unavailable'"></p>
+                                <button type="button" class="text-xs underline" @click="form.reference_asset_ids.splice(index,1)">Remove</button>
+                            </div>
+                        </template>
+                    </div>
+                    <p class="text-xs" x-show="form.reference_asset_ids.length">Picture numbers follow this order. After removing an image, check any Picture tags in your prompt.</p>
+                    <button type="button" class="btn-secondary" @click="framePicker='reference'" :disabled="form.reference_asset_ids.length >= (engines[form.engine]?.max_references || 0)">Add reference image</button>
+                    <label class="field text-xs">Upload reference image<input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy || form.reference_asset_ids.length >= (engines[form.engine]?.max_references || 0)" @change="upload($event,'reference')"></label>
+                    <p class="text-xs" x-text="form.reference_asset_ids.length+' / '+(engines[form.engine]?.max_references || 0)+' references'"></p>
                 </div>
                 <label class="field">Prompt
                     <textarea
@@ -316,7 +337,7 @@
             <header class="mb-4 flex flex-wrap items-center gap-3">
                 <h3
                     class="font-serif text-xl"
-                    x-text="framePicker==='first'?'Choose first frame':'Choose last frame'"
+                    x-text="framePicker==='reference'?'Choose reference image':(framePicker==='first'?'Choose first frame':'Choose last frame')"
                 ></h3>
                 <label class="field"><span class="sr-only">Image category</span><select
                         x-model="imageCategoryFilter"

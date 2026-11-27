@@ -39,6 +39,45 @@ class VideoGenerationTest extends TestCase
             'parameters' => ['aspect_ratio' => '16:9', 'seconds' => 5, 'megapixels' => 0.4], 'first_asset_id' => $asset->id];
     }
 
+    public function test_reference_drafts_validate_and_snapshot_images_for_the_worker(): void
+    {
+        $fields = array_replace($this->fields, ['engine' => 'minimax_h3_reference', 'reference_asset_ids' => [$this->fields['first_asset_id']]]);
+        $job = app(VideoDrafts::class)->save($this->story, $fields);
+        app(VideoDrafts::class)->queue($job);
+        $this->assertCount(1, $job->reference_paths);
+        Storage::disk('local')->assertExists($job->reference_paths[0]);
+        $this->assertArrayNotHasKey('reference_paths', $job->presentation());
+        $this->token('worker', 'reference-worker');
+        $headers = ['Authorization' => 'Bearer reference-worker'];
+        $claim = $this->postJson('/api/video/worker/claim', ['worker_id' => 'gpu', 'engines' => ['minimax_h3_reference' => 1]], $headers)->assertOk()->assertJsonPath('reference_count', 1)->json();
+        $headers['X-Video-Claim'] = $claim['claim_key'];
+        $this->get('/api/video/worker/'.$job->id.'/frames/reference_0', $headers)->assertOk();
+        $this->get('/api/video/worker/'.$job->id.'/frames/reference_1', $headers)->assertNotFound();
+        $this->get('/api/video/worker/'.$job->id.'/frames/reference_0')->assertUnauthorized();
+        $this->postJson(route('videos.index', $this->story), array_replace($fields, ['engine' => 'fastvideo_h3']))->assertUnprocessable();
+        $this->postJson(route('videos.index', $this->story), array_replace($fields, ['reference_asset_ids' => [999999]]))->assertUnprocessable();
+        $this->postJson(route('videos.index', $this->story), array_replace($fields, ['reference_asset_ids' => array_fill(0, 10, $fields['first_asset_id'])]))->assertUnprocessable();
+        $other = Story::create(['user_id' => $this->story->user_id, 'title' => 'Other', 'premise' => 'Other']);
+        $foreign = $other->assets()->create(['name' => 'Other', 'path' => 'other.png', 'mime' => 'image/png', 'bytes' => 1, 'role' => 'scene']);
+        $this->postJson(route('videos.index', $this->story), array_replace($fields, ['reference_asset_ids' => [$foreign->id]]))->assertUnprocessable();
+    }
+
+    public function test_relay_import_preserves_reference_order_and_checks_missing_files(): void
+    {
+        $this->token('relay', 'references');
+        $headers = ['Authorization' => 'Bearer references', 'Accept' => 'application/json'];
+        $metadata = array_replace($this->fields, ['engine' => 'minimax_h3_reference', 'engine_version' => 1, 'seed' => 123, 'reference_count' => 2]);
+        $data = ['job_id' => (string) Str::uuid(), 'metadata' => json_encode($metadata), 'first' => UploadedFile::fake()->image('first.png'),
+            'references' => [UploadedFile::fake()->image('front.png', 32, 32), UploadedFile::fake()->image('rear.png', 64, 64)]];
+        $job = $this->post('/api/video/relay', $data, $headers)->assertCreated()->assertJsonPath('reference_count', 2)->json();
+        $stored = VideoGeneration::findOrFail($job['id']);
+        $this->assertSame(32, getimagesize(Storage::disk('local')->path($stored->reference_paths[0]))[0]);
+        $this->assertSame(64, getimagesize(Storage::disk('local')->path($stored->reference_paths[1]))[0]);
+        $data['job_id'] = (string) Str::uuid();
+        unset($data['references']);
+        $this->post('/api/video/relay', $data, $headers)->assertUnprocessable();
+    }
+
     public function test_completed_videos_bill_duration_once_and_relay_hub_copy_is_not_billed(): void
     {
         foreach ([5, 15] as $seconds) {
