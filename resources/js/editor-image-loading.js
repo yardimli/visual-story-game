@@ -37,6 +37,34 @@ export function trackImageLoading(image, onState) {
     };
 }
 
+// Floating indicators must respect the same visibility and scroll clipping as
+// their image, even though they are appended outside its scrolling container.
+export function imageIndicatorVisible(image, viewport = { width: innerWidth, height: innerHeight }) {
+    if (!image.isConnected || !image.getClientRects().length) return false;
+    if (image.checkVisibility && !image.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true })) return false;
+    const rect = image.getBoundingClientRect();
+    let left = Math.max(0, rect.left), right = Math.min(viewport.width, rect.right);
+    let top = Math.max(0, rect.top), bottom = Math.min(viewport.height, rect.bottom);
+    for (let node = image; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.visibility === 'hidden' || style.display === 'none') return false;
+        if (node.tagName === 'DIALOG' && !node.open) return false;
+        if (node.tagName === 'DETAILS' && !node.open && !node.querySelector(':scope > summary')?.contains(image)) return false;
+        if (node !== image) {
+            const bounds = node.getBoundingClientRect();
+            if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+                left = Math.max(left, bounds.left); right = Math.min(right, bounds.right);
+            }
+            if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+                top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom);
+            }
+        }
+    }
+    // The badge is centered on the image; do not let it escape a clipped edge.
+    const x = (rect.left + rect.right) / 2, y = (rect.top + rect.bottom) / 2;
+    return right > left && bottom > top && x >= left && x <= right && y >= top && y <= bottom;
+}
+
 export function installEditorImageLoading(root = document) {
     if (!root.documentElement.classList.contains('editor-document')) return;
     const tracked = new Map();
@@ -46,10 +74,7 @@ export function installEditorImageLoading(root = document) {
         frame = null;
         for (const [image, indicator] of indicators) {
             // Closed pickers and hidden tabs must not display a floating spinner.
-            const dialog = image.closest('dialog');
-            const style = getComputedStyle(image);
-            const visible = image.isConnected && image.getClientRects().length &&
-                style.visibility !== 'hidden' && (!dialog || dialog.open);
+            const visible = imageIndicatorVisible(image);
             indicator.hidden = !visible;
             if (!visible) continue;
             const rect = image.getBoundingClientRect();
@@ -73,6 +98,7 @@ export function installEditorImageLoading(root = document) {
         if (!indicator) {
             indicator = root.createElement('span');
             indicator.className = 'editor-image-status';
+            indicator.hidden = true;
             indicator.setAttribute('role', 'status');
             indicator.innerHTML = '<span class="editor-image-spinner" aria-hidden="true"></span><span class="editor-image-status-text"></span>';
             // Dialogs live in the browser's top layer, above body overlays.

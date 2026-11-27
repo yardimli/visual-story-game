@@ -188,7 +188,10 @@ export function gameRuntime() {
             this.$refs?.introVideoPlayer?.pause();
             this.introVideo = null;
             this.pausedVideoAudio.forEach((audio) => {
-                audio.play()?.catch(() => {});
+                // A destination scene replaces the outgoing voice/effects. Only
+                // resume shared music; local action videos can resume their scene.
+                if (!this.pendingVideoScene || audio === this.soundPlayer?.channels?.music)
+                    audio.play()?.catch(() => {});
             });
             this.pausedVideoAudio = [];
             if (this.pendingVideoAction) {
@@ -1089,6 +1092,7 @@ export function gameRuntime() {
                 if (video?.url && (!this.seenSceneVideos[key] || target.intro_video_repeat === true)) {
                     this.seenSceneVideos[key] = true;
                     this.pendingVideoScene = { pageId: nextPageId, scene: target };
+                    this.sceneIntroText = '';
                     this.modal = null;
                     this.narration = null;
                     this.narrationVersion++;

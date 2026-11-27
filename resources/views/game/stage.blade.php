@@ -160,7 +160,7 @@
                                     ></template></button></template>
                     </div>
                     @include('game.description', [
-                        'text' => "preview && !sceneTransition ? sceneIntroText : ''",
+                        'text' => "preview && !sceneTransition && !introVideo ? sceneIntroText : ''",
                         'position' => "displayed?.description_position || 'top'",
                         'identity' => "previewPageId+':'+previewId",
                         'extraClass' => 'scene-narration',
@@ -174,7 +174,7 @@
                         @description-hidden="if(!pendingInventoryUse && narration && $event.detail.key===previewId+':'+narrationVersion)narration=null"
                     >
                         @include('game.description', [
-                            'text' => "preview && !sceneTransition ? narration?.text : ''",
+                            'text' => "preview && !sceneTransition && !introVideo ? narration?.text : ''",
                             'position' => "narration?.position || 'top'",
                             'identity' => "previewId+':'+narrationVersion",
                             'extraClass' => 'item-narration',

@@ -523,13 +523,13 @@
                                 @click="$busy($el, async () => (extractionAction(o,'unaccept')))"
                             >Unaccept and try again</button>
                             <template x-if="extractionBatch.mode==='switches' && o.type==='switch_on'">
-                                <details class="rounded-lg border p-3">
+                                <details class="rounded-lg border p-3" x-data="{referencesOpen:false}" @toggle="referencesOpen=$el.open">
                                     <summary class="cursor-pointer text-sm">Choose reference images</summary>
                                     <p class="my-2 text-xs">Image 1 is the original crop. Additional references are
                                         numbered in selection order; use these numbers in your prompt.</p>
                                     <div class="grid max-h-96 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
                                         <template
-                                            x-for="ref in pickerAssets.filter(a=>a.id!==o.references[0])"
+                                            x-for="ref in referencesOpen ? pickerAssets.filter(a=>a.id!==o.references[0]) : []"
                                             :key="ref.id"
                                         >
                                             <div class="flex items-center gap-2 rounded border p-2 text-xs"><input

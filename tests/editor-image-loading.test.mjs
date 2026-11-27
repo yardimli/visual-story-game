@@ -58,3 +58,25 @@ test('empty sources, cached images, failures and removal stop spinning', async (
     tracking.dispose();
     assert.equal(states.at(-1), null);
 });
+
+test('floating loaders stay hidden in collapsed references and outside scroll containers', async () => {
+    const { imageIndicatorVisible } = await import('../resources/js/editor-image-loading.js');
+    const previous = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = node => ({ visibility: 'visible', display: 'block', overflowX: 'visible', overflowY: 'visible', ...node.style });
+    const box = (top, bottom) => ({ left: 0, right: 100, top, bottom });
+    const details = { tagName: 'DETAILS', open: false, querySelector: () => null, getBoundingClientRect: () => box(0, 300) };
+    const image = { isConnected: true, tagName: 'IMG', parentElement: details, getClientRects: () => [1], getBoundingClientRect: () => box(50, 150) };
+    const viewport = { width: 800, height: 600 };
+    try {
+        assert.equal(imageIndicatorVisible(image, viewport), false);
+        details.open = true;
+        assert.equal(imageIndicatorVisible(image, viewport), true);
+        details.style = { overflowY: 'auto' };
+        details.getBoundingClientRect = () => box(0, 40);
+        assert.equal(imageIndicatorVisible(image, viewport), false);
+        details.getBoundingClientRect = () => box(0, 300);
+        assert.equal(imageIndicatorVisible(image, viewport), true);
+        details.tagName = 'DIALOG'; details.open = false;
+        assert.equal(imageIndicatorVisible(image, viewport), false);
+    } finally { globalThis.getComputedStyle = previous; }
+});
