@@ -6,6 +6,18 @@ use Tests\TestCase;
 
 class ChatContextTest extends TestCase
 {
+    public function test_video_library_survives_page_filtering_and_compaction_with_saved_last_frame(): void
+    {
+        $context=['active_tab'=>'video','pages'=>[['id'=>1,'visual_document'=>['visuals'=>[]]]],
+            'video_jobs'=>[['id'=>'chest-video','name'=>'Approach chest','status'=>'draft','prompt'=>'Match the final frame','first_asset_id'=>172,'last_asset_id'=>48,'reference_asset_ids'=>[99]]],
+            'references'=>[['id'=>172],['id'=>48],['id'=>99]]];
+        $service=app(ChatContext::class);
+        $result=$service->compact($service->scope($context,1,null,null),['video'],'Check the last frame');
+        $this->assertSame($context['video_jobs'],$result['video_jobs']);
+        $this->assertSame($context['references'],$result['references']);
+        $context['active_tab']='visuals';
+        $this->assertSame([],$service->scope($context,1,null,null)['video_jobs']);
+    }
     public function test_compaction_keeps_live_game_data_and_drops_only_redundancy_and_unused_renders(): void
     {
         $scene=['id'=>'a','kind'=>'scene','name'=>'Room','asset_id'=>1,'hotspots'=>[['id'=>'door','description'=>'Exact clue','flag_conditions'=>[['key'=>'key_found','value'=>true]]]]];

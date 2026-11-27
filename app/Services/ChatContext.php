@@ -124,8 +124,10 @@ class ChatContext
         $pageAssets = $assets;
         foreach (['inventory_items','characters','audio_settings','story','current_image_draft','selected_reference_ids'] as $key) $walk($context[$key] ?? [], $key);
         foreach ($context['attached_images'] ?? [] as $image) $assets[$image['id']] = true;
+        // Video is a story-wide library, not a page editor. Its visible drafts
+        // must not disappear because another tab left a page selected.
         $context['video_jobs'] = array_values(array_filter($context['video_jobs'] ?? [], fn ($video) =>
-            isset($videos[$video['id']]) || isset($pageAssets[$video['first_asset_id'] ?? '']) || isset($pageAssets[$video['last_asset_id'] ?? ''])));
+            ($context['active_tab'] ?? '') === 'video' || isset($videos[$video['id']]) || isset($pageAssets[$video['first_asset_id'] ?? '']) || isset($pageAssets[$video['last_asset_id'] ?? ''])));
         $walk($context['video_jobs']);
         $context['references'] = array_values(array_filter($context['references'] ?? [], fn ($asset) => isset($assets[$asset['id']])));
         foreach (['sounds','audio_drafts'] as $key) $context[$key] = array_values(array_filter($context[$key] ?? [], fn ($sound) =>
